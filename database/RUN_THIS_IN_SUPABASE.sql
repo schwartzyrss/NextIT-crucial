@@ -12,6 +12,9 @@
 -- ------------------------------------------------------------------------------
 -- 1. DROP EXISTING TABLES (Clean Slate in Dependency Order)
 -- ------------------------------------------------------------------------------
+DROP TABLE IF EXISTS security_audit_logs CASCADE;
+DROP TABLE IF EXISTS verification_requests CASCADE;
+DROP TABLE IF EXISTS institutional_records CASCADE;
 DROP TABLE IF EXISTS applications CASCADE;
 DROP TABLE IF EXISTS job_opportunities CASCADE;
 DROP TABLE IF EXISTS academic_support CASCADE;
@@ -34,11 +37,11 @@ DROP TABLE IF EXISTS students CASCADE;
 DROP TABLE IF EXISTS users CASCADE;
 
 -- ------------------------------------------------------------------------------
--- 2. TABLE DEFINITIONS (20 TABLES)
+-- 2. TABLE DEFINITIONS (23 TABLES)
 -- ------------------------------------------------------------------------------
 
 -- (1) Users
-CREATE TABLE  (
+CREATE TABLE users (
     user_id SERIAL PRIMARY KEY,
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
@@ -46,6 +49,12 @@ CREATE TABLE  (
     role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verification_status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
+    rejection_reason TEXT NULL,
+    verified_at TIMESTAMPTZ NULL,
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ NULL,
+    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -282,6 +291,56 @@ CREATE TABLE applications (
 CREATE INDEX idx_applications_opportunity ON applications(opportunity_id);
 CREATE INDEX idx_applications_student ON applications(student_id);
 
+-- (21) Institutional Records (Registrar Pre-Enrolled Records)
+CREATE TABLE institutional_records (
+    record_id SERIAL PRIMARY KEY,
+    record_type VARCHAR(20) NOT NULL CHECK (record_type IN ('STUDENT','INSTRUCTOR')),
+    identifier_number VARCHAR(50) NOT NULL UNIQUE,
+    institutional_email VARCHAR(100) NOT NULL UNIQUE,
+    full_name VARCHAR(150) NOT NULL,
+    department_or_program VARCHAR(150) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- (22) Verification Requests
+CREATE TABLE verification_requests (
+    request_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
+    id_number VARCHAR(50) NULL,
+    institutional_email VARCHAR(100) NULL,
+    organization_name VARCHAR(150) NULL,
+    business_registration_number VARCHAR(100) NULL,
+    document_reference VARCHAR(255) NULL,
+    submission_notes TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
+    risk_score INT NOT NULL DEFAULT 0,
+    risk_flags TEXT NULL,
+    reviewer_id INT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    reviewer_notes TEXT NULL,
+    reviewed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_verification_requests_user ON verification_requests(user_id);
+CREATE INDEX idx_verification_requests_status ON verification_requests(status);
+
+-- (23) Security Audit Logs
+CREATE TABLE security_audit_logs (
+    log_id SERIAL PRIMARY KEY,
+    user_id INT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    actor_username VARCHAR(50) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    target_user_id INT NULL,
+    ip_address VARCHAR(50) NULL,
+    details TEXT NULL,
+    severity VARCHAR(20) NOT NULL DEFAULT 'INFO',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_security_audit_logs_action ON security_audit_logs(action);
+CREATE INDEX idx_security_audit_logs_created ON security_audit_logs(created_at);
+
 -- ------------------------------------------------------------------------------
 -- 3. SEED INITIAL DEMO DATA
 -- ------------------------------------------------------------------------------
@@ -318,34 +377,34 @@ BEGIN
     -- (Bcrypt hash: $2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO)
 
     -- A. Users
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES
-    ('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'ADMIN',     'Kakong', 'Admin')
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'ADMIN',     'Kakong', 'Admin', 'VERIFIED', NOW(), TRUE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_admin_kakong;
 
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES
-    ('admin1',      '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu',      'ADMIN',     'System', 'Admin')
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('admin1',      '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu',      'ADMIN',     'System', 'Admin', 'VERIFIED', NOW(), TRUE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_admin_user;
 
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES
-    ('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes')
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes', 'VERIFIED', NOW(), FALSE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_student_user;
 
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES
-    ('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz')
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz', 'VERIFIED', NOW(), FALSE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_student2_user;
 
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES
-    ('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos')
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos', 'VERIFIED', NOW(), FALSE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_instructor_user;
 
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES
-    ('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz')
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', NOW(), FALSE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_employer_user;
 
     -- B. Students
@@ -487,6 +546,28 @@ BEGIN
     -- T. Academic Support
     INSERT INTO academic_support (student_id, instructor_id, subject_id, support_type, support_date, reason, action_taken, outcome, remarks)
     VALUES (v_student_id, v_instructor_id, v_sub_302, 'Remedial', '2026-09-12', 'Difficulty with SQL joins', 'Extra exercises on joins', 'Improved', 'Follow up next week');
+
+    -- U. Institutional Records (Registrar Database)
+    INSERT INTO institutional_records (record_type, identifier_number, institutional_email, full_name, department_or_program, is_active) VALUES
+    ('STUDENT', '2023-0001', 'student@nextit.edu', 'Alex Reyes', 'BS Information Technology', TRUE),
+    ('STUDENT', '2023-0002', 'student2@nextit.edu', 'Bianca Cruz', 'BS Information Technology', TRUE),
+    ('STUDENT', '2026-0042', 'carlos.mendoza@nextit.edu', 'Carlos Mendoza', 'BS Computer Science', TRUE),
+    ('STUDENT', '2026-0099', 'diane.tan@dlsu.edu.ph', 'Diane Tan', 'BS Information Systems', TRUE),
+    ('INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'Maria Santos', 'Computer Science', TRUE),
+    ('INSTRUCTOR', 'EMP-1002', 'roberto.garcia@nextit.edu', 'Roberto Garcia', 'Information Technology', TRUE)
+    ON CONFLICT (identifier_number) DO NOTHING;
+
+    -- V. Verification Requests
+    INSERT INTO verification_requests (user_id, role, id_number, institutional_email, organization_name, business_registration_number, document_reference, submission_notes, status, risk_score, risk_flags, reviewed_at) VALUES
+    (v_student_user, 'STUDENT', '2023-0001', 'student@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
+    (v_student2_user, 'STUDENT', '2023-0002', 'student2@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
+    (v_instructor_user, 'INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'College of Computer Studies', NULL, 'Faculty Appointment Form CS-2024', 'Faculty credentials confirmed against institutional records.', 'VERIFIED', 5, 'REGISTRAR_FACULTY_CONFIRMED', NOW()),
+    (v_employer_user, 'EMPLOYER', NULL, 'employer@techcorp.com', 'TechCorp Solutions', 'SEC-CS2021008891-TIN009', 'SEC Certificate of Incorporation & DTI Permit', 'Corporate registration verified.', 'VERIFIED', 10, 'CORPORATE_DOMAIN_DETECTED', NOW());
+
+    -- W. Security Audit Logs
+    INSERT INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES
+    (v_admin_user, 'admin1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
+    (v_student_user, 'student1', 'LOGIN_SUCCESS', v_student_user, '127.0.0.1', 'Successful authentication for verified student account.', 'INFO');
 
 END $$;
 

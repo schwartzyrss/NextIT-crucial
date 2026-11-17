@@ -1,5 +1,6 @@
 package com.nextit.service;
 
+import com.nextit.model.User;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,23 +49,54 @@ public final class OtpService {
         boolean sent = result.isSuccess();
         boolean configured = EmailService.isConfigured();
 
-        log.info("Requested OTP for {}: code={}, sent={}, configured={}, msg={}", cleanEmail, code, sent, configured, result.getMessage());
+        log.info("Requested OTP for {}: sent={}, configured={}, msg={}", cleanEmail, sent, configured, result.getMessage());
         return new OtpResponse(sent, configured, code, false, result.getMessage());
+    }
+
+    public static OtpResponse requestMfaOtp(User user) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return new OtpResponse(false, false, "", false, "User email address is missing for MFA.");
+        }
+        String cleanEmail = "mfa:" + user.getEmail().trim().toLowerCase();
+        long now = System.currentTimeMillis();
+
+        OtpRecord existing = ACTIVE_OTPS.get(cleanEmail);
+        if (existing != null && now < existing.resendAvailableAt()) {
+            long waitSec = (existing.resendAvailableAt() - now) / 1000;
+            return new OtpResponse(false, EmailService.isConfigured(), existing.code(), true,
+                    "Please wait " + waitSec + " seconds before requesting another MFA code.");
+        }
+
+        String code = String.format("%06d", new SecureRandom().nextInt(1000000));
+        ACTIVE_OTPS.put(cleanEmail, new OtpRecord(code, now + OTP_TTL_MS, now + COOLDOWN_MS));
+
+        EmailService.SmtpResult result = EmailService.sendOtpEmailWithStatus(user.getEmail().trim(), code);
+        return new OtpResponse(result.isSuccess(), EmailService.isConfigured(), code, false, result.getMessage());
+    }
+
+    public static boolean verifyMfaOtp(User user, String enteredCode) {
+        if (user == null || user.getEmail() == null || enteredCode == null) return false;
+        String cleanEmail = "mfa:" + user.getEmail().trim().toLowerCase();
+        return verifyOtpInternal(cleanEmail, enteredCode);
     }
 
     public static boolean verifyOtp(String email, String enteredCode) {
         if (email == null || enteredCode == null) return false;
         String cleanEmail = email.trim().toLowerCase();
+        return verifyOtpInternal(cleanEmail, enteredCode);
+    }
+
+    private static boolean verifyOtpInternal(String key, String enteredCode) {
         String code = enteredCode.trim();
         long now = System.currentTimeMillis();
 
         // Sandbox / Development fallback code
         if (!EmailService.isConfigured() && ("123456".equals(code) || "000000".equals(code))) {
-            ACTIVE_OTPS.remove(cleanEmail);
+            ACTIVE_OTPS.remove(key);
             return true;
         }
 
-        OtpRecord record = ACTIVE_OTPS.get(cleanEmail);
+        OtpRecord record = ACTIVE_OTPS.get(key);
         if (record == null) {
             if (!EmailService.isConfigured() && ("123456".equals(code) || "000000".equals(code))) {
                 return true;
@@ -73,20 +105,19 @@ public final class OtpService {
         }
 
         if (now > record.expiresAt() || record.failedAttempts()[0] >= MAX_FAILED_ATTEMPTS) {
-            ACTIVE_OTPS.remove(cleanEmail);
+            ACTIVE_OTPS.remove(key);
             return false;
         }
 
         if (record.code().equals(code) || (!EmailService.isConfigured() && ("123456".equals(code) || "000000".equals(code)))) {
-            ACTIVE_OTPS.remove(cleanEmail); // Single use
+            ACTIVE_OTPS.remove(key); // Single use
             return true;
         }
 
         record.failedAttempts()[0]++;
         if (record.failedAttempts()[0] >= MAX_FAILED_ATTEMPTS) {
-            ACTIVE_OTPS.remove(cleanEmail);
+            ACTIVE_OTPS.remove(key);
         }
         return false;
     }
 }
-

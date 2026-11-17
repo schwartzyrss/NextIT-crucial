@@ -10,6 +10,12 @@ CREATE TABLE IF NOT EXISTS users (
     role ENUM('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN') NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED',
+    rejection_reason TEXT NULL,
+    verified_at DATETIME NULL,
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until DATETIME NULL,
+    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 );
@@ -255,4 +261,54 @@ CREATE TABLE IF NOT EXISTS applications (
     UNIQUE KEY uq_application (opportunity_id, student_id),
     INDEX idx_applications_opportunity (opportunity_id),
     INDEX idx_applications_student (student_id)
+);
+
+CREATE TABLE IF NOT EXISTS institutional_records (
+    record_id INT AUTO_INCREMENT PRIMARY KEY,
+    record_type VARCHAR(20) NOT NULL,
+    identifier_number VARCHAR(50) NOT NULL UNIQUE,
+    institutional_email VARCHAR(100) NOT NULL UNIQUE,
+    full_name VARCHAR(150) NOT NULL,
+    department_or_program VARCHAR(150) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS verification_requests (
+    request_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    role VARCHAR(20) NOT NULL,
+    id_number VARCHAR(50) NULL,
+    institutional_email VARCHAR(100) NULL,
+    organization_name VARCHAR(150) NULL,
+    business_registration_number VARCHAR(100) NULL,
+    document_reference VARCHAR(255) NULL,
+    submission_notes TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    risk_score INT NOT NULL DEFAULT 0,
+    risk_flags TEXT NULL,
+    reviewer_id INT NULL,
+    reviewer_notes TEXT NULL,
+    reviewed_at DATETIME NULL,
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
+    FOREIGN KEY (reviewer_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_verification_requests_user (user_id),
+    INDEX idx_verification_requests_status (status)
+);
+
+CREATE TABLE IF NOT EXISTS security_audit_logs (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NULL,
+    actor_username VARCHAR(50) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    target_user_id INT NULL,
+    ip_address VARCHAR(50) NULL,
+    details TEXT NULL,
+    severity VARCHAR(20) NOT NULL DEFAULT 'INFO',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
+    INDEX idx_security_audit_logs_action (action),
+    INDEX idx_security_audit_logs_created (created_at)
 );

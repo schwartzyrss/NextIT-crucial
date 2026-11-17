@@ -1,19 +1,10 @@
 package com.nextit.controller;
 
 import com.nextit.exception.AppException;
-import com.nextit.model.Employer;
-import com.nextit.model.Instructor;
-import com.nextit.model.Role;
-import com.nextit.model.Student;
-import com.nextit.model.User;
-import com.nextit.repository.JdbcEmployerRepository;
-import com.nextit.repository.JdbcInstructorRepository;
-import com.nextit.repository.JdbcStudentRepository;
-import com.nextit.repository.JdbcUserRepository;
+import com.nextit.model.*;
+import com.nextit.repository.*;
 import com.nextit.security.Session;
-import com.nextit.service.AuthenticationService;
-import com.nextit.service.EmailService;
-import com.nextit.service.OtpService;
+import com.nextit.service.*;
 import com.nextit.util.Alerts;
 import javafx.application.Platform;
 import javafx.concurrent.Worker;
@@ -30,11 +21,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.net.URL;
-import java.security.SecureRandom;
-import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentHashMap;
 
 public class OnboardingView {
 
@@ -91,8 +79,9 @@ public class OnboardingView {
         public String requestOtp(String email) {
             OtpService.OtpResponse resp = OtpService.requestOtp(email);
             String safeMsg = resp.message() != null ? resp.message().replace("\"", "\\\"").replace("\n", " ") : "";
-            return String.format("{\"sent\":%b,\"configured\":%b,\"code\":\"%s\",\"rateLimited\":%b,\"message\":\"%s\"}",
-                    resp.sent(), resp.configured(), resp.code(), resp.rateLimited(), safeMsg);
+            // Never expose the OTP code to the frontend JavaScript response!
+            return String.format("{\"sent\":%b,\"configured\":%b,\"rateLimited\":%b,\"message\":\"%s\"}",
+                    resp.sent(), resp.configured(), resp.rateLimited(), safeMsg);
         }
 
         public boolean verifyOtp(String email, String enteredCode) {
@@ -105,8 +94,8 @@ public class OnboardingView {
                 String targetEmail = (emailToTest != null && !emailToTest.isBlank()) ? emailToTest.trim() : user.trim();
                 OtpService.OtpResponse resp = OtpService.requestOtp(targetEmail);
                 if (resp.sent()) {
-                    return String.format("{\"success\":true,\"message\":\"SMTP configured successfully! Code sent to %s\",\"code\":\"%s\"}",
-                            targetEmail, resp.code());
+                    return String.format("{\"success\":true,\"message\":\"SMTP configured successfully! Code sent to %s\"}",
+                            targetEmail);
                 } else {
                     String safeErr = (resp.message() != null ? resp.message() : "Failed to deliver email").replace("\"", "\\\"").replace("\n", " ");
                     return String.format("{\"success\":false,\"message\":\"%s\"}", safeErr);
@@ -119,86 +108,132 @@ public class OnboardingView {
 
         public void registerAndLaunch(String roleStr, String username, String firstName, String lastName,
                                       String email, String password, String detail1, String detail2, String detail3) {
-            // Run database queries on a background thread to prevent UI freezing
             CompletableFuture.runAsync(() -> {
                 try {
                     Role role = Role.valueOf(roleStr.trim().toUpperCase());
+
+                    // Requirement 2: Disable public administrator registration!
+                    if (role == Role.ADMIN) {
+                        throw new AppException("Public administrator registration is disabled. Administrator accounts can only be provisioned by existing authorized administrators.");
+                    }
+
+                    if (email == null || email.isBlank() || !email.contains("@")) {
+                        throw new AppException("A valid email address is required.");
+                    }
+                    if (firstName == null || firstName.isBlank() || lastName == null || lastName.isBlank()) {
+                        throw new AppException("First name and last name are required.");
+                    }
+                    if (password == null || password.length() < 6) {
+                        throw new AppException("Password must be at least 6 characters.");
+                    }
+
+                    String cleanEmail = email.trim().toLowerCase();
                     String uName = (username != null && !username.isBlank())
                             ? username.trim()
-                            : (email != null && email.contains("@") ? email.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "") : "user" + System.currentTimeMillis() % 10000);
+                            : cleanEmail.split("@")[0].replaceAll("[^a-zA-Z0-9_]", "");
 
                     JdbcUserRepository userRepo = new JdbcUserRepository();
+                    JdbcVerificationRequestRepository reqRepo = new JdbcVerificationRequestRepository();
 
-                    Optional<User> existing = userRepo.findByUsername(uName);
-                    if (existing.isEmpty() && email != null && !email.isBlank()) {
-                        existing = userRepo.findByEmail(email.trim());
+                    // Prevent duplicate accounts with same email or username
+                    Optional<User> byEmail = userRepo.findByEmail(cleanEmail);
+                    if (byEmail.isPresent()) {
+                        throw new AppException("An account with the email " + cleanEmail + " is already registered. Please sign in directly.");
+                    }
+                    Optional<User> byUsername = userRepo.findByUsername(uName);
+                    if (byUsername.isPresent()) {
+                        throw new AppException("The username @" + uName + " is already taken. Please choose another username.");
                     }
 
-                    User user;
-                    if (existing.isPresent()) {
-                        user = existing.get();
-                        // Validate credentials if user already exists
-                        if (password != null && !password.isBlank() && !AuthenticationService.verifyPassword(password, user.getPasswordHash())) {
-                            throw new AppException("An account with this username or email already exists. Please verify your password or sign in directly.");
+                    // Run Anti-Fake Identity Protection Engine
+                    AntiFakeIdentityService antiFake = new AntiFakeIdentityService();
+                    AntiFakeIdentityService.AnalysisResult analysis;
+                    if (role == Role.STUDENT) {
+                        if (detail3 == null || detail3.isBlank()) {
+                            throw new AppException("Student ID number is required for institutional student verification.");
                         }
-                        log.info("User already exists with valid credentials, logging into existing account: {}", user.getUsername());
+                        analysis = antiFake.analyzeStudent(detail3, cleanEmail, firstName, lastName, detail1);
+                    } else if (role == Role.INSTRUCTOR) {
+                        if (detail3 == null || detail3.isBlank()) {
+                            throw new AppException("Faculty employee identification number is required.");
+                        }
+                        analysis = antiFake.analyzeInstructor(detail3, cleanEmail, firstName, lastName, detail1);
+                    } else if (role == Role.EMPLOYER) {
+                        if (detail1 == null || detail1.isBlank()) {
+                            throw new AppException("Legitimate business or organization name is required.");
+                        }
+                        analysis = antiFake.analyzeEmployer(detail1, detail3, cleanEmail, firstName + " " + lastName);
                     } else {
-                        user = new User();
-                        user.setUsername(uName);
-                        user.setPasswordHash(AuthenticationService.hashPassword(password != null && !password.isBlank() ? password : "Password123!"));
-                        user.setEmail(email != null && !email.isBlank() ? email.trim() : uName + "@nextit.edu");
-                        user.setRole(role);
-                        user.setFirstName(firstName != null && !firstName.isBlank() ? firstName.trim() : "New");
-                        user.setLastName(lastName != null && !lastName.isBlank() ? lastName.trim() : "Member");
-
-                        userRepo.save(user);
+                        throw new AppException("Unsupported role selection.");
                     }
 
-                    // Save or self-heal role-specific details
+                    User user = new User();
+                    user.setUsername(uName);
+                    user.setPasswordHash(AuthenticationService.hashPassword(password));
+                    user.setEmail(cleanEmail);
+                    user.setRole(role);
+                    user.setFirstName(firstName.trim());
+                    user.setLastName(lastName.trim());
+                    user.setVerificationStatus(analysis.status());
+                    userRepo.save(user);
+
+                    // Save role-specific profiles
                     if (role == Role.STUDENT) {
                         JdbcStudentRepository studentRepo = new JdbcStudentRepository();
-                        if (studentRepo.findByUserId(user.getUserId()).isEmpty()) {
-                            Student s = new Student();
-                            s.setUserId(user.getUserId());
-                            s.setStudentNumber(detail3 != null && !detail3.isBlank() ? detail3.trim() : "2026-" + String.format("%04d", user.getUserId()));
-                            String prog = (detail1 != null && !detail1.isBlank()) ? detail1.trim() : "BS Information Technology";
-                            s.setProgram(prog);
-                            int yr = 1;
-                            try {
-                                if (detail2 != null && !detail2.isBlank()) {
-                                    yr = Integer.parseInt(detail2.replaceAll("\\D", ""));
-                                }
-                            } catch (Exception ignored) {}
-                            s.setYearLevel(yr > 0 ? yr : 1);
-                            s.setSection("A");
-                            s.setEnrollmentStatus("Enrolled");
-                            studentRepo.save(s);
-                        }
+                        Student s = new Student();
+                        s.setUserId(user.getUserId());
+                        s.setStudentNumber(detail3.trim());
+                        s.setProgram((detail1 != null && !detail1.isBlank()) ? detail1.trim() : "BS Information Technology");
+                        int yr = 1;
+                        try {
+                            if (detail2 != null && !detail2.isBlank()) {
+                                yr = Integer.parseInt(detail2.replaceAll("\\D", ""));
+                            }
+                        } catch (Exception ignored) {}
+                        s.setYearLevel(yr > 0 ? yr : 1);
+                        s.setSection("A");
+                        s.setEnrollmentStatus("Enrolled");
+                        studentRepo.save(s);
                     } else if (role == Role.INSTRUCTOR) {
                         JdbcInstructorRepository instRepo = new JdbcInstructorRepository();
-                        if (instRepo.findByUserId(user.getUserId()).isEmpty()) {
-                            Instructor inst = new Instructor();
-                            inst.setUserId(user.getUserId());
-                            inst.setEmployeeNumber(detail3 != null && !detail3.isBlank() ? detail3.trim() : "EMP-" + String.format("%04d", user.getUserId()));
-                            inst.setDepartment(detail1 != null && !detail1.isBlank() ? detail1.trim() : (detail2 != null && !detail2.isBlank() ? detail2.trim() : "Computer Science"));
-                            inst.setSpecialization(detail2 != null && !detail2.isBlank() ? detail2.trim() : "Software Engineering");
-                            instRepo.save(inst);
-                        }
+                        Instructor inst = new Instructor();
+                        inst.setUserId(user.getUserId());
+                        inst.setEmployeeNumber(detail3.trim());
+                        inst.setDepartment((detail1 != null && !detail1.isBlank()) ? detail1.trim() : "Computer Studies");
+                        inst.setSpecialization((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Information Technology");
+                        instRepo.save(inst);
                     } else if (role == Role.EMPLOYER) {
                         JdbcEmployerRepository empRepo = new JdbcEmployerRepository();
-                        if (empRepo.findByUserId(user.getUserId()).isEmpty()) {
-                            Employer emp = new Employer();
-                            emp.setUserId(user.getUserId());
-                            emp.setCompanyName(detail1 != null && !detail1.isBlank() ? detail1.trim() : "NextIT Industry Partner");
-                            emp.setIndustry(detail2 != null && !detail2.isBlank() ? detail2.trim() : "Information Technology");
-                            emp.setContactPerson(user.getFullName());
-                            emp.setContactNumber(detail3 != null && !detail3.isBlank() ? detail3.trim() : "+1-555-" + String.format("%04d", user.getUserId()));
-                            emp.setAddress("Technology Campus");
-                            empRepo.save(emp);
-                        }
+                        Employer emp = new Employer();
+                        emp.setUserId(user.getUserId());
+                        emp.setCompanyName(detail1.trim());
+                        emp.setIndustry((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Technology");
+                        emp.setContactPerson(user.getFullName());
+                        emp.setContactNumber((detail3 != null && !detail3.isBlank()) ? detail3.trim() : "");
+                        emp.setAddress("Technology Campus");
+                        empRepo.save(emp);
                     }
 
-                    // Authenticate session
+                    // Record Verification Request with Anti-Fake Identity Metrics
+                    VerificationRequest req = new VerificationRequest();
+                    req.setUserId(user.getUserId());
+                    req.setRole(role);
+                    req.setIdNumber(detail3 != null ? detail3.trim() : null);
+                    req.setInstitutionalEmail(cleanEmail);
+                    req.setOrganizationName(detail1 != null ? detail1.trim() : null);
+                    req.setBusinessRegistrationNumber(role == Role.EMPLOYER && detail3 != null ? detail3.trim() : null);
+                    req.setDocumentReference("Onboarding Self-Registration Submission");
+                    req.setSubmissionNotes(analysis.reviewerNotes());
+                    req.setStatus(analysis.status());
+                    req.setRiskScore(analysis.riskScore());
+                    req.setRiskFlags(String.join(",", analysis.riskFlags()));
+                    reqRepo.save(req);
+
+                    // Audit Log
+                    SecurityAuditService.getInstance().logRegistrationSubmitted(
+                            user, analysis.status(), analysis.riskScore(), String.join(",", analysis.riskFlags()));
+
+                    // Establish session
                     Session.login(user);
 
                     // Update UI on JavaFX thread

@@ -9,6 +9,12 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verification_status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
+    rejection_reason TEXT NULL,
+    verified_at TIMESTAMPTZ NULL,
+    failed_login_attempts INT NOT NULL DEFAULT 0,
+    locked_until TIMESTAMPTZ NULL,
+    mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -225,4 +231,51 @@ CREATE TABLE IF NOT EXISTS applications (
 );
 CREATE INDEX IF NOT EXISTS idx_applications_opportunity ON applications(opportunity_id);
 CREATE INDEX IF NOT EXISTS idx_applications_student ON applications(student_id);
+
+CREATE TABLE IF NOT EXISTS institutional_records (
+    record_id SERIAL PRIMARY KEY,
+    record_type VARCHAR(20) NOT NULL CHECK (record_type IN ('STUDENT','INSTRUCTOR')),
+    identifier_number VARCHAR(50) NOT NULL UNIQUE,
+    institutional_email VARCHAR(100) NOT NULL UNIQUE,
+    full_name VARCHAR(150) NOT NULL,
+    department_or_program VARCHAR(150) NOT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS verification_requests (
+    request_id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
+    id_number VARCHAR(50) NULL,
+    institutional_email VARCHAR(100) NULL,
+    organization_name VARCHAR(150) NULL,
+    business_registration_number VARCHAR(100) NULL,
+    document_reference VARCHAR(255) NULL,
+    submission_notes TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'PENDING' CHECK (status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
+    risk_score INT NOT NULL DEFAULT 0,
+    risk_flags TEXT NULL,
+    reviewer_id INT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    reviewer_notes TEXT NULL,
+    reviewed_at TIMESTAMPTZ NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_verification_requests_user ON verification_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_verification_requests_status ON verification_requests(status);
+
+CREATE TABLE IF NOT EXISTS security_audit_logs (
+    log_id SERIAL PRIMARY KEY,
+    user_id INT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    actor_username VARCHAR(50) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    target_user_id INT NULL,
+    ip_address VARCHAR(50) NULL,
+    details TEXT NULL,
+    severity VARCHAR(20) NOT NULL DEFAULT 'INFO',
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_security_audit_logs_action ON security_audit_logs(action);
+CREATE INDEX IF NOT EXISTS idx_security_audit_logs_created ON security_audit_logs(created_at);
 

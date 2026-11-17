@@ -27,11 +27,18 @@ import javafx.scene.layout.*;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Consumer;
+import com.nextit.repository.JdbcInstitutionalRecordRepository;
+import com.nextit.repository.JdbcVerificationRequestRepository;
+import com.nextit.repository.JdbcUserRepository;
+import com.nextit.service.AntiFakeIdentityService;
+import com.nextit.service.SecurityAuditService;
 
 public final class AdminViews {
 
@@ -371,6 +378,11 @@ public final class AdminViews {
         addSubjectBtn.getStyleClass().add("secondary-button");
         addSubjectBtn.setOnAction(e -> editSubject(null, refresh));
 
+        Button verifHubBtn = new Button("🛡️ Verification Hub");
+        verifHubBtn.setMaxWidth(Double.MAX_VALUE);
+        verifHubBtn.getStyleClass().add("primary-button");
+        verifHubBtn.setOnAction(e -> AppController.getInstance().setView(verificationHub()));
+
         Button refreshBtn = new Button("Refresh System Data");
         refreshBtn.setMaxWidth(Double.MAX_VALUE);
         refreshBtn.getStyleClass().add("secondary-button");
@@ -379,7 +391,7 @@ public final class AdminViews {
             Alerts.info("System data refreshed.");
         });
 
-        quickActionsCard.getChildren().addAll(new VBox(3, actTitle, actSub), addUserBtn, assignProfBtn, addSubjectBtn, refreshBtn);
+        quickActionsCard.getChildren().addAll(new VBox(3, actTitle, actSub), verifHubBtn, addUserBtn, assignProfBtn, addSubjectBtn, refreshBtn);
 
         // 2. Action Required & Platform Diagnostics
         VBox queueTray = createHealthAndQueueTray(pendingPortfolios, totalSubjects, totalEnrollments);
@@ -446,6 +458,18 @@ public final class AdminViews {
         Label queueHeader = new Label("ACTION REQUIRED");
         queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
 
+        HBox verifRow = new HBox(8);
+        verifRow.setAlignment(Pos.CENTER_LEFT);
+        Label verifLabel = new Label("Pending Verifications:");
+        verifLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        Region vSpacer = new Region();
+        HBox.setHgrow(vSpacer, Priority.ALWAYS);
+        long pendingVerifs = admin.pendingVerificationRequests().size();
+        Node verifBadge = pendingVerifs > 0
+                ? Ui.badge(pendingVerifs + " Awaiting Review", "badge-pill-pink")
+                : Ui.badge("All Cleared (0)", "badge-pill-mint");
+        verifRow.getChildren().addAll(verifLabel, vSpacer, verifBadge);
+
         HBox pendingRow = new HBox(8);
         pendingRow.setAlignment(Pos.CENTER_LEFT);
         Label pendingLabel = new Label("Pending Portfolios:");
@@ -475,7 +499,7 @@ public final class AdminViews {
         Node enrollBadge = Ui.badge(totalEnrollments + " Enrolled", "badge-pill-lavender");
         enrollRow.getChildren().addAll(enrollLabel, eSpacer, enrollBadge);
 
-        queueBox.getChildren().addAll(queueHeader, pendingRow, subjectRow, enrollRow);
+        queueBox.getChildren().addAll(queueHeader, verifRow, pendingRow, subjectRow, enrollRow);
 
         Separator sep = new Separator();
 
@@ -515,6 +539,7 @@ public final class AdminViews {
         Ui.addColumn(table, "Full Name", User::getFullName);
         Ui.addColumn(table, "Email", User::getEmail);
         Ui.addColumn(table, "Role", u -> String.valueOf(u.getRole()));
+        Ui.addColumn(table, "Verification", u -> u.getVerificationStatus() != null ? u.getVerificationStatus().displayName() : "Verified");
         table.setItems(FXCollections.observableArrayList(all));
 
         TextField search = Ui.field("Search users...");
@@ -524,7 +549,8 @@ public final class AdminViews {
                     String.valueOf(u.getUsername()).toLowerCase(Locale.ROOT).contains(q)
                             || String.valueOf(u.getFullName()).toLowerCase(Locale.ROOT).contains(q)
                             || String.valueOf(u.getEmail()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(u.getRole()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+                            || String.valueOf(u.getRole()).toLowerCase(Locale.ROOT).contains(q)
+                            || (u.getVerificationStatus() != null && u.getVerificationStatus().displayName().toLowerCase(Locale.ROOT).contains(q))).toList()));
         };
         search.textProperty().addListener((obs, old, value) -> applyFilter.run());
 
@@ -536,6 +562,34 @@ public final class AdminViews {
             User selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select a user to edit."); return; }
             editUser(selected, applyFilter);
+        });
+        Button suspend = new Button("Suspend");
+        suspend.setOnAction(e -> {
+            User selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select a user to suspend."); return; }
+            if (selected.getUserId() == com.nextit.security.Session.currentUser().getUserId()) {
+                Alerts.error("You cannot suspend your own account.");
+                return;
+            }
+            TextInputDialog tid = new TextInputDialog("Security concern / suspicious activity");
+            tid.setTitle("Suspend Account");
+            tid.setHeaderText("Suspend User @" + selected.getUsername());
+            tid.setContentText("Enter suspension reason:");
+            tid.showAndWait().ifPresent(reason -> guard(() -> {
+                admin.suspendUser(selected.getUserId(), reason);
+                applyFilter.run();
+                Alerts.info("User @" + selected.getUsername() + " has been suspended.");
+            }));
+        });
+        Button reinstate = new Button("Reinstate");
+        reinstate.setOnAction(e -> {
+            User selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select a user to reinstate."); return; }
+            guard(() -> {
+                admin.reinstateUser(selected.getUserId());
+                applyFilter.run();
+                Alerts.info("User @" + selected.getUsername() + " has been reinstated.");
+            });
         });
         Button delete = new Button("Delete");
         delete.setOnAction(e -> {
@@ -571,7 +625,7 @@ public final class AdminViews {
         Button exportReport = Ui.button("📄 Print / PDF", "clay-btn-secondary");
         exportReport.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToHtmlReport(table, "user_accounts_report.html", "System User Accounts", exportReport.getScene().getWindow()));
         return Ui.page("User Accounts", "Create and maintain accounts for students, instructors, employers and administrators.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, resetPassword, delete, refresh, exportCsv, exportReport), table);
+                Ui.toolbar(new Label("Search:"), search, add, edit, resetPassword, suspend, reinstate, delete, refresh, exportCsv, exportReport), table);
     }
 
     private static void editUser(User existing, Runnable refresh) {
@@ -1356,6 +1410,571 @@ public final class AdminViews {
         });
 
         return page;
+    }
+
+    public static Node verificationHub() {
+        TabPane tabPane = new TabPane();
+        tabPane.setStyle("-fx-background-color: transparent;");
+
+        Tab tabRequests = new Tab("📋 Verification Requests", createVerificationRequestsView());
+        tabRequests.setClosable(false);
+
+        Tab tabRegistrar = new Tab("🏛️ Institutional Database", createInstitutionalDatabaseView());
+        tabRegistrar.setClosable(false);
+
+        Tab tabAudit = new Tab("📜 Security Audit Trail", createSecurityAuditView());
+        tabAudit.setClosable(false);
+
+        Tab tabProvisionAdmin = new Tab("🔑 Provision Administrator", createProvisionAdminView());
+        tabProvisionAdmin.setClosable(false);
+
+        tabPane.getTabs().addAll(tabRequests, tabRegistrar, tabAudit, tabProvisionAdmin);
+
+        return Ui.page("Identity Verification & Security Hub",
+                "Review pending identity verification requests, cross-reference official university registrar records, manage audit logs, and provision administrators.",
+                tabPane);
+    }
+
+    private static Node createVerificationRequestsView() {
+        TableView<VerificationRequest> table = Ui.table();
+        Ui.addColumn(table, "ID", r -> String.valueOf(r.getRequestId()));
+        Ui.addColumn(table, "Applicant", r -> r.getUserFullName() + " (@" + r.getUsername() + ")");
+        Ui.addColumn(table, "Role", r -> String.valueOf(r.getRole()));
+        Ui.addColumn(table, "Claimed ID / TIN", r -> r.getIdNumber() != null && !r.getIdNumber().isBlank()
+                ? r.getIdNumber() : (r.getBusinessRegistrationNumber() != null ? r.getBusinessRegistrationNumber() : "-"));
+        Ui.addColumn(table, "Email", VerificationRequest::getInstitutionalEmail);
+        Ui.addColumn(table, "Risk Score", r -> r.getRiskScore() + (r.getRiskScore() >= 50 ? " (HIGH RISK)" : (r.getRiskScore() >= 20 ? " (Moderate)" : " (Safe)")));
+        Ui.addColumn(table, "Status", r -> r.getStatus() != null ? r.getStatus().displayName() : "Pending");
+        Ui.addColumn(table, "Submitted", r -> r.getCreatedAt() != null ? r.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "");
+
+        TextField search = Ui.field("Search by applicant, username, email, ID number...");
+        ComboBox<String> roleFilter = Ui.combo(List.of("All Roles", "STUDENT", "INSTRUCTOR", "EMPLOYER"), s -> s);
+        roleFilter.getSelectionModel().selectFirst();
+        ComboBox<String> statusFilter = Ui.combo(List.of("All Statuses", "PENDING", "VERIFIED", "REJECTED", "SUSPENDED"), s -> s);
+        statusFilter.getSelectionModel().selectFirst();
+        ComboBox<String> riskFilter = Ui.combo(List.of("All Risk Levels", "High Risk (Score >= 50)", "Moderate (Score >= 20)", "Low/Safe (Score < 20)"), s -> s);
+        riskFilter.getSelectionModel().selectFirst();
+
+        Runnable applyFilter = () -> {
+            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
+            String rf = roleFilter.getValue();
+            String sf = statusFilter.getValue();
+            String rkf = riskFilter.getValue();
+
+            List<VerificationRequest> filtered = admin.verificationRequests().stream().filter(r -> {
+                boolean matchesQ = q.isBlank()
+                        || String.valueOf(r.getUsername()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(r.getUserFullName()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(r.getInstitutionalEmail()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(r.getIdNumber()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(r.getBusinessRegistrationNumber()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(r.getRiskFlags()).toLowerCase(Locale.ROOT).contains(q);
+                boolean matchesRole = rf == null || "All Roles".equals(rf) || rf.equalsIgnoreCase(String.valueOf(r.getRole()));
+                boolean matchesStatus = sf == null || "All Statuses".equals(sf) || sf.equalsIgnoreCase(String.valueOf(r.getStatus()));
+                boolean matchesRisk;
+                if ("High Risk (Score >= 50)".equals(rkf)) {
+                    matchesRisk = r.getRiskScore() >= 50;
+                } else if ("Moderate (Score >= 20)".equals(rkf)) {
+                    matchesRisk = r.getRiskScore() >= 20 && r.getRiskScore() < 50;
+                } else if ("Low/Safe (Score < 20)".equals(rkf)) {
+                    matchesRisk = r.getRiskScore() < 20;
+                } else {
+                    matchesRisk = true;
+                }
+                return matchesQ && matchesRole && matchesStatus && matchesRisk;
+            }).toList();
+            table.setItems(FXCollections.observableArrayList(filtered));
+        };
+
+        search.textProperty().addListener((obs, old, val) -> applyFilter.run());
+        roleFilter.valueProperty().addListener((obs, old, val) -> applyFilter.run());
+        statusFilter.valueProperty().addListener((obs, old, val) -> applyFilter.run());
+        riskFilter.valueProperty().addListener((obs, old, val) -> applyFilter.run());
+        applyFilter.run();
+
+        Button inspectBtn = new Button("🔍 Inspect & Compare");
+        inspectBtn.getStyleClass().add("primary-button");
+        inspectBtn.setOnAction(e -> {
+            VerificationRequest selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                Alerts.error("Select an identity verification request to inspect.");
+                return;
+            }
+            inspectVerificationDialog(selected, applyFilter);
+        });
+
+        Button approveBtn = new Button("✅ Quick Approve");
+        approveBtn.setOnAction(e -> {
+            VerificationRequest selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select a request to approve."); return; }
+            if (selected.getStatus() == VerificationStatus.VERIFIED) {
+                Alerts.info("This application has already been verified.");
+                return;
+            }
+            if (Ui.confirmed("Approve identity verification for @" + selected.getUsername() + " (" + selected.getUserFullName() + ")?")) {
+                int reviewerId = com.nextit.security.Session.currentUser().getUserId();
+                guard(() -> {
+                    admin.approveVerification(selected.getRequestId(), reviewerId, "Quick approved by admin");
+                    applyFilter.run();
+                    Alerts.info("Identity verified successfully! Account is now active.");
+                });
+            }
+        });
+
+        Button rejectBtn = new Button("❌ Reject");
+        rejectBtn.setOnAction(e -> {
+            VerificationRequest selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select a request to reject."); return; }
+            TextInputDialog tid = new TextInputDialog("Unable to verify institutional records");
+            tid.setTitle("Reject Application");
+            tid.setHeaderText("Reject Verification for @" + selected.getUsername());
+            tid.setContentText("Enter rejection reason for applicant:");
+            tid.showAndWait().ifPresent(reason -> guard(() -> {
+                int reviewerId = com.nextit.security.Session.currentUser().getUserId();
+                admin.rejectVerification(selected.getRequestId(), reviewerId, reason);
+                applyFilter.run();
+                Alerts.info("Application rejected. Reason recorded.");
+            }));
+        });
+
+        Button suspendBtn = new Button("⛔ Suspend Account");
+        suspendBtn.setOnAction(e -> {
+            VerificationRequest selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select a request to suspend."); return; }
+            TextInputDialog tid = new TextInputDialog("Suspicious identity submission / impersonation concern");
+            tid.setTitle("Suspend Account");
+            tid.setHeaderText("Suspend User @" + selected.getUsername());
+            tid.setContentText("Enter suspension reason:");
+            tid.showAndWait().ifPresent(reason -> guard(() -> {
+                admin.suspendUser(selected.getUserId(), reason);
+                applyFilter.run();
+                Alerts.info("Account @" + selected.getUsername() + " has been suspended.");
+            }));
+        });
+
+        Button reinstateBtn = new Button("🟢 Reinstate");
+        reinstateBtn.setOnAction(e -> {
+            VerificationRequest selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select an account to reinstate."); return; }
+            guard(() -> {
+                admin.reinstateUser(selected.getUserId());
+                applyFilter.run();
+                Alerts.info("Account @" + selected.getUsername() + " has been reinstated.");
+            });
+        });
+
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.setOnAction(e -> applyFilter.run());
+
+        Button exportCsv = Ui.button("📥 Export CSV", "clay-btn-secondary");
+        exportCsv.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToCsv(table, "verification_requests.csv", "Identity Verification Requests", exportCsv.getScene().getWindow()));
+
+        HBox filterToolbar = Ui.toolbar(new Label("Search:"), search,
+                new Label("Role:"), roleFilter,
+                new Label("Status:"), statusFilter,
+                new Label("Risk:"), riskFilter);
+
+        HBox actionToolbar = Ui.toolbar(inspectBtn, approveBtn, rejectBtn, suspendBtn, reinstateBtn, refreshBtn, exportCsv);
+
+        VBox layout = new VBox(12, filterToolbar, actionToolbar, table);
+        layout.setPadding(new Insets(14, 0, 0, 0));
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return layout;
+    }
+
+    private static void inspectVerificationDialog(VerificationRequest req, Runnable onUpdated) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Identity Verification Inspector & Registrar Comparison");
+        dialog.setHeaderText("Identity Authenticity Examination — Request #" + req.getRequestId());
+
+        VBox root = new VBox(16);
+        root.setPrefWidth(600);
+        root.setStyle("-fx-padding: 10;");
+
+        // 1. Applicant Submitted Information
+        GridPane applicantGrid = new GridPane();
+        applicantGrid.setHgap(16);
+        applicantGrid.setVgap(10);
+        applicantGrid.add(new Label("Applicant Full Name:"), 0, 0);
+        Label nameLbl = new Label(req.getUserFullName() + " (@" + req.getUsername() + ")");
+        nameLbl.setStyle("-fx-font-weight: bold;");
+        applicantGrid.add(nameLbl, 1, 0);
+
+        applicantGrid.add(new Label("Registered Email:"), 0, 1);
+        Label emailLbl = new Label(req.getInstitutionalEmail());
+        emailLbl.setStyle("-fx-font-weight: bold;");
+        applicantGrid.add(emailLbl, 1, 1);
+
+        applicantGrid.add(new Label("Role Claimed:"), 0, 2);
+        applicantGrid.add(Ui.badge(String.valueOf(req.getRole()), "badge-pill-pink"), 1, 2);
+
+        applicantGrid.add(new Label("ID / TIN Claimed:"), 0, 3);
+        Label idLbl = new Label(req.getIdNumber() != null ? req.getIdNumber() : (req.getBusinessRegistrationNumber() != null ? req.getBusinessRegistrationNumber() : "None"));
+        idLbl.setStyle("-fx-font-weight: bold; -fx-font-size: 13px;");
+        applicantGrid.add(idLbl, 1, 3);
+
+        applicantGrid.add(new Label("Organization / School:"), 0, 4);
+        applicantGrid.add(new Label(req.getOrganizationName() != null ? req.getOrganizationName() : "-"), 1, 4);
+
+        applicantGrid.add(new Label("Submission Notes:"), 0, 5);
+        Label notesLbl = new Label(req.getSubmissionNotes() != null ? req.getSubmissionNotes() : "-");
+        notesLbl.setWrapText(true);
+        applicantGrid.add(notesLbl, 1, 5);
+
+        VBox applicantTray = Ui.tray("Submitted Applicant Information", "Submitted by user during account registration", applicantGrid);
+
+        // 2. Cross-reference with Official Registrar Records
+        JdbcInstitutionalRecordRepository instRepo = new JdbcInstitutionalRecordRepository();
+        String searchId = req.getIdNumber() != null ? req.getIdNumber().trim() : "";
+        Optional<InstitutionalRecord> registrarMatch = instRepo.findByIdentifier(searchId);
+
+        VBox registrarTray;
+        if (registrarMatch.isPresent()) {
+            InstitutionalRecord rec = registrarMatch.get();
+            GridPane regGrid = new GridPane();
+            regGrid.setHgap(16);
+            regGrid.setVgap(10);
+
+            regGrid.add(new Label("Registrar Official Name:"), 0, 0);
+            Label rName = new Label(rec.getFullName());
+            rName.setStyle("-fx-font-weight: bold; -fx-text-fill: #10B981;");
+            regGrid.add(rName, 1, 0);
+
+            regGrid.add(new Label("Registrar Record Type:"), 0, 1);
+            regGrid.add(Ui.badge(String.valueOf(rec.getRecordType()), "badge-pill-mint"), 1, 1);
+
+            regGrid.add(new Label("Official Identifier:"), 0, 2);
+            regGrid.add(new Label(rec.getIdentifierNumber()), 1, 2);
+
+            regGrid.add(new Label("Official University Email:"), 0, 3);
+            regGrid.add(new Label(rec.getInstitutionalEmail()), 1, 3);
+
+            regGrid.add(new Label("Program / Department:"), 0, 4);
+            regGrid.add(new Label(rec.getDepartmentOrProgram()), 1, 4);
+
+            regGrid.add(new Label("Registrar Status:"), 0, 5);
+            regGrid.add(Ui.badge(rec.isActive() ? "Active Enrolment" : "Inactive", rec.isActive() ? "badge-pill-mint" : "badge-pill-pink"), 1, 5);
+
+            boolean exactEmail = req.getInstitutionalEmail() != null && req.getInstitutionalEmail().equalsIgnoreCase(rec.getInstitutionalEmail());
+            Label matchBanner = new Label(exactEmail
+                    ? "✓ Verified Match: Applicant matches authorized registrar record and institutional email."
+                    : "⚠️ Warning: ID matched registrar record for '" + rec.getFullName() + "' but registered email differs ('" + req.getInstitutionalEmail() + "').");
+            matchBanner.setStyle(exactEmail
+                    ? "-fx-background-color: #E6F4EA; -fx-text-fill: #137333; -fx-padding: 8; -fx-background-radius: 8; -fx-font-weight: bold;"
+                    : "-fx-background-color: #FEF7E0; -fx-text-fill: #B06000; -fx-padding: 8; -fx-background-radius: 8; -fx-font-weight: bold;" +
+                      "; -fx-font-size: 11px;");
+
+            registrarTray = Ui.tray("Authorized Registrar Cross-Reference", "Database comparison against school registrar pre-enrolled records",
+                    new VBox(10, matchBanner, regGrid));
+        } else {
+            Label noMatchLbl = new Label("⚠️ No matching pre-enrolled registrar record found for identifier '" + searchId + "'. Manual verification of physical student card, appointment letter, or SEC/DTI certificate is required.");
+            noMatchLbl.setWrapText(true);
+            noMatchLbl.setStyle("-fx-background-color: #FCE8E6; -fx-text-fill: #C5221F; -fx-padding: 10; -fx-background-radius: 8; -fx-font-weight: bold; -fx-font-size: 11px;");
+            registrarTray = Ui.tray("Authorized Registrar Cross-Reference", "Database comparison against school registrar records", noMatchLbl);
+        }
+
+        // 3. Anti-Fake Risk Indicators
+        VBox riskTray = new VBox(8);
+        riskTray.setStyle("-fx-background-color: #FFFDF7; -fx-border-color: #E2DFD2; -fx-border-radius: 12; -fx-padding: 12;");
+        Label riskTitle = new Label("Risk Score: " + req.getRiskScore() + "/100 — " + (req.getRiskScore() >= 50 ? "HIGH RISK" : (req.getRiskScore() >= 20 ? "MODERATE RISK" : "LOW RISK / SAFE")));
+        riskTitle.setStyle(req.getRiskScore() >= 50
+                ? "-fx-font-weight: bold; -fx-text-fill: #C5221F; -fx-font-size: 13px;"
+                : "-fx-font-weight: bold; -fx-text-fill: #137333; -fx-font-size: 13px;");
+
+        Label flagsLbl = new Label("Detected Security Flags: " + (req.getRiskFlags() != null && !req.getRiskFlags().isBlank() ? req.getRiskFlags() : "None"));
+        flagsLbl.setWrapText(true);
+        flagsLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #5F6368;");
+
+        riskTray.getChildren().addAll(riskTitle, flagsLbl);
+
+        // 4. Decision Input
+        TextField reviewNotesField = Ui.field("Enter verification notes or rejection reason...");
+        VBox decisionBox = new VBox(6, new Label("Verifier Assessment Notes:"), reviewNotesField);
+
+        root.getChildren().addAll(applicantTray, registrarTray, riskTray, decisionBox);
+
+        ScrollPane scroll = new ScrollPane(root);
+        scroll.setFitToWidth(true);
+        scroll.setPrefHeight(520);
+        dialog.getDialogPane().setContent(scroll);
+
+        ButtonType btnApprove = new ButtonType("Approve Identity", ButtonBar.ButtonData.OK_DONE);
+        ButtonType btnReject = new ButtonType("Reject Application", ButtonBar.ButtonData.NO);
+        ButtonType btnSuspend = new ButtonType("Suspend Account", ButtonBar.ButtonData.OTHER);
+        dialog.getDialogPane().getButtonTypes().addAll(btnApprove, btnReject, btnSuspend, ButtonType.CANCEL);
+
+        dialog.showAndWait().ifPresent(btn -> {
+            int reviewerId = com.nextit.security.Session.currentUser().getUserId();
+            String notes = reviewNotesField.getText().trim();
+            if (btn == btnApprove) {
+                guard(() -> {
+                    admin.approveVerification(req.getRequestId(), reviewerId, notes.isBlank() ? "Approved by administrator" : notes);
+                    onUpdated.run();
+                    Alerts.info("Identity verification approved for @" + req.getUsername() + ".");
+                });
+            } else if (btn == btnReject) {
+                if (notes.isBlank()) {
+                    Alerts.error("Please provide a rejection reason in the verifier assessment notes field.");
+                    return;
+                }
+                guard(() -> {
+                    admin.rejectVerification(req.getRequestId(), reviewerId, notes);
+                    onUpdated.run();
+                    Alerts.info("Application rejected for @" + req.getUsername() + ".");
+                });
+            } else if (btn == btnSuspend) {
+                guard(() -> {
+                    admin.suspendUser(req.getUserId(), notes.isBlank() ? "Suspended by verifier during identity inspection" : notes);
+                    onUpdated.run();
+                    Alerts.info("Account @" + req.getUsername() + " has been suspended.");
+                });
+            }
+        });
+    }
+
+    private static Node createInstitutionalDatabaseView() {
+        TableView<InstitutionalRecord> table = Ui.table();
+        Ui.addColumn(table, "ID", r -> String.valueOf(r.getRecordId()));
+        Ui.addColumn(table, "Record Type", r -> String.valueOf(r.getRecordType()));
+        Ui.addColumn(table, "Identifier Number", InstitutionalRecord::getIdentifierNumber);
+        Ui.addColumn(table, "Institutional Email", InstitutionalRecord::getInstitutionalEmail);
+        Ui.addColumn(table, "Full Name", InstitutionalRecord::getFullName);
+        Ui.addColumn(table, "Department / Program", InstitutionalRecord::getDepartmentOrProgram);
+        Ui.addColumn(table, "Status", r -> r.isActive() ? "Active" : "Inactive");
+
+        TextField search = Ui.field("Search by identifier, email, name, program...");
+        Runnable applyFilter = () -> {
+            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
+            List<InstitutionalRecord> filtered = admin.institutionalRecords().stream().filter(r ->
+                    q.isBlank()
+                            || String.valueOf(r.getIdentifierNumber()).toLowerCase(Locale.ROOT).contains(q)
+                            || String.valueOf(r.getInstitutionalEmail()).toLowerCase(Locale.ROOT).contains(q)
+                            || String.valueOf(r.getFullName()).toLowerCase(Locale.ROOT).contains(q)
+                            || String.valueOf(r.getDepartmentOrProgram()).toLowerCase(Locale.ROOT).contains(q)
+            ).toList();
+            table.setItems(FXCollections.observableArrayList(filtered));
+        };
+
+        search.textProperty().addListener((obs, old, val) -> applyFilter.run());
+        applyFilter.run();
+
+        Button addBtn = new Button("➕ Add Record");
+        addBtn.getStyleClass().add("primary-button");
+        addBtn.setOnAction(e -> editInstitutionalRecordDialog(null, applyFilter));
+
+        Button editBtn = new Button("✏️ Edit Record");
+        editBtn.setOnAction(e -> {
+            InstitutionalRecord selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select a record to edit."); return; }
+            editInstitutionalRecordDialog(selected, applyFilter);
+        });
+
+        Button deleteBtn = new Button("🗑️ Delete");
+        deleteBtn.setOnAction(e -> {
+            InstitutionalRecord selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select a record to delete."); return; }
+            if (Ui.confirmed("Delete institutional record for " + selected.getFullName() + " (" + selected.getIdentifierNumber() + ")?")) {
+                guard(() -> {
+                    admin.deleteInstitutionalRecord(selected.getRecordId());
+                    applyFilter.run();
+                    Alerts.info("Institutional record deleted.");
+                });
+            }
+        });
+
+        Button refreshBtn = new Button("🔄 Refresh");
+        refreshBtn.setOnAction(e -> applyFilter.run());
+
+        Button exportCsv = Ui.button("📥 Export CSV", "clay-btn-secondary");
+        exportCsv.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToCsv(table, "institutional_records.csv", "Authorized Institutional Records", exportCsv.getScene().getWindow()));
+
+        HBox toolbar = Ui.toolbar(new Label("Search:"), search, addBtn, editBtn, deleteBtn, refreshBtn, exportCsv);
+        VBox layout = new VBox(12, toolbar, table);
+        layout.setPadding(new Insets(14, 0, 0, 0));
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return layout;
+    }
+
+    private static void editInstitutionalRecordDialog(InstitutionalRecord existing, Runnable onDone) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Institutional Registrar Record" : "Edit Institutional Registrar Record");
+        dialog.setHeaderText("Authorized University Identity Whitelist");
+
+        ComboBox<Role> typeCombo = Ui.combo(List.of(Role.STUDENT, Role.INSTRUCTOR), Role::name);
+        typeCombo.getSelectionModel().select(existing != null ? existing.getRecordType() : Role.STUDENT);
+
+        TextField idField = Ui.field("Student Number (e.g. 2026-0042) or Faculty ID (EMP-1001)");
+        if (existing != null) idField.setText(existing.getIdentifierNumber());
+
+        TextField emailField = Ui.field("Institutional Email (e.g. name@nextit.edu)");
+        if (existing != null) emailField.setText(existing.getInstitutionalEmail());
+
+        TextField nameField = Ui.field("Full Official Name");
+        if (existing != null) nameField.setText(existing.getFullName());
+
+        TextField deptField = Ui.field("Degree Program or Faculty Department");
+        if (existing != null) deptField.setText(existing.getDepartmentOrProgram());
+
+        CheckBox activeCheck = new CheckBox("Active Enrollment / Employment Status");
+        activeCheck.setSelected(existing == null || existing.isActive());
+
+        Node form = Ui.form(new String[]{"Record Type", "Identifier Number", "Institutional Email", "Full Official Name", "Department / Program", "Status"},
+                new Node[]{typeCombo, idField, emailField, nameField, deptField, activeCheck});
+
+        dialog.getDialogPane().setContent(form);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        dialog.showAndWait().ifPresent(btn -> {
+            if (btn == ButtonType.OK) {
+                guard(() -> {
+                    InstitutionalRecord rec = existing != null ? existing : new InstitutionalRecord();
+                    rec.setRecordType(typeCombo.getValue());
+                    rec.setIdentifierNumber(idField.getText().trim());
+                    rec.setInstitutionalEmail(emailField.getText().trim());
+                    rec.setFullName(nameField.getText().trim());
+                    rec.setDepartmentOrProgram(deptField.getText().trim());
+                    rec.setActive(activeCheck.isSelected());
+
+                    admin.saveInstitutionalRecord(rec);
+                    onDone.run();
+                    Alerts.info("Institutional record saved successfully.");
+                });
+            }
+        });
+    }
+
+    private static Node createSecurityAuditView() {
+        TableView<SecurityAuditLog> table = Ui.table();
+        Ui.addColumn(table, "ID", l -> String.valueOf(l.getLogId()));
+        Ui.addColumn(table, "Timestamp", l -> l.getCreatedAt() != null ? l.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) : "");
+        Ui.addColumn(table, "Actor", l -> "@" + l.getActorUsername());
+        Ui.addColumn(table, "Action", SecurityAuditLog::getAction);
+        Ui.addColumn(table, "Target", l -> l.getTargetUserId() != null ? "#" + l.getTargetUserId() : "-");
+        Ui.addColumn(table, "Severity", SecurityAuditLog::getSeverity);
+        Ui.addColumn(table, "IP Address", SecurityAuditLog::getIpAddress);
+        Ui.addColumn(table, "Details", SecurityAuditLog::getDetails);
+
+        TextField search = Ui.field("Search audit logs...");
+        ComboBox<String> severityFilter = Ui.combo(List.of("All Severities", "INFO", "WARNING", "SECURITY_ALERT", "CRITICAL"), s -> s);
+        severityFilter.getSelectionModel().selectFirst();
+
+        Runnable applyFilter = () -> {
+            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
+            String sf = severityFilter.getValue();
+            List<SecurityAuditLog> filtered = SecurityAuditService.getInstance().recentLogs(200).stream().filter(l -> {
+                boolean matchesQ = q.isBlank()
+                        || String.valueOf(l.getActorUsername()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(l.getAction()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(l.getDetails()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(l.getIpAddress()).toLowerCase(Locale.ROOT).contains(q);
+                boolean matchesSev = sf == null || "All Severities".equals(sf) || sf.equalsIgnoreCase(l.getSeverity());
+                return matchesQ && matchesSev;
+            }).toList();
+            table.setItems(FXCollections.observableArrayList(filtered));
+        };
+
+        search.textProperty().addListener((obs, old, val) -> applyFilter.run());
+        severityFilter.valueProperty().addListener((obs, old, val) -> applyFilter.run());
+        applyFilter.run();
+
+        Button refreshBtn = new Button("🔄 Refresh Logs");
+        refreshBtn.setOnAction(e -> applyFilter.run());
+
+        Button exportCsv = Ui.button("📥 Export CSV", "clay-btn-secondary");
+        exportCsv.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToCsv(table, "security_audit_logs.csv", "System Security Audit Logs", exportCsv.getScene().getWindow()));
+
+        Button exportReport = Ui.button("📄 Print / PDF Report", "clay-btn-secondary");
+        exportReport.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToHtmlReport(table, "security_audit_report.html", "System Security Audit Report", exportReport.getScene().getWindow()));
+
+        HBox toolbar = Ui.toolbar(new Label("Search:"), search, new Label("Severity:"), severityFilter, refreshBtn, exportCsv, exportReport);
+        VBox layout = new VBox(12, toolbar, table);
+        layout.setPadding(new Insets(14, 0, 0, 0));
+        VBox.setVgrow(table, Priority.ALWAYS);
+        return layout;
+    }
+
+    private static Node createProvisionAdminView() {
+        VBox card = new VBox(20);
+        card.setMaxWidth(680);
+        card.getStyleClass().add("clay-tray");
+        card.setPadding(new Insets(30));
+
+        Label title = new Label("Provision System Administrator Account");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #383139;");
+
+        Label subtitle = new Label("Public administrator registration is permanently disabled. Only currently authenticated administrators can provision administrative access. In accordance with university cybersecurity policy, all administrator accounts require mandatory Multi-Factor Authentication (MFA).");
+        subtitle.setWrapText(true);
+        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #48404B; -fx-line-spacing: 2px;");
+
+        TextField username = Ui.field("Username (e.g. jcruz_admin)");
+        TextField email = Ui.field("Official University Administrator Email (e.g. jcruz@nextit.edu)");
+        TextField firstName = Ui.field("First Name");
+        TextField lastName = Ui.field("Last Name");
+        PasswordField password = Ui.password("Temporary Password (min 8 characters)");
+        PasswordField confirmPass = Ui.password("Confirm Temporary Password");
+
+        CheckBox mfaConfirmation = new CheckBox("I confirm that this person is an authorized system administrator and that Multi-Factor Authentication (MFA) will be enforced upon their initial sign-in.");
+        mfaConfirmation.setSelected(true);
+        mfaConfirmation.setWrapText(true);
+        mfaConfirmation.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+
+        Button submitBtn = new Button("🔑 Provision Administrator Account");
+        submitBtn.getStyleClass().add("primary-button");
+        submitBtn.setOnAction(e -> {
+            String u = username.getText().trim();
+            String em = email.getText().trim();
+            String fn = firstName.getText().trim();
+            String ln = lastName.getText().trim();
+            String pw = password.getText();
+            String cp = confirmPass.getText();
+
+            if (u.isBlank() || em.isBlank() || fn.isBlank() || ln.isBlank() || pw.isBlank()) {
+                Alerts.error("All administrator account fields are required.");
+                return;
+            }
+            if (pw.length() < 8) {
+                Alerts.error("Administrator passwords must be at least 8 characters.");
+                return;
+            }
+            if (!pw.equals(cp)) {
+                Alerts.error("Passwords do not match.");
+                return;
+            }
+            if (!mfaConfirmation.isSelected()) {
+                Alerts.error("You must confirm MFA compliance before provisioning an administrator.");
+                return;
+            }
+
+            guard(() -> {
+                User newAdmin = new User();
+                newAdmin.setUsername(u);
+                newAdmin.setEmail(em);
+                newAdmin.setFirstName(fn);
+                newAdmin.setLastName(ln);
+
+                admin.provisionAdmin(newAdmin, pw);
+
+                username.clear();
+                email.clear();
+                firstName.clear();
+                lastName.clear();
+                password.clear();
+                confirmPass.clear();
+
+                Alerts.info("Administrator account @" + u + " provisioned successfully!\nMulti-Factor Authentication will be enforced on sign-in.");
+            });
+        });
+
+        Node form = Ui.form(new String[]{"Username", "Official Email", "First Name", "Last Name", "Temporary Password", "Confirm Password"},
+                new Node[]{username, email, firstName, lastName, password, confirmPass});
+
+        card.getChildren().addAll(title, subtitle, form, mfaConfirmation, submitBtn);
+
+        ScrollPane sp = new ScrollPane(card);
+        sp.setFitToWidth(true);
+        sp.getStyleClass().add("content-scroll");
+        sp.setPadding(new Insets(20));
+        return sp;
     }
 
     private static String value(String text) { return text == null ? "" : text; }

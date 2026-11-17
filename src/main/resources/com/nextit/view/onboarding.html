@@ -414,10 +414,18 @@
       },
 
       selectRole(r) {
+        if (r === 'admin') {
+          alert('Administrator accounts are strictly provisioned by authorized campus administrators and cannot be self-registered publicly. Please contact IT Security for clearance.');
+          return;
+        }
         this.role = r;
       },
 
       continueToForm() {
+        if (this.role === 'admin') {
+          alert('Public administrator registration is disabled.');
+          return;
+        }
         this.view = 2;
         this.step = 1;
         this.formError = '';
@@ -585,7 +593,6 @@
           try {
             const respStr = window.javaBridge.requestOtp(this.email);
             const data = JSON.parse(respStr);
-            this.generatedCode = data.code || '';
             if (data.sent) {
               this.otpStatus = 'sent';
             } else {
@@ -593,15 +600,13 @@
             }
           } catch (e) {
             this.otpStatus = 'sandbox';
-            this.generatedCode = '839210';
           }
         } else {
           // Browser fallback preview
           this.otpStatus = 'sandbox';
-          this.generatedCode = '749201';
         }
 
-        // Start 60s countdown
+        // Start 45s countdown
         this.resendCountdown = 45;
         if (this.timerInterval) clearInterval(this.timerInterval);
         this.timerInterval = setInterval(() => {
@@ -614,7 +619,7 @@
       },
 
       autoFillOtp() {
-        const c = (this.generatedCode && this.generatedCode.length === 6) ? this.generatedCode : '123456';
+        const c = '123456';
         for (let i = 0; i < 6; i++) {
           this.otp[i] = c[i];
         }
@@ -724,7 +729,7 @@
 
         if (window.javaBridge) {
           const valid = window.javaBridge.verifyOtp(this.email, entered);
-          if (valid || entered === this.generatedCode || entered === '123456' || entered === '000000') {
+          if (valid) {
             this.isSubmitting = false;
             this.verified = true;
             this.step = 4;
@@ -733,7 +738,7 @@
             this.otpError = 'Invalid confirmation code. Please check the 6 digits or click Resend.';
           }
         } else {
-          if (entered === this.generatedCode || entered === '123456' || entered === '000000' || this.generatedCode === '') {
+          if (entered === '123456' || entered === '000000') {
             this.isSubmitting = false;
             this.verified = true;
             this.step = 4;
@@ -954,26 +959,29 @@
               </div>
             </div>
 
-            <!-- 4. Admin Card (Pale-Blue Cushion) -->
+            <!-- 4. Admin Card (Restricted - Provisioned Only) -->
             <div 
               @click="selectRole('admin')" 
-              :class="[roles.admin.cushionClass, role === 'admin' ? 'is-selected' : '']"
-              class="clay-role-card flex flex-col justify-between"
+              class="clay-role-card flex flex-col justify-between opacity-85 border-2 border-dashed border-sky-300/80 cursor-pointer hover:border-sky-500"
             >
               <div class="flex items-start justify-between mb-3">
                 <div class="w-8 h-8 flex items-center justify-center">
                   <svg class="w-7 h-7 text-sky-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
                   </svg>
                 </div>
-                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full" :class="roles.admin.badgeClass">
-                  Admin
+                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300">
+                  🔒 Restricted
                 </span>
               </div>
               <div>
-                <h3 class="text-base font-extrabold text-nextit-ink mb-1">Administrator</h3>
+                <h3 class="text-base font-extrabold text-nextit-ink mb-1 flex items-center gap-1.5">
+                  <span>Administrator</span>
+                  <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800">IT Provisioned</span>
+                </h3>
                 <p class="text-xs text-nextit-ink-secondary leading-relaxed font-medium">
-                  Manage academic terms, verify departments, configure database sync and system access.
+                  Public registration is disabled. Administrator accounts are provisioned exclusively by authorized system administrators.
                 </p>
               </div>
             </div>
@@ -1288,8 +1296,8 @@
                 <path d="m15.5 7.5 3 3"/>
               </svg>
               <div>
-                <div class="font-extrabold text-sm">Test Code: <span class="text-rose-700 tracking-wider text-base font-black" x-text="generatedCode || '123456'"></span></div>
-                <div class="text-[11px] text-amber-800 font-medium">SMTP is not set up in .env yet. Click Auto-Fill to verify immediately, or configure Gmail SMTP.</div>
+                <div class="font-extrabold text-sm">Sandbox Mode: <span class="text-rose-700 tracking-wider text-base font-black">Development Bypass</span></div>
+                <div class="text-[11px] text-amber-800 font-medium">SMTP is not configured in .env yet. Click Auto-Fill to use sandbox bypass (123456), or configure Gmail SMTP.</div>
               </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">

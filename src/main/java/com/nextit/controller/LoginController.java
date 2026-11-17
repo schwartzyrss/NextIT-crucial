@@ -3,12 +3,15 @@ package com.nextit.controller;
 import com.nextit.exception.AppException;
 import com.nextit.model.User;
 import com.nextit.service.AuthenticationService;
+import com.nextit.service.OtpService;
+import com.nextit.util.Alerts;
+import com.nextit.util.Ui;
+import javafx.application.Platform;
 import javafx.fxml.FXML;
-import javafx.scene.control.Alert;
-import javafx.scene.control.Button;
-import javafx.scene.control.Label;
-import javafx.scene.control.PasswordField;
-import javafx.scene.control.TextField;
+import javafx.geometry.Pos;
+import javafx.scene.control.*;
+import javafx.scene.layout.HBox;
+import javafx.scene.layout.VBox;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
 import org.slf4j.Logger;
@@ -75,8 +78,14 @@ public class LoginController {
     @SuppressWarnings("PMD.UnusedPrivateMethod")
     private void handleLogin() {
         try {
+            errorLabel.setText("");
+            if (authenticationService == null) {
+                authenticationService = new AuthenticationService();
+            }
             User user = authenticationService.login(usernameField.getText(), enteredPassword());
             transitionToMain(user);
+        } catch (AuthenticationService.MfaRequiredException mfa) {
+            promptMfaDialog(mfa.getUser(), mfa.getMessage());
         } catch (AppException e) {
             com.nextit.security.Session.logout();
             errorLabel.setText(e.getMessage());
@@ -88,6 +97,56 @@ public class LoginController {
             alert.setContentText("Could not log in. Please check the database connection.");
             alert.show();
         }
+    }
+
+    private void promptMfaDialog(User user, String instructions) {
+        Dialog<String> dialog = new Dialog<>();
+        dialog.setTitle("MFA Verification Required");
+        dialog.setHeaderText("Two-Factor Identity Authorization");
+
+        VBox content = new VBox(12);
+        content.setPrefWidth(380);
+
+        Label desc = new Label(instructions);
+        desc.setWrapText(true);
+        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #48404b;");
+
+        TextField mfaField = Ui.field("Enter 6-digit code");
+        mfaField.setStyle("-fx-font-size: 18px; -fx-alignment: center; -fx-font-weight: bold; -fx-letter-spacing: 4px;");
+
+        Label statusLbl = new Label("");
+        statusLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #b3261e;");
+
+        Button resendBtn = new Button("Resend Code");
+        resendBtn.getStyleClass().add("secondary-button");
+        resendBtn.setOnAction(e -> {
+            OtpService.OtpResponse r = OtpService.requestMfaOtp(user);
+            statusLbl.setText(r.message());
+            statusLbl.setStyle(r.sent() ? "-fx-font-size: 11px; -fx-text-fill: #2d6a4f;" : "-fx-font-size: 11px; -fx-text-fill: #b3261e;");
+        });
+
+        HBox resendRow = new HBox(8, resendBtn);
+        resendRow.setAlignment(Pos.CENTER_LEFT);
+
+        content.getChildren().addAll(desc, mfaField, statusLbl, resendRow);
+        dialog.getDialogPane().setContent(content);
+
+        ButtonType verifyBtnType = new ButtonType("Authorize & Sign In", ButtonBar.ButtonData.OK_DONE);
+        dialog.getDialogPane().getButtonTypes().addAll(verifyBtnType, ButtonType.CANCEL);
+
+        dialog.setResultConverter(button -> button == verifyBtnType ? mfaField.getText() : null);
+
+        dialog.showAndWait().ifPresent(code -> {
+            try {
+                User authed = authenticationService.completeMfaLogin(user, code);
+                transitionToMain(authed);
+            } catch (AppException ex) {
+                errorLabel.setText(ex.getMessage());
+            } catch (Exception ex) {
+                log.error("Failed to complete MFA login", ex);
+                errorLabel.setText("MFA authorization failed: " + ex.getMessage());
+            }
+        });
     }
 
     private void transitionToMain(User user) throws Exception {

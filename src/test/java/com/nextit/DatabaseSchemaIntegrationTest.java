@@ -59,16 +59,22 @@ class DatabaseSchemaIntegrationTest {
             }
         }
 
-        Map<String, Column> expectedColumns = Map.of(
-                "user_id", new Column("int", 10, false),
-                "username", new Column("varchar", 50, false),
-                "password_hash", new Column("varchar", 255, false),
-                "email", new Column("varchar", 100, false),
-                "role", new Column("enum", 0, false),
-                "first_name", new Column("varchar", 50, false),
-                "last_name", new Column("varchar", 50, false),
-                "created_at", new Column("datetime", 0, false),
-                "updated_at", new Column("datetime", 0, false));
+        Map<String, Column> expectedColumns = Map.ofEntries(
+                Map.entry("user_id", new Column("int", 10, false)),
+                Map.entry("username", new Column("varchar", 50, false)),
+                Map.entry("password_hash", new Column("varchar", 255, false)),
+                Map.entry("email", new Column("varchar", 100, false)),
+                Map.entry("role", new Column("enum", 0, false)),
+                Map.entry("first_name", new Column("varchar", 50, false)),
+                Map.entry("last_name", new Column("varchar", 50, false)),
+                Map.entry("verification_status", new Column("varchar", 20, false)),
+                Map.entry("rejection_reason", new Column("text", 0, true)),
+                Map.entry("verified_at", new Column("datetime", 0, true)),
+                Map.entry("failed_login_attempts", new Column("int", 10, false)),
+                Map.entry("locked_until", new Column("datetime", 0, true)),
+                Map.entry("mfa_enabled", new Column("bit", 1, false)),
+                Map.entry("created_at", new Column("datetime", 0, false)),
+                Map.entry("updated_at", new Column("datetime", 0, false)));
 
         assertEquals(expectedColumns.keySet(), actualColumns.keySet(), "Users columns");
         for (Map.Entry<String, Column> expected : expectedColumns.entrySet()) {

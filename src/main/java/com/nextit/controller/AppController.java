@@ -78,7 +78,8 @@ public class AppController {
     public void initialize(Stage stage, User user) {
         instance = this;
         this.stage = stage;
-        userLabel.setText(user.getFullName() + " (" + user.getRole() + ")");
+        String statusSuffix = user.isVerified() ? "" : " - " + user.getVerificationStatus().displayName();
+        userLabel.setText(user.getFullName() + " (" + user.getRole() + statusSuffix + ")");
         if (toggleSidebarButton != null) {
             toggleSidebarButton.setTooltip(new Tooltip("Toggle Sidebar (Ctrl+B)"));
         }
@@ -101,8 +102,42 @@ public class AppController {
             });
         }
         com.nextit.service.SystemService.getInstance().start();
-        buildSidebar(user);
-        showDashboard(user);
+
+        // RBAC Enforcement: Unverified accounts only see verification status screen
+        if (user.isVerified()) {
+            buildSidebar(user);
+            showDashboard(user);
+        } else {
+            buildUnverifiedSidebar(user);
+            showVerificationStatus(user);
+        }
+    }
+
+    private void showVerificationStatus(User user) {
+        setView(VerificationStatusView.create(stage, user, this::confirmAndLogout, verifiedUser -> {
+            userLabel.setText(verifiedUser.getFullName() + " (" + verifiedUser.getRole() + ")");
+            buildSidebar(verifiedUser);
+            showDashboard(verifiedUser);
+        }));
+    }
+
+    private void buildUnverifiedSidebar(User user) {
+        sidebar.getChildren().clear();
+        sidebar.getChildren().add(categoryHeader("Identity & Access"));
+        Button statusBtn = navButton("🛡️ Verification Status", () -> showVerificationStatus(user));
+        sidebar.getChildren().add(statusBtn);
+        setActiveButton(statusBtn);
+
+        if (logoutButton != null) {
+            logoutButton.setOnAction(e -> runSafely(this::confirmAndLogout));
+        } else if (sidebarFooter != null) {
+            sidebarFooter.getChildren().clear();
+            Button logout = new Button("🚪 Logout");
+            logout.setMaxWidth(Double.MAX_VALUE);
+            logout.getStyleClass().addAll("sidebar-button", "sidebar-logout-button");
+            logout.setOnAction(e -> runSafely(this::confirmAndLogout));
+            sidebarFooter.getChildren().add(logout);
+        }
     }
 
     @FXML
@@ -170,6 +205,9 @@ public class AppController {
                 sidebar.getChildren().add(navButton("🔍 Portfolio Search", () -> setView(EmployerViews.portfolioSearch())));
             }
             case ADMIN -> {
+                sidebar.getChildren().add(categoryHeader("Security & Verification"));
+                sidebar.getChildren().add(navButton("🛡️ Verification Hub", () -> setView(AdminViews.verificationHub())));
+
                 sidebar.getChildren().add(categoryHeader("System & Academics"));
                 sidebar.getChildren().add(navButton("👥 Users", () -> setView(AdminViews.users())));
                 sidebar.getChildren().add(navButton("📖 Subjects", () -> setView(AdminViews.subjects())));

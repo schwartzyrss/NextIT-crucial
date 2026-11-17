@@ -1,6 +1,9 @@
 package com.nextit.repository;
 
 import com.nextit.model.User;
+import com.nextit.model.VerificationStatus;
+
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,5 +15,9 @@ public interface UserRepository {
     void save(User user);
     void update(User user);
     void updatePassword(int userId, String passwordHash);
+    void updateVerificationStatus(int userId, VerificationStatus status, String rejectionReason, Integer verifiedBy);
+    void recordFailedLogin(int userId, int attempts, LocalDateTime lockedUntil);
+    void resetFailedLogins(int userId);
+    void updateMfa(int userId, boolean enabled);
     void delete(int id);
 }

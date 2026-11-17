@@ -1,19 +1,11 @@
 package com.nextit.service;
 
 import com.nextit.exception.AppException;
-import com.nextit.model.Employer;
-import com.nextit.model.Instructor;
-import com.nextit.model.Role;
-import com.nextit.model.Student;
-import com.nextit.model.Subject;
-import com.nextit.model.User;
-import com.nextit.repository.JdbcEmployerRepository;
-import com.nextit.repository.JdbcInstructorRepository;
-import com.nextit.repository.JdbcStudentRepository;
-import com.nextit.repository.JdbcSubjectRepository;
-import com.nextit.repository.JdbcUserRepository;
+import com.nextit.model.*;
+import com.nextit.repository.*;
 import com.nextit.util.Validator;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
 
@@ -24,12 +16,115 @@ public class AdminService {
     private final JdbcStudentRepository studentRepo = new JdbcStudentRepository();
     private final JdbcInstructorRepository instructorRepo = new JdbcInstructorRepository();
     private final JdbcEmployerRepository employerRepo = new JdbcEmployerRepository();
+    private final JdbcVerificationRequestRepository verificationRepo = new JdbcVerificationRequestRepository();
+    private final JdbcInstitutionalRecordRepository institutionalRepo = new JdbcInstitutionalRecordRepository();
+    private final SecurityAuditService auditService = SecurityAuditService.getInstance();
 
     public List<User> users() { return userRepo.findAll(); }
     public List<Subject> subjects() { return subjectRepo.findAll(); }
     public List<Student> students() { return studentRepo.findAll(); }
     public List<Instructor> instructors() { return instructorRepo.findAll(); }
     public List<Employer> employers() { return employerRepo.findAll(); }
+
+    public List<VerificationRequest> verificationRequests() { return verificationRepo.findAll(); }
+    public List<VerificationRequest> pendingVerificationRequests() { return verificationRepo.findPending(); }
+
+    public void approveVerification(int requestId, int reviewerId, String notes) {
+        VerificationRequest req = verificationRepo.findById(requestId)
+                .orElseThrow(() -> new AppException("Verification request not found."));
+        req.setStatus(VerificationStatus.VERIFIED);
+        req.setReviewerId(reviewerId);
+        req.setReviewerNotes(notes != null && !notes.isBlank() ? notes.trim() : "Approved by administrator");
+        req.setReviewedAt(LocalDateTime.now());
+        verificationRepo.update(req);
+
+        userRepo.updateVerificationStatus(req.getUserId(), VerificationStatus.VERIFIED, null, reviewerId);
+        auditService.logVerificationDecision(currentUserUsername(), req.getUserId(), VerificationStatus.VERIFIED, req.getReviewerNotes());
+    }
+
+    public void rejectVerification(int requestId, int reviewerId, String rejectionReason) {
+        if (rejectionReason == null || rejectionReason.isBlank()) {
+            throw new AppException("A rejection reason is required.");
+        }
+        VerificationRequest req = verificationRepo.findById(requestId)
+                .orElseThrow(() -> new AppException("Verification request not found."));
+        req.setStatus(VerificationStatus.REJECTED);
+        req.setReviewerId(reviewerId);
+        req.setReviewerNotes(rejectionReason.trim());
+        req.setReviewedAt(LocalDateTime.now());
+        verificationRepo.update(req);
+
+        userRepo.updateVerificationStatus(req.getUserId(), VerificationStatus.REJECTED, rejectionReason.trim(), reviewerId);
+        auditService.logVerificationDecision(currentUserUsername(), req.getUserId(), VerificationStatus.REJECTED, rejectionReason.trim());
+    }
+
+    public void suspendUser(int targetUserId, String reason) {
+        if (reason == null || reason.isBlank()) {
+            throw new AppException("A suspension reason is required.");
+        }
+        userRepo.findById(targetUserId)
+                .orElseThrow(() -> new AppException("User not found."));
+        userRepo.updateVerificationStatus(targetUserId, VerificationStatus.SUSPENDED, reason.trim(), null);
+        auditService.logSuspension(currentUserUsername(), targetUserId, reason.trim());
+    }
+
+    public void reinstateUser(int targetUserId) {
+        userRepo.findById(targetUserId)
+                .orElseThrow(() -> new AppException("User not found."));
+        userRepo.updateVerificationStatus(targetUserId, VerificationStatus.VERIFIED, null, null);
+        auditService.logReinstated(currentUserUsername(), targetUserId);
+    }
+
+    public void provisionAdmin(User adminUser, String plainPassword) {
+        Validator.notBlank(adminUser.getUsername(), "Username");
+        Validator.email(adminUser.getEmail());
+        Validator.notBlank(adminUser.getFirstName(), "First name");
+        Validator.notBlank(adminUser.getLastName(), "Last name");
+        Validator.notBlank(plainPassword, "Password");
+        if (plainPassword.length() < 8) {
+            throw new AppException("Administrator password must be at least 8 characters.");
+        }
+        if (userRepo.findByUsername(adminUser.getUsername().trim()).isPresent()) {
+            throw new AppException("That username is already taken.");
+        }
+        if (userRepo.findByEmail(adminUser.getEmail().trim()).isPresent()) {
+            throw new AppException("That email address is already registered.");
+        }
+
+        adminUser.setUsername(adminUser.getUsername().trim());
+        adminUser.setEmail(adminUser.getEmail().trim().toLowerCase());
+        adminUser.setRole(Role.ADMIN);
+        adminUser.setVerificationStatus(VerificationStatus.VERIFIED);
+        adminUser.setVerifiedAt(LocalDateTime.now());
+        adminUser.setMfaEnabled(true); // Require MFA for administrator accounts
+        adminUser.setPasswordHash(AuthenticationService.hashPassword(plainPassword));
+        userRepo.save(adminUser);
+
+        auditService.logAdminProvisioned(currentUserUsername(), adminUser.getUsername());
+    }
+
+    public List<InstitutionalRecord> institutionalRecords() {
+        return institutionalRepo.findAll();
+    }
+
+    public void saveInstitutionalRecord(InstitutionalRecord record) {
+        Validator.notBlank(record.getIdentifierNumber(), "Identifier number");
+        Validator.email(record.getInstitutionalEmail());
+        Validator.notBlank(record.getFullName(), "Full name");
+        Validator.notBlank(record.getDepartmentOrProgram(), "Department or program");
+        if (record.getRecordType() == null) {
+            throw new AppException("Record type (STUDENT or INSTRUCTOR) is required.");
+        }
+        if (record.getRecordId() > 0) {
+            institutionalRepo.update(record);
+        } else {
+            institutionalRepo.save(record);
+        }
+    }
+
+    public void deleteInstitutionalRecord(int recordId) {
+        institutionalRepo.delete(recordId);
+    }
 
     public void createUser(User user, String plainPassword) {
         validateUser(user);
@@ -45,18 +140,16 @@ public class AdminService {
         user.setUsername(user.getUsername().trim());
         user.setEmail(user.getEmail().trim());
         user.setPasswordHash(AuthenticationService.hashPassword(plainPassword));
+        if (user.getVerificationStatus() == null) {
+            user.setVerificationStatus(VerificationStatus.VERIFIED);
+        }
         userRepo.save(user);
         try {
             createProfile(user);
         } catch (RuntimeException e) {
-            // The account is unusable without its role profile, so undo the
-            // insert rather than leaving a half-created user behind.
             try {
                 userRepo.delete(user.getUserId());
-            } catch (RuntimeException ignored) {
-                // Keep the original failure; the orphaned row can be removed
-                // from the admin screen if the rollback itself fails.
-            }
+            } catch (RuntimeException ignored) {}
             throw e;
         }
     }
@@ -66,6 +159,7 @@ public class AdminService {
         User existing = userRepo.findById(user.getUserId())
                 .orElseThrow(() -> new AppException("User account not found."));
         if (existing.getRole() != user.getRole()) {
+            auditService.logRoleChangeBlocked(currentUserUsername(), existing.getUsername(), String.valueOf(user.getRole()));
             throw new AppException("A user's role cannot be changed after the account is created.");
         }
         userRepo.findByUsername(user.getUsername().trim())
@@ -114,15 +208,18 @@ public class AdminService {
 
     public void updateStudent(Student student) {
         Validator.notBlank(student.getStudentNumber(), "Student number");
-        Validator.notBlank(student.getProgram(), "Program");
         Validator.maxLength(student.getStudentNumber(), 30, "Student number");
+        Validator.notBlank(student.getProgram(), "Program");
         Validator.maxLength(student.getProgram(), 100, "Program");
         Validator.maxLength(student.getSection(), 30, "Section");
-        if (student.getYearLevel() < 1) throw new AppException("Year level must be at least 1.");
+        Validator.notBlank(student.getEnrollmentStatus(), "Enrollment status");
+        Validator.maxLength(student.getEnrollmentStatus(), 30, "Enrollment status");
+        if (student.getYearLevel() < 1 || student.getYearLevel() > 10) {
+            throw new AppException("Year level must be between 1 and 10.");
+        }
         studentRepo.findAll().stream()
                 .filter(other -> other.getStudentId() != student.getStudentId())
-                .filter(other -> String.valueOf(other.getStudentNumber())
-                        .equalsIgnoreCase(student.getStudentNumber().trim()))
+                .filter(other -> student.getStudentNumber().trim().equalsIgnoreCase(other.getStudentNumber()))
                 .findAny()
                 .ifPresent(other -> { throw new AppException("That student number is already in use."); });
         student.setStudentNumber(student.getStudentNumber().trim());
@@ -133,8 +230,8 @@ public class AdminService {
         Validator.notBlank(instructor.getDepartment(), "Department");
         Validator.maxLength(instructor.getDepartment(), 100, "Department");
         Validator.maxLength(instructor.getSpecialization(), 150, "Specialization");
+        Validator.maxLength(instructor.getEmployeeNumber(), 30, "Employee number");
         String number = instructor.getEmployeeNumber() == null ? "" : instructor.getEmployeeNumber().trim();
-        Validator.maxLength(number, 30, "Employee number");
         if (!number.isBlank()) {
             instructorRepo.findAll().stream()
                     .filter(other -> other.getInstructorId() != instructor.getInstructorId())
@@ -168,11 +265,6 @@ public class AdminService {
         if (user.getRole() == null) throw new AppException("A role is required.");
     }
 
-    /**
-     * Every role that owns profile data gets a starter profile so the new
-     * account can open its dashboard immediately. The administrator can refine
-     * the generated identifiers from the profile screens afterwards.
-     */
     private void createProfile(User user) {
         if (user.getRole() == Role.STUDENT) {
             Student student = new Student();
@@ -201,5 +293,10 @@ public class AdminService {
             employer.setAddress("");
             employerRepo.save(employer);
         }
+    }
+
+    private String currentUserUsername() {
+        User u = com.nextit.security.Session.currentUser();
+        return u != null ? u.getUsername() : "ADMIN";
     }
 }

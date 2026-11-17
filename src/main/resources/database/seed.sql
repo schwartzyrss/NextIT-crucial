@@ -6,13 +6,13 @@
 -- been used before (provided the demo rows do not already exist).
 USE nextit;
 
-INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES
-('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'ADMIN',     'Kakong', 'Admin'),
-('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes'),
-('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz'),
-('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos'),
-('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz'),
-('admin1',      '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu',      'ADMIN',     'System', 'Admin');
+INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'ADMIN',     'Kakong', 'Admin', 'VERIFIED', CURRENT_TIMESTAMP, TRUE),
+('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
+('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
+('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
+('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
+('admin1',      '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu',      'ADMIN',     'System', 'Admin', 'VERIFIED', CURRENT_TIMESTAMP, TRUE);
 
 SET @student_user    = (SELECT user_id FROM users WHERE username = 'student1');
 SET @student2_user   = (SELECT user_id FROM users WHERE username = 'student2');
@@ -113,3 +113,25 @@ INSERT INTO applications (opportunity_id, student_id, status, remarks) VALUES
 
 INSERT INTO academic_support (student_id, instructor_id, subject_id, support_type, support_date, reason, action_taken, outcome, remarks) VALUES
 (@student_id, @instructor_id, @subject_302, 'Remedial', '2026-09-12', 'Difficulty with SQL joins', 'Extra exercises on joins', 'Improved', 'Follow up next week');
+
+-- Identity Verification & Institutional Registrar Pre-Enrolled Records
+INSERT INTO institutional_records (record_type, identifier_number, institutional_email, full_name, department_or_program, is_active) VALUES
+('STUDENT', '2023-0001', 'student@nextit.edu', 'Alex Reyes', 'BS Information Technology', TRUE),
+('STUDENT', '2023-0002', 'student2@nextit.edu', 'Bianca Cruz', 'BS Information Technology', TRUE),
+('STUDENT', '2026-0042', 'carlos.mendoza@nextit.edu', 'Carlos Mendoza', 'BS Computer Science', TRUE),
+('STUDENT', '2026-0099', 'diane.tan@dlsu.edu.ph', 'Diane Tan', 'BS Information Systems', TRUE),
+('INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'Maria Santos', 'Computer Science', TRUE),
+('INSTRUCTOR', 'EMP-1002', 'roberto.garcia@nextit.edu', 'Roberto Garcia', 'Information Technology', TRUE);
+
+-- Initial Verification Requests
+INSERT INTO verification_requests (user_id, role, id_number, institutional_email, organization_name, business_registration_number, document_reference, submission_notes, status, risk_score, risk_flags, reviewed_at) VALUES
+(@student_user, 'STUDENT', '2023-0001', 'student@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
+(@student2_user, 'STUDENT', '2023-0002', 'student2@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
+(@instructor_user, 'INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'College of Computer Studies', NULL, 'Faculty Appointment Form CS-2024', 'Faculty credentials confirmed against institutional records.', 'VERIFIED', 5, 'REGISTRAR_FACULTY_CONFIRMED', CURRENT_TIMESTAMP),
+(@employer_user, 'EMPLOYER', NULL, 'employer@techcorp.com', 'TechCorp Solutions', 'SEC-CS2021008891-TIN009', 'SEC Certificate of Incorporation & DTI Permit', 'Corporate registration verified.', 'VERIFIED', 10, 'CORPORATE_DOMAIN_DETECTED', CURRENT_TIMESTAMP);
+
+-- Security Audit Logs
+INSERT INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES
+(@admin_user, 'admin1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
+(@student_user, 'student1', 'LOGIN_SUCCESS', @student_user, '127.0.0.1', 'Successful authentication for verified student account.', 'INFO');
+
