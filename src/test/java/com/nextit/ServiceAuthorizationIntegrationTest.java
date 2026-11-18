@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -94,6 +95,10 @@ class ServiceAuthorizationIntegrationTest {
         certification.setIssuingOrganization("Oracle");
         service.saveCertification(certification);
         assertTrue(certification.getCertificationId() > 0);
+        Certification fetched = service.certificationsFor(owner.getStudentId()).stream()
+                .filter(c -> c.getCertificationId() == certification.getCertificationId())
+                .findFirst().orElseThrow();
+        assertNull(fetched.getExpirationDate());
 
         certification.setStudentId(other.getStudentId());
         assertThrows(AppException.class, () -> service.saveCertification(certification));

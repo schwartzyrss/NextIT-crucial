@@ -879,7 +879,7 @@ public final class StudentViews {
         Ui.addColumn(table, "Certification", Certification::getCertificationName);
         Ui.addColumn(table, "Issuer", Certification::getIssuingOrganization);
         Ui.addColumn(table, "Issued", c -> Ui.formatDate(c.getIssueDate()));
-        Ui.addColumn(table, "Expires", c -> Ui.formatDate(c.getExpirationDate()));
+        Ui.addColumn(table, "Expires", c -> c.getExpirationDate() == null ? "Does not expire" : Ui.formatDate(c.getExpirationDate()));
         Ui.addColumn(table, "Credential", Certification::getCredentialUrl);
         TextField search = Ui.field("Search by certification or issuer...");
         Runnable refresh = () -> {
@@ -920,9 +920,10 @@ public final class StudentViews {
         issuer.setText(c.getIssuingOrganization());
         DatePicker issued = Ui.date(c.getIssueDate());
         DatePicker expires = Ui.date(c.getExpirationDate());
+        expires.setPromptText("Optional (e.g. Does not expire)");
         TextField url = Ui.field("https://...");
         url.setText(c.getCredentialUrl());
-        Node form = Ui.form(new String[]{"Certification", "Issuing organization", "Issue date", "Expiration date", "Credential URL"},
+        Node form = Ui.form(new String[]{"Certification", "Issuing organization", "Issue date", "Expiration date (Optional)", "Credential URL"},
                 new Node[]{name, issuer, issued, expires, url});
         Ui.dialog(existing == null ? "Add Certification" : "Edit Certification", form).ifPresent(button -> {
             if (button != ButtonType.OK) return;
