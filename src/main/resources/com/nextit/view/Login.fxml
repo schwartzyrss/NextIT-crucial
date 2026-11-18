@@ -26,12 +26,12 @@
             <VBox styleClass="login-hero-pane" prefWidth="440" maxWidth="460" spacing="20" HBox.hgrow="NEVER" alignment="TOP_LEFT">
                 <!-- Top Emblem and Title -->
                 <HBox alignment="CENTER_LEFT" spacing="12">
-                    <StackPane style="-fx-background-color: #FFFFFF; -fx-background-radius: 18; -fx-padding: 8; -fx-effect: dropshadow(gaussian, rgba(190, 95, 140, 0.25), 8, 0.1, 0, 3);">
+                    <StackPane style="-fx-background-color: #FFFFFF; -fx-background-radius: 18; -fx-padding: 8; -fx-effect: dropshadow(gaussian, rgba(166, 94, 70, 0.25), 8, 0.1, 0, 3);">
                         <Label text="⚡" style="-fx-font-size: 20px;"/>
                     </StackPane>
                     <VBox spacing="1">
                         <Label text="NextIT" styleClass="login-hero-title"/>
-                        <Label text="CAREER &amp; ACADEMIC HUB" style="-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #54445A; -fx-letter-spacing: 0.8px;"/>
+                        <Label text="CAREER &amp; ACADEMIC HUB" style="-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #D9AA90; -fx-letter-spacing: 0.8px;"/>
                     </VBox>
                     <Region HBox.hgrow="ALWAYS"/>
                     <Label text="ACADEMIC VERIFIED" styleClass="badge-pill, badge-pill-mint" style="-fx-font-size: 9.5px; -fx-padding: 4 10; -fx-font-weight: 800;"/>
@@ -102,7 +102,7 @@
                                 <Tooltip text="Toggle password visibility"/>
                             </tooltip>
                             <graphic>
-                                <SVGPath fx:id="eyeIcon" content="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="#7D7581" scaleX="0.85" scaleY="0.85"/>
+                                <SVGPath fx:id="eyeIcon" content="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5 5 2.24 5 5-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z" fill="#7C6D65" scaleX="0.85" scaleY="0.85"/>
                             </graphic>
                         </Button>
                     </StackPane>

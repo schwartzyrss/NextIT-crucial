@@ -374,7 +374,7 @@ public final class InstructorViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #f1f2fa;");
+        headerContainer.setStyle("-fx-background-color: #EBDED4;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards (Row 1 & Row 2)
@@ -542,7 +542,7 @@ public final class InstructorViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #f1f2fa;");
+        scrollContent.setStyle("-fx-background-color: #EBDED4;");
         scrollContent.setPadding(new Insets(10, 24, 24, 24));
         scrollContent.getChildren().addAll(cards1, cards2, dashboardBody);
 
@@ -561,7 +561,7 @@ public final class InstructorViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #f1f2fa;");
+        dashboardRoot.setStyle("-fx-background-color: #EBDED4;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
         return dashboardRoot;
@@ -614,14 +614,14 @@ public final class InstructorViews {
 
         VBox queueBox = new VBox(8);
         Label queueHeader = new Label("CLASSROOM METRICS");
-        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
+        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #07203F; -fx-letter-spacing: 0.5px;");
 
         long presentCount = allAttendance.stream().filter(a -> "Present".equalsIgnoreCase(a.getStatus())).count();
 
         HBox attRow = new HBox(8);
         attRow.setAlignment(Pos.CENTER_LEFT);
         Label aLabel = new Label("Attendance Logged:");
-        aLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        aLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
         Region aSp = new Region();
         HBox.setHgrow(aSp, Priority.ALWAYS);
         Node aBadge = Ui.badge(allAttendance.size() + " (" + presentCount + " Present)", "badge-pill-mint");
@@ -630,7 +630,7 @@ public final class InstructorViews {
         HBox gradeRow = new HBox(8);
         gradeRow.setAlignment(Pos.CENTER_LEFT);
         Label gLabel = new Label("Graded Activities:");
-        gLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        gLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
         Region gSp = new Region();
         HBox.setHgrow(gSp, Priority.ALWAYS);
         Node gBadge = Ui.badge(allGrades.size() + " Submissions", "badge-pill-blue");
@@ -639,7 +639,7 @@ public final class InstructorViews {
         HBox supRow = new HBox(8);
         supRow.setAlignment(Pos.CENTER_LEFT);
         Label sLabel = new Label("Support Requests:");
-        sLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        sLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
         Region sSp = new Region();
         HBox.setHgrow(sSp, Priority.ALWAYS);
         Node sBadge = Ui.badge(support.all().size() + " Active", "badge-pill-lavender");
@@ -652,11 +652,11 @@ public final class InstructorViews {
         // Faculty clearance
         VBox facultyBox = new VBox(6);
         Label fHeader = new Label("FACULTY CLEARANCE");
-        fHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
+        fHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #07203F; -fx-letter-spacing: 0.5px;");
         Label fName = new Label(Session.currentUser().getFullName());
-        fName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        fName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
         Label fRole = new Label("Instructor / Faculty Evaluator");
-        fRole.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
+        fRole.setStyle("-fx-font-size: 11px; -fx-text-fill: #07203F;");
         facultyBox.getChildren().addAll(fHeader, fName, fRole);
 
         engagementCard.getChildren().addAll(new VBox(3, engTitle, engSub), queueBox, sep, facultyBox);
@@ -677,7 +677,7 @@ public final class InstructorViews {
 
         if (latestGrades.isEmpty()) {
             Label empty = new Label("No graded submissions yet.");
-            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
+            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #07203F;");
             recentGradesCard.getChildren().add(empty);
         } else {
             for (Grade g : latestGrades) {
@@ -692,9 +692,9 @@ public final class InstructorViews {
 
                 VBox info = new VBox(2);
                 Label name = new Label(stName);
-                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
                 Label act = new Label(Ui.value(g.getActivityName()));
-                act.setStyle("-fx-font-size: 10px; -fx-text-fill: #8e8394;");
+                act.setStyle("-fx-font-size: 10px; -fx-text-fill: #07203F;");
                 info.getChildren().addAll(name, act);
                 HBox.setHgrow(info, Priority.ALWAYS);
 
