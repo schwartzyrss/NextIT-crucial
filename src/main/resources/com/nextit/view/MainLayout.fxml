@@ -14,7 +14,7 @@
     <top>
         <HBox spacing="14" styleClass="app-header" alignment="CENTER_LEFT">
             <Button fx:id="toggleSidebarButton" text="◀" onAction="#toggleSidebar" styleClass="sidebar-toggle-btn" focusTraversable="false"/>
-            <Region style="-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #6491DE, #073D7F); -fx-background-radius: 999; -fx-min-width: 28; -fx-min-height: 28; -fx-max-width: 28; -fx-max-height: 28;"/>
+            <Region style="-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #9BC8C1, #4F6B66); -fx-background-radius: 999; -fx-min-width: 28; -fx-min-height: 28; -fx-max-width: 28; -fx-max-height: 28;"/>
             <Label fx:id="headerLabel" text="NextIT" styleClass="app-header-title"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="userLabel" styleClass="app-header-user"/>

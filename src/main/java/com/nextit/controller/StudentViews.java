@@ -166,7 +166,7 @@ public final class StudentViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #F1F1F1;");
+        headerContainer.setStyle("-fx-background-color: #F8F3EA;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards (Row 1 & Row 2)
@@ -336,7 +336,7 @@ public final class StudentViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #F1F1F1;");
+        scrollContent.setStyle("-fx-background-color: #F8F3EA;");
         scrollContent.setPadding(new Insets(10, 24, 32, 24));
         scrollContent.getChildren().addAll(cards1, cards2, middleRow, lowerRow);
 
@@ -355,7 +355,7 @@ public final class StudentViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #F1F1F1;");
+        dashboardRoot.setStyle("-fx-background-color: #F8F3EA;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
 

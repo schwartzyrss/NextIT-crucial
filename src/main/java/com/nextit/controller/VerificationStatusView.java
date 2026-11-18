@@ -31,7 +31,7 @@ public final class VerificationStatusView {
         VBox root = new VBox(20);
         root.setAlignment(Pos.TOP_CENTER);
         root.setPadding(new Insets(30, 40, 40, 40));
-        root.setStyle("-fx-background-color: #F1F1F1;");
+        root.setStyle("-fx-background-color: #F8F3EA;");
 
         final User[] currentUser = new User[]{ initialUser };
         JdbcUserRepository userRepo = new JdbcUserRepository();
@@ -90,14 +90,14 @@ public final class VerificationStatusView {
             statusHeader.getChildren().addAll(statusBadge, roleBadge);
 
             Label titleLabel = new Label();
-            titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: 900; -fx-text-fill: #073D7F;");
+            titleLabel.setStyle("-fx-font-size: 24px; -fx-font-weight: 900; -fx-text-fill: #4F6B66;");
 
             Label descLabel = new Label();
             descLabel.setWrapText(true);
-            descLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #073D7F; -fx-line-spacing: 2px;");
+            descLabel.setStyle("-fx-font-size: 13px; -fx-text-fill: #617D77; -fx-line-spacing: 2px;");
 
             VBox infoBox = new VBox(10);
-            infoBox.setStyle("-fx-background-color: #FFFFFF; -fx-background-radius: 8; -fx-padding: 20; -fx-border-color: #E2E8F0; -fx-border-width: 1; -fx-border-radius: 8;");
+            infoBox.setStyle("-fx-background-color: #F8F3EA; -fx-background-radius: 8; -fx-padding: 20; -fx-border-color: #9BC8C1; -fx-border-width: 1; -fx-border-radius: 8;");
 
             if (st == VerificationStatus.PENDING) {
                 titleLabel.setText("Identity Verification in Progress");
@@ -110,7 +110,7 @@ public final class VerificationStatusView {
                 Label l5 = new Label(reqOpt.map(r -> "• Submission Date: " + (r.getCreatedAt() != null ? r.getCreatedAt().format(DATE_FMT) : "Recent")).orElse(""));
 
                 for (Label l : new Label[]{l1, l2, l3, l4, l5}) {
-                    l.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F; -fx-font-weight: 600;");
+                    l.setStyle("-fx-font-size: 12px; -fx-text-fill: #4F6B66; -fx-font-weight: 600;");
                 }
                 infoBox.getChildren().addAll(l1, l2, l3, l4, l5);
             } else if (st == VerificationStatus.REJECTED) {
@@ -121,12 +121,12 @@ public final class VerificationStatusView {
                 descLabel.setText("Your identity verification application was not approved. Review the verifier feedback below and update your credentials to resubmit.");
 
                 VBox reasonTray = new VBox(6);
-                reasonTray.setStyle("-fx-background-color: #FFEAEF; -fx-background-radius: 8; -fx-padding: 14; -fx-border-color: #6491DE; -fx-border-width: 1; -fx-border-radius: 8;");
+                reasonTray.setStyle("-fx-background-color: #FFEAEF; -fx-background-radius: 8; -fx-padding: 14; -fx-border-color: #9BC8C1; -fx-border-width: 1; -fx-border-radius: 8;");
                 Label reasonH = new Label("Rejection Reason Provided by Verifier:");
                 reasonH.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #9C1438;");
                 Label reasonB = new Label(reason);
                 reasonB.setWrapText(true);
-                reasonB.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F; -fx-font-weight: bold;");
+                reasonB.setStyle("-fx-font-size: 12px; -fx-text-fill: #4F6B66; -fx-font-weight: bold;");
                 reasonTray.getChildren().addAll(reasonH, reasonB);
                 infoBox.getChildren().add(reasonTray);
             } else if (st == VerificationStatus.SUSPENDED) {
@@ -144,14 +144,14 @@ public final class VerificationStatusView {
             // Timeline graphic
             HBox timeline = new HBox(12);
             timeline.setAlignment(Pos.CENTER);
-            timeline.setStyle("-fx-background-color: rgba(100, 145, 222, 0.12); -fx-background-radius: 8; -fx-border-color: #E2E8F0; -fx-border-width: 1; -fx-border-radius: 8; -fx-padding: 14;");
+            timeline.setStyle("-fx-background-color: #E6D7C7; -fx-background-radius: 8; -fx-border-color: #9BC8C1; -fx-border-width: 1; -fx-border-radius: 8; -fx-padding: 14;");
 
             Label step1 = Ui.badge("1. Submitted ✓", "badge-pill-mint");
             Label arrow1 = new Label("➔");
-            arrow1.setStyle("-fx-text-fill: #6491DE; -fx-font-weight: bold;");
+            arrow1.setStyle("-fx-text-fill: #4F6B66; -fx-font-weight: bold;");
             Label step2 = Ui.badge("2. Verifier Review", st == VerificationStatus.PENDING ? "badge-pill-yellow" : (st == VerificationStatus.VERIFIED ? "badge-pill-mint" : "badge-pill-pink"));
             Label arrow2 = new Label("➔");
-            arrow2.setStyle("-fx-text-fill: #6491DE; -fx-font-weight: bold;");
+            arrow2.setStyle("-fx-text-fill: #4F6B66; -fx-font-weight: bold;");
             Label step3 = Ui.badge("3. Role Workspace", st == VerificationStatus.VERIFIED ? "badge-pill-mint" : "badge-pill-cream");
 
             timeline.getChildren().addAll(step1, arrow1, step2, arrow2, step3);
@@ -211,7 +211,7 @@ public final class VerificationStatusView {
 
         Label lbl = new Label("Please update your identification details and proof notes for administrative re-examination:");
         lbl.setWrapText(true);
-        lbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F;");
+        lbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #4F6B66;");
 
         TextField idField = Ui.field(user.getRole() == Role.STUDENT ? "Student ID Number (e.g. 2026-0042)" : (user.getRole() == Role.INSTRUCTOR ? "Faculty Employee Number" : "Business Registration / TIN"));
         TextField orgField = Ui.field(user.getRole() == Role.STUDENT ? "Degree Program / University" : (user.getRole() == Role.INSTRUCTOR ? "Department / Faculty" : "Company Name"));

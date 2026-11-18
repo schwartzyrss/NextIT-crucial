@@ -44,58 +44,58 @@ public final class SplashScreenView {
         card.setAlignment(Pos.CENTER);
         card.setMaxWidth(460);
         card.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #FFFFFF 0%, #F8FAFC 60%, #F1F1F1 100%);"
-                        + "-fx-background-radius: 28;"
+                "-fx-background-color: #CBEDE6; -fx-border-color: #9BC8C1; -fx-border-width: 1; -fx-border-radius: 20;"
+                        + "-fx-background-radius: 20;"
                         + "-fx-padding: 44 36;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(7, 61, 127, 0.08), 24, 0.15, 0, 8);"
+                        + "-fx-effect: dropshadow(gaussian, rgba(79, 107, 102, 0.08), 24, 0.15, 0, 8);"
         );
 
         // Pastel lavender-periwinkle gradient logo orb
         Region logoOrb = new Region();
         logoOrb.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #6491DE 0%, #073D7F 100%);"
+                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #9BC8C1 0%, #4F6B66 100%);"
                         + "-fx-background-radius: 999;"
                         + "-fx-min-width: 64; -fx-min-height: 64; -fx-max-width: 64; -fx-max-height: 64;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(7, 61, 127, 0.35), 16, 0.2, 0, 4);"
+                        + "-fx-effect: dropshadow(gaussian, rgba(79, 107, 102, 0.25), 16, 0.2, 0, 4);"
         );
 
         Label titleLabel = new Label("NextIT");
-        titleLabel.setStyle("-fx-font-size: 32px; -fx-font-weight: 900; -fx-text-fill: #073D7F;");
+        titleLabel.setStyle("-fx-font-size: 32px; -fx-font-weight: 900; -fx-text-fill: #4F6B66;");
 
         Label subtitleLabel = new Label("Track Your Progress, Build Your Future");
-        subtitleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #6491DE;");
+        subtitleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #617D77;");
 
         VBox brandBox = new VBox(6, logoOrb, titleLabel, subtitleLabel);
         brandBox.setAlignment(Pos.CENTER);
 
         // Status Message & Progress Indicator
         Label statusLabel = new Label("Initializing desktop application environment...");
-        statusLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
+        statusLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
 
         ProgressBar progressBar = new ProgressBar(ProgressBar.INDETERMINATE_PROGRESS);
         progressBar.setPrefWidth(320);
         progressBar.setPrefHeight(6);
-        progressBar.setStyle("-fx-accent: #6491DE;");
+        progressBar.setStyle("-fx-accent: #4F6B66;");
 
         // Trust chip
         HBox trustChip = new HBox(8);
         trustChip.setAlignment(Pos.CENTER);
         trustChip.setStyle(
-                "-fx-background-color: rgba(16, 185, 129, 0.10);"
+                "-fx-background-color: #E6D7C7;"
                         + "-fx-background-radius: 999;"
                         + "-fx-padding: 4 14;"
         );
         Region trustDot = new Region();
-        trustDot.setStyle("-fx-background-color: #10B981; -fx-background-radius: 999; -fx-min-width: 7; -fx-min-height: 7; -fx-max-width: 7; -fx-max-height: 7;");
+        trustDot.setStyle("-fx-background-color: #4F6B66; -fx-background-radius: 999; -fx-min-width: 7; -fx-min-height: 7; -fx-max-width: 7; -fx-max-height: 7;");
         Label trustText = new Label("Desktop Client • Standalone Edition");
-        trustText.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #065F46;");
+        trustText.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
         trustChip.getChildren().addAll(trustDot, trustText);
 
         card.getChildren().addAll(brandBox, progressBar, statusLabel, trustChip);
 
         StackPane root = new StackPane(card);
         root.setAlignment(Pos.CENTER);
-        root.setStyle("-fx-background-color: #F1F1F1;");
+        root.setStyle("-fx-background-color: #F8F3EA;");
 
         Scene splashScene = new Scene(root, stage.getWidth(), stage.getHeight());
         splashScene.getStylesheets().add(SplashScreenView.class.getResource("/com/nextit/css/application.css").toExternalForm());

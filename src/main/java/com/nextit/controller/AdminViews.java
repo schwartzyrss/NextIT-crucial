@@ -148,7 +148,7 @@ public final class AdminViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #F1F1F1;");
+        headerContainer.setStyle("-fx-background-color: #F8F3EA;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards
@@ -311,7 +311,7 @@ public final class AdminViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #F1F1F1;");
+        scrollContent.setStyle("-fx-background-color: #F8F3EA;");
         scrollContent.setPadding(new Insets(10, 24, 24, 24));
         scrollContent.getChildren().addAll(row1, row2, dashboardBody);
 
@@ -330,7 +330,7 @@ public final class AdminViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #F1F1F1;");
+        dashboardRoot.setStyle("-fx-background-color: #F8F3EA;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
 
@@ -431,9 +431,9 @@ public final class AdminViews {
 
             VBox info = new VBox(2);
             Label name = new Label(Ui.value(u.getFullName()));
-            name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
+            name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
             Label uname = new Label("@" + u.getUsername());
-            uname.setStyle("-fx-font-size: 10px; -fx-text-fill: #073D7F;");
+            uname.setStyle("-fx-font-size: 10px; -fx-text-fill: #4F6B66;");
             info.getChildren().addAll(name, uname);
             HBox.setHgrow(info, Priority.ALWAYS);
 
@@ -466,12 +466,12 @@ public final class AdminViews {
         // Action Queue Section
         VBox queueBox = new VBox(8);
         Label queueHeader = new Label("ACTION REQUIRED");
-        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #073D7F; -fx-letter-spacing: 0.5px;");
+        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #4F6B66; -fx-letter-spacing: 0.5px;");
 
         HBox verifRow = new HBox(8);
         verifRow.setAlignment(Pos.CENTER_LEFT);
         Label verifLabel = new Label("Pending Verifications:");
-        verifLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
+        verifLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
         Region vSpacer = new Region();
         HBox.setHgrow(vSpacer, Priority.ALWAYS);
         long pendingVerifs = admin.pendingVerificationRequests().size();
@@ -483,7 +483,7 @@ public final class AdminViews {
         HBox pendingRow = new HBox(8);
         pendingRow.setAlignment(Pos.CENTER_LEFT);
         Label pendingLabel = new Label("Pending Portfolios:");
-        pendingLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
+        pendingLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
         Region pSpacer = new Region();
         HBox.setHgrow(pSpacer, Priority.ALWAYS);
         Node pendingBadge = pendingPortfolios > 0
@@ -494,7 +494,7 @@ public final class AdminViews {
         HBox subjectRow = new HBox(8);
         subjectRow.setAlignment(Pos.CENTER_LEFT);
         Label subjLabel = new Label("Active Subjects:");
-        subjLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
+        subjLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
         Region sSpacer = new Region();
         HBox.setHgrow(sSpacer, Priority.ALWAYS);
         Node subjBadge = Ui.badge(totalSubjects + " Registered", "badge-pill-cream");
@@ -503,7 +503,7 @@ public final class AdminViews {
         HBox enrollRow = new HBox(8);
         enrollRow.setAlignment(Pos.CENTER_LEFT);
         Label enrollLabel = new Label("Total Enrollments:");
-        enrollLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
+        enrollLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
         Region eSpacer = new Region();
         HBox.setHgrow(eSpacer, Priority.ALWAYS);
         Node enrollBadge = Ui.badge(totalEnrollments + " Enrolled", "badge-pill-lavender");
@@ -516,12 +516,12 @@ public final class AdminViews {
         // Infrastructure Section
         VBox infraBox = new VBox(8);
         Label infraHeader = new Label("SYSTEM ENVIRONMENT");
-        infraHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #073D7F; -fx-letter-spacing: 0.5px;");
+        infraHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #4F6B66; -fx-letter-spacing: 0.5px;");
 
         HBox dbRow = new HBox(8);
         dbRow.setAlignment(Pos.CENTER_LEFT);
         Label dbLabel = new Label("Database Storage:");
-        dbLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F;");
+        dbLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #4F6B66;");
         Region dSpacer = new Region();
         HBox.setHgrow(dSpacer, Priority.ALWAYS);
         Node dbBadge = Ui.badge("MariaDB / Supabase", "badge-pill-blue");
@@ -530,7 +530,7 @@ public final class AdminViews {
         HBox secRow = new HBox(8);
         secRow.setAlignment(Pos.CENTER_LEFT);
         Label secLabel = new Label("Security Clearance:");
-        secLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F;");
+        secLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #4F6B66;");
         Region secSpacer = new Region();
         HBox.setHgrow(secSpacer, Priority.ALWAYS);
         Node secBadge = Ui.badge("Superuser Admin", "badge-pill-pink");
@@ -1254,12 +1254,12 @@ public final class AdminViews {
     }
 
     /**
-     * Creates a consistent 20px monochrome line icon in Dark Cerulean (#073D7F).
+     * Creates a consistent 20px monochrome line icon in Dark Cerulean (#4F6B66).
      */
     private static Node createLineIcon(String pathData) {
         SVGPath path = new SVGPath();
         path.setContent(pathData);
-        path.setStroke(javafx.scene.paint.Color.web("#073D7F"));
+        path.setStroke(javafx.scene.paint.Color.web("#4F6B66"));
         path.setFill(javafx.scene.paint.Color.TRANSPARENT);
         path.setStrokeWidth(1.65);
         path.setStrokeLineCap(StrokeLineCap.ROUND);
@@ -1274,8 +1274,8 @@ public final class AdminViews {
     }
 
     /**
-     * Precision pill-shaped toggle switch with Dark Cerulean (#073D7F) active track
-     * paired with circular United Nations Blue (#6491DE) thumb.
+     * Precision pill-shaped toggle switch with Dark Cerulean (#4F6B66) active track
+     * paired with circular United Nations Blue (#9BC8C1) thumb.
      */
     private static Node createPillToggle(boolean initial, Consumer<Boolean> onToggle) {
         StackPane toggle = new StackPane();
@@ -1290,11 +1290,11 @@ public final class AdminViews {
         track.setArcHeight(18);
 
         Circle thumb = new Circle(6.5);
-        thumb.setFill(javafx.scene.paint.Color.web("#6491DE"));
+        thumb.setFill(javafx.scene.paint.Color.web("#CBEDE6"));
 
         final java.util.concurrent.atomic.AtomicBoolean state = new java.util.concurrent.atomic.AtomicBoolean(initial);
 
-        track.setFill(javafx.scene.paint.Color.web(initial ? "#073D7F" : "#E2E8F0"));
+        track.setFill(javafx.scene.paint.Color.web(initial ? "#4F6B66" : "#9BC8C1"));
         thumb.setTranslateX(initial ? 8.5 : -8.5);
 
         toggle.setOnMouseClicked(e -> {
@@ -1302,7 +1302,7 @@ public final class AdminViews {
             state.set(next);
             TranslateTransition tt = new TranslateTransition(javafx.util.Duration.millis(150), thumb);
             tt.setToX(next ? 8.5 : -8.5);
-            track.setFill(javafx.scene.paint.Color.web(next ? "#073D7F" : "#E2E8F0"));
+            track.setFill(javafx.scene.paint.Color.web(next ? "#4F6B66" : "#9BC8C1"));
             tt.play();
             if (onToggle != null) {
                 onToggle.accept(next);
@@ -1314,8 +1314,8 @@ public final class AdminViews {
     }
 
     /**
-     * Thin horizontal range slider with Dark Cerulean (#073D7F) active track
-     * paired with circular United Nations Blue (#6491DE) thumb and value highlight.
+     * Thin horizontal range slider with Dark Cerulean (#4F6B66) active track
+     * paired with circular United Nations Blue (#9BC8C1) thumb and value highlight.
      */
     private static Node createSliderSetting(double min, double max, double value, String unit, Consumer<Double> onChange) {
         HBox box = new HBox(8);
@@ -1326,7 +1326,7 @@ public final class AdminViews {
         slider.setPrefWidth(110);
 
         Label valueLabel = new Label(Math.round(value) + unit);
-        valueLabel.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 700; -fx-text-fill: #6491DE; -fx-min-width: 44px;");
+        valueLabel.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 700; -fx-text-fill: #4F6B66; -fx-min-width: 44px;");
         valueLabel.setAlignment(Pos.CENTER_RIGHT);
 
         slider.valueProperty().addListener((obs, oldVal, newVal) -> {
@@ -1355,17 +1355,17 @@ public final class AdminViews {
         labelHBox.setAlignment(Pos.CENTER_LEFT);
 
         Label primaryLabel = new Label(title);
-        primaryLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #1E293B;");
+        primaryLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #223330;");
         labelHBox.getChildren().add(primaryLabel);
 
         if (highlight != null && !highlight.isBlank()) {
             Label chip = new Label(highlight);
-            chip.setStyle("-fx-background-color: rgba(100, 145, 222, 0.12); -fx-text-fill: #6491DE; -fx-font-weight: 700; -fx-font-size: 11px; -fx-background-radius: 4; -fx-padding: 2 7;");
+            chip.setStyle("-fx-background-color: #E6D7C7; -fx-text-fill: #4F6B66; -fx-font-weight: 700; -fx-font-size: 11px; -fx-background-radius: 4; -fx-padding: 2 7;");
             labelHBox.getChildren().add(chip);
         }
 
         Label subLabel = new Label(subtitle);
-        subLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: normal;");
+        subLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #617D77; -fx-font-weight: normal;");
         subLabel.setWrapText(true);
 
         textBox.getChildren().addAll(labelHBox, subLabel);
@@ -1377,16 +1377,16 @@ public final class AdminViews {
 
     private static VBox createSettingsColumnCard(String categoryTitle, Node iconNode, Node... rows) {
         VBox card = new VBox(10);
-        card.setStyle("-fx-background-color: #FFFFFF; -fx-background-radius: 6; -fx-border-color: #E2E8F0; -fx-border-width: 1; -fx-border-radius: 6; -fx-padding: 20 22;");
+        card.setStyle("-fx-background-color: #CBEDE6; -fx-background-radius: 8; -fx-border-color: #9BC8C1; -fx-border-width: 1; -fx-border-radius: 8; -fx-padding: 20 22;");
         HBox.setHgrow(card, Priority.ALWAYS);
 
         HBox header = new HBox(10);
         header.setAlignment(Pos.CENTER_LEFT);
         header.setPadding(new Insets(0, 0, 10, 0));
-        header.setStyle("-fx-border-color: #E2E8F0; -fx-border-width: 0 0 1 0;");
+        header.setStyle("-fx-border-color: #9BC8C1; -fx-border-width: 0 0 1 0;");
 
         Label title = new Label(categoryTitle);
-        title.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #073D7F;");
+        title.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #4F6B66;");
 
         header.getChildren().addAll(iconNode, title);
         card.getChildren().add(header);
@@ -1395,7 +1395,7 @@ public final class AdminViews {
             card.getChildren().add(rows[i]);
             if (i < rows.length - 1) {
                 Region divider = new Region();
-                divider.setStyle("-fx-background-color: #F1F5F9; -fx-pref-height: 1px; -fx-max-height: 1px;");
+                divider.setStyle("-fx-background-color: #9BC8C1; -fx-pref-height: 1px; -fx-max-height: 1px;");
                 card.getChildren().add(divider);
             }
         }
@@ -1406,7 +1406,7 @@ public final class AdminViews {
     /**
      * Redesigned enterprise-grade, minimalist flat light-mode System Settings UI
      * anchored by the strict three-color palette:
-     * Anti-Flash White (#F1F1F1), United Nations Blue (#6491DE), and Dark Cerulean (#073D7F).
+     * Anti-Flash White (#F8F3EA), United Nations Blue (#9BC8C1), and Dark Cerulean (#4F6B66).
      */
     public static Node system() {
         SystemService system = SystemService.getInstance();
@@ -1417,35 +1417,35 @@ public final class AdminViews {
         statusBar.setPadding(new Insets(0, 0, 16, 0));
 
         Label netStatus = new Label("Wi-Fi: Connected");
-        netStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
+        netStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #617D77; -fx-font-weight: 500;");
 
         Label batStatus = new Label("Battery: 85%");
-        batStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
+        batStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #617D77; -fx-font-weight: 500;");
 
         Label soundStatus = new Label("Sound: 70%");
-        soundStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
+        soundStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #617D77; -fx-font-weight: 500;");
 
         Label storageStatus = new Label("Storage: 24.8 GB Free");
-        storageStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
+        storageStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #617D77; -fx-font-weight: 500;");
 
         Label timeStatus = new Label("⏱ Synced 15:47");
-        timeStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
+        timeStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #617D77; -fx-font-weight: 500;");
 
         statusBar.getChildren().addAll(netStatus, batStatus, soundStatus, storageStatus, timeStatus);
 
-        // 2. Main Title in Dark Cerulean (#073D7F) with Subtitle
+        // 2. Main Title in Deep Slate Gray-Green (#4F6B66) with Subtitle
         VBox titleBox = new VBox(3);
         titleBox.setPadding(new Insets(0, 0, 20, 0));
 
         Label mainTitle = new Label("System Settings");
-        mainTitle.setStyle("-fx-font-size: 26px; -fx-font-weight: 800; -fx-text-fill: #073D7F; -fx-letter-spacing: -0.3px;");
+        mainTitle.setStyle("-fx-font-size: 26px; -fx-font-weight: 800; -fx-text-fill: #4F6B66; -fx-letter-spacing: -0.3px;");
 
         Label mainSubtitle = new Label("Enterprise runtime parameters, network connectivity, display preferences, and storage management.");
-        mainSubtitle.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748B;");
+        mainSubtitle.setStyle("-fx-font-size: 13px; -fx-text-fill: #617D77;");
 
         titleBox.getChildren().addAll(mainTitle, mainSubtitle);
 
-        // 3. 20px Monochrome Line Icons in Dark Cerulean (#073D7F)
+        // 3. 20px Monochrome Line Icons in Dark Cerulean (#4F6B66)
         // Network line icon: Globe with latitude/longitude lines (20x20)
         Node networkIcon = createLineIcon("M10 1A9 9 0 1 0 19 10A9 9 0 0 0 10 1zm0 0v18M1 10h18M3.5 5.5a13 13 0 0 0 0 9M16.5 5.5a13 13 0 0 1 0 9");
 
@@ -1501,21 +1501,21 @@ public final class AdminViews {
         statusLine.setAlignment(Pos.CENTER_LEFT);
 
         Label statusPrefix = new Label("System State:");
-        statusPrefix.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
+        statusPrefix.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #617D77; -fx-font-weight: 500;");
 
-        Label statusHighlight = new Label("Optimal • Anti-Flash White UI Profile Active");
-        statusHighlight.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6491DE; -fx-font-weight: 700;");
+        Label statusHighlight = new Label("Optimal • Soft Ice Mint & Warm Cream Active");
+        statusHighlight.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #4F6B66; -fx-font-weight: 700;");
 
         statusLine.getChildren().addAll(statusPrefix, statusHighlight);
 
         Label feedbackLabel = new Label("All system modules and interactive services active.");
-        feedbackLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748B;");
+        feedbackLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #617D77;");
 
         statusBox.getChildren().addAll(statusLine, feedbackLabel);
 
-        // Refined, slightly rounded rectangular "Save Changes" button in solid Dark Cerulean (#073D7F) with crisp white semibold typography
+        // Refined, slightly rounded rectangular "Save Changes" button in solid Deep Slate Gray-Green (#4F6B66) with crisp white semibold typography
         Button saveChangesBtn = new Button("Save Changes");
-        saveChangesBtn.setStyle("-fx-background-color: #073D7F; -fx-background-radius: 4; -fx-text-fill: #FFFFFF; -fx-font-size: 13px; -fx-font-weight: 600; -fx-padding: 9 22; -fx-cursor: hand; -fx-border-width: 0;");
+        saveChangesBtn.setStyle("-fx-background-color: #4F6B66; -fx-background-radius: 4; -fx-text-fill: #FFFFFF; -fx-font-size: 13px; -fx-font-weight: 600; -fx-padding: 9 22; -fx-cursor: hand; -fx-border-width: 0;");
 
         saveChangesBtn.setOnAction(e -> {
             saveChangesBtn.setDisable(true);
@@ -1524,7 +1524,7 @@ public final class AdminViews {
                 saveChangesBtn.setDisable(false);
                 saveChangesBtn.setText("Save Changes");
                 feedbackLabel.setText("✓ Settings saved and applied successfully at " + java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
-                feedbackLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6491DE; -fx-font-weight: 700;");
+                feedbackLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #4F6B66; -fx-font-weight: 700;");
             }));
         });
 
@@ -1532,11 +1532,11 @@ public final class AdminViews {
 
         // 6. Solid Anti-Flash White Primary Surface Canvas
         VBox contentBox = new VBox(12, statusBar, titleBox, columnsBox, bottomBar);
-        contentBox.setStyle("-fx-background-color: #F1F1F1; -fx-padding: 28 32;");
+        contentBox.setStyle("-fx-background-color: #F8F3EA; -fx-padding: 28 32;");
 
         ScrollPane scroll = new ScrollPane(contentBox);
         scroll.setFitToWidth(true);
-        scroll.setStyle("-fx-background-color: #F1F1F1; -fx-background: #F1F1F1; -fx-background-insets: 0; -fx-border-width: 0;");
+        scroll.setStyle("-fx-background-color: #F8F3EA; -fx-background: #F8F3EA; -fx-background-insets: 0; -fx-border-width: 0;");
 
         return scroll;
     }
@@ -2029,11 +2029,11 @@ public final class AdminViews {
         card.setPadding(new Insets(30));
 
         Label title = new Label("Provision System Administrator Account");
-        title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #073D7F;");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #4F6B66;");
 
         Label subtitle = new Label("Public administrator registration is permanently disabled. Only currently authenticated administrators can provision administrative access. In accordance with university cybersecurity policy, all administrator accounts require mandatory Multi-Factor Authentication (MFA).");
         subtitle.setWrapText(true);
-        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F; -fx-line-spacing: 2px;");
+        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #4F6B66; -fx-line-spacing: 2px;");
 
         TextField username = Ui.field("Username (e.g. jcruz_admin)");
         TextField email = Ui.field("Official University Administrator Email (e.g. jcruz@nextit.edu)");
@@ -2045,7 +2045,7 @@ public final class AdminViews {
         CheckBox mfaConfirmation = new CheckBox("I confirm that this person is an authorized system administrator and that Multi-Factor Authentication (MFA) will be enforced upon their initial sign-in.");
         mfaConfirmation.setSelected(true);
         mfaConfirmation.setWrapText(true);
-        mfaConfirmation.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
+        mfaConfirmation.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
 
         Button submitBtn = new Button("🔑 Provision Administrator Account");
         submitBtn.getStyleClass().add("primary-button");
