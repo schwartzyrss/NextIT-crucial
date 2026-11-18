@@ -44,10 +44,10 @@ public final class SplashScreenView {
         card.setAlignment(Pos.CENTER);
         card.setMaxWidth(460);
         card.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #FFFFFF 0%, #FAF5F0 60%, #F1F1F1 100%);"
+                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #FFFFFF 0%, #F8FAFC 60%, #F1F1F1 100%);"
                         + "-fx-background-radius: 28;"
                         + "-fx-padding: 44 36;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(56, 49, 57, 0.12), 24, 0.15, 0, 8);"
+                        + "-fx-effect: dropshadow(gaussian, rgba(7, 61, 127, 0.08), 24, 0.15, 0, 8);"
         );
 
         // Pastel lavender-periwinkle gradient logo orb
@@ -56,7 +56,7 @@ public final class SplashScreenView {
                 "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #6491DE 0%, #073D7F 100%);"
                         + "-fx-background-radius: 999;"
                         + "-fx-min-width: 64; -fx-min-height: 64; -fx-max-width: 64; -fx-max-height: 64;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(166, 94, 70, 0.45), 16, 0.2, 0, 4);"
+                        + "-fx-effect: dropshadow(gaussian, rgba(7, 61, 127, 0.35), 16, 0.2, 0, 4);"
         );
 
         Label titleLabel = new Label("NextIT");

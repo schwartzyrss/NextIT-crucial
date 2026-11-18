@@ -187,7 +187,7 @@ public final class Ui {
         private void setupInteractions() {
             button.hoverProperty().addListener((obs, old, hovered) -> {
                 if (svg != null) {
-                    svg.setStroke(hovered ? Color.web("#4F46E5") : Color.web("#1E293B"));
+                    svg.setStroke(hovered ? Color.web("#6491DE") : Color.web("#073D7F"));
                 }
                 if (!fetching.get()) {
                     RotateTransition hoverTrans = new RotateTransition(Duration.millis(hovered ? 280 : 200), iconBox);
