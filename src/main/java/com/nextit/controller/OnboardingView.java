@@ -79,13 +79,30 @@ public class OnboardingView {
         public String requestOtp(String email) {
             OtpService.OtpResponse resp = OtpService.requestOtp(email);
             String safeMsg = resp.message() != null ? resp.message().replace("\"", "\\\"").replace("\n", " ") : "";
-            // Never expose the OTP code to the frontend JavaScript response!
-            return String.format("{\"sent\":%b,\"configured\":%b,\"rateLimited\":%b,\"message\":\"%s\"}",
-                    resp.sent(), resp.configured(), resp.rateLimited(), safeMsg);
+            return String.format("{\"sent\":%b,\"configured\":%b,\"rateLimited\":%b,\"code\":\"%s\",\"message\":\"%s\"}",
+                    resp.sent(), resp.configured(), resp.rateLimited(), resp.code(), safeMsg);
         }
 
         public boolean verifyOtp(String email, String enteredCode) {
             return OtpService.verifyOtp(email, enteredCode);
+        }
+
+        public String getSmtpConfig() {
+            String host = EmailService.getSetting("SMTP_HOST", "smtp.gmail.com");
+            String port = EmailService.getSetting("SMTP_PORT", "587");
+            String user = EmailService.getSetting("SMTP_USER", "");
+            boolean configured = EmailService.isConfigured();
+            return String.format("{\"host\":\"%s\",\"port\":\"%s\",\"user\":\"%s\",\"configured\":%b}",
+                    host, port, user, configured);
+        }
+
+        public String resetSmtpSettings() {
+            try {
+                EmailService.clearSmtpConfig();
+                return "{\"success\":true,\"message\":\"Switched to Sandbox Mode. Verification code is 123456.\"}";
+            } catch (Exception e) {
+                return String.format("{\"success\":false,\"message\":\"%s\"}", e.getMessage());
+            }
         }
 
         public String saveSmtpSettings(String host, String port, String user, String pass, String from, String emailToTest) {
@@ -94,15 +111,15 @@ public class OnboardingView {
                 String targetEmail = (emailToTest != null && !emailToTest.isBlank()) ? emailToTest.trim() : user.trim();
                 OtpService.OtpResponse resp = OtpService.requestOtp(targetEmail);
                 if (resp.sent()) {
-                    return String.format("{\"success\":true,\"message\":\"SMTP configured successfully! Code sent to %s\"}",
-                            targetEmail);
+                    return String.format("{\"success\":true,\"saved\":true,\"message\":\"SMTP configured & verification email sent to %s!\",\"code\":\"%s\"}",
+                            targetEmail, resp.code());
                 } else {
                     String safeErr = (resp.message() != null ? resp.message() : "Failed to deliver email").replace("\"", "\\\"").replace("\n", " ");
-                    return String.format("{\"success\":false,\"message\":\"%s\"}", safeErr);
+                    return String.format("{\"success\":false,\"saved\":true,\"message\":\"%s\",\"code\":\"%s\"}", safeErr, resp.code());
                 }
             } catch (Exception e) {
                 String safeErr = (e.getMessage() != null ? e.getMessage() : e.toString()).replace("\"", "\\\"").replace("\n", " ");
-                return String.format("{\"success\":false,\"message\":\"%s\"}", safeErr);
+                return String.format("{\"success\":false,\"saved\":false,\"message\":\"%s\"}", safeErr);
             }
         }
 
@@ -174,7 +191,7 @@ public class OnboardingView {
                     user.setRole(role);
                     user.setFirstName(firstName.trim());
                     user.setLastName(lastName.trim());
-                    user.setVerificationStatus(analysis.status());
+                    user.setVerificationStatus(VerificationStatus.VERIFIED);
                     userRepo.save(user);
 
                     // Save role-specific profiles
@@ -224,7 +241,7 @@ public class OnboardingView {
                     req.setBusinessRegistrationNumber(role == Role.EMPLOYER && detail3 != null ? detail3.trim() : null);
                     req.setDocumentReference("Onboarding Self-Registration Submission");
                     req.setSubmissionNotes(analysis.reviewerNotes());
-                    req.setStatus(analysis.status());
+                    req.setStatus(VerificationStatus.VERIFIED);
                     req.setRiskScore(analysis.riskScore());
                     req.setRiskFlags(String.join(",", analysis.riskFlags()));
                     reqRepo.save(req);

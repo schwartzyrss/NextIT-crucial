@@ -593,17 +593,23 @@
           try {
             const respStr = window.javaBridge.requestOtp(this.email);
             const data = JSON.parse(respStr);
+            if (data.code) {
+              this.generatedCode = data.code;
+            }
             if (data.sent) {
               this.otpStatus = 'sent';
             } else {
               this.otpStatus = 'sandbox';
+              if (!this.generatedCode) this.generatedCode = '123456';
             }
           } catch (e) {
             this.otpStatus = 'sandbox';
+            this.generatedCode = '123456';
           }
         } else {
           // Browser fallback preview
           this.otpStatus = 'sandbox';
+          this.generatedCode = '123456';
         }
 
         // Start 45s countdown
@@ -619,13 +625,21 @@
       },
 
       autoFillOtp() {
-        const c = '123456';
+        const c = (this.generatedCode && this.generatedCode.length === 6) ? this.generatedCode : '123456';
         for (let i = 0; i < 6; i++) {
           this.otp[i] = c[i];
         }
       },
 
       openSmtpModal() {
+        if (window.javaBridge && window.javaBridge.getSmtpConfig) {
+          try {
+            const conf = JSON.parse(window.javaBridge.getSmtpConfig());
+            if (conf.host) this.smtpHost = conf.host;
+            if (conf.port) this.smtpPort = conf.port;
+            if (conf.user) this.smtpUser = conf.user;
+          } catch (e) {}
+        }
         this.smtpUser = this.smtpUser || this.email || '';
         this.smtpError = '';
         this.smtpSuccess = '';
@@ -634,6 +648,27 @@
 
       closeSmtpModal() {
         this.showSmtpModal = false;
+      },
+
+      switchToSandboxMode() {
+        if (window.javaBridge && window.javaBridge.resetSmtpSettings) {
+          try {
+            const resp = JSON.parse(window.javaBridge.resetSmtpSettings());
+            this.smtpSuccess = resp.message || 'Switched to Sandbox Mode!';
+            this.otpStatus = 'sandbox';
+            this.generatedCode = '123456';
+            setTimeout(() => {
+              this.showSmtpModal = false;
+              this.requestVerificationCode();
+            }, 800);
+          } catch (e) {
+            this.smtpError = 'Failed to switch to sandbox mode: ' + e;
+          }
+        } else {
+          this.otpStatus = 'sandbox';
+          this.generatedCode = '123456';
+          this.showSmtpModal = false;
+        }
       },
 
       saveAndTestSmtp() {
@@ -660,16 +695,23 @@
               this.email || this.smtpUser
             );
             const resp = JSON.parse(respStr);
+            if (resp.code) {
+              this.generatedCode = resp.code;
+            }
             if (resp.success) {
               this.smtpSuccess = resp.message || 'SMTP verified! Code sent to ' + (this.email || this.smtpUser);
               this.otpStatus = 'sent';
-              if (resp.code) {
-                this.generatedCode = resp.code;
-              }
               this.resendCountdown = 45;
               setTimeout(() => {
                 this.showSmtpModal = false;
               }, 1400);
+            } else if (resp.saved) {
+              this.smtpSuccess = 'Credentials saved! ' + resp.message;
+              this.otpStatus = 'sandbox';
+              this.resendCountdown = 45;
+              setTimeout(() => {
+                this.showSmtpModal = false;
+              }, 1800);
             } else {
               this.smtpError = resp.message || 'SMTP connection failed. Check your App Password.';
             }
@@ -1287,7 +1329,7 @@
             </div>
           </div>
 
-          <!-- Sandbox / Demo Notice when SMTP is not configured -->
+          <!-- Sandbox / Demo Notice when SMTP is not configured or network blocked -->
           <div x-show="otpStatus === 'sandbox'" class="mb-6 p-4 rounded-3xl clay-cushion-yellow border border-amber-300/60 text-amber-950 text-xs flex flex-col md:flex-row items-center justify-between gap-3 shadow-sm">
             <div class="flex items-center gap-2.5">
               <svg class="w-6 h-6 text-amber-700 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -1296,16 +1338,16 @@
                 <path d="m15.5 7.5 3 3"/>
               </svg>
               <div>
-                <div class="font-extrabold text-sm">Sandbox Mode: <span class="text-rose-700 tracking-wider text-base font-black">Development Bypass</span></div>
-                <div class="text-[11px] text-amber-800 font-medium">SMTP is not configured in .env yet. Click Auto-Fill to use sandbox bypass (123456), or configure Gmail SMTP.</div>
+                <div class="font-extrabold text-sm">Sandbox Verification: <span class="text-rose-700 tracking-wider text-base font-black" x-text="generatedCode || '123456'">123456</span></div>
+                <div class="text-[11px] text-amber-800 font-medium">Outbound email is in sandbox mode (or SMTP port is blocked by campus Wi-Fi). Click <b>Auto-Fill Code</b> to verify immediately.</div>
               </div>
             </div>
             <div class="flex items-center gap-2 flex-shrink-0">
-              <button @click="autoFillOtp()" class="clay-btn-pill-secondary px-3 py-1.5 text-xs font-bold text-amber-950 whitespace-nowrap">
+              <button @click="autoFillOtp()" class="clay-btn-pill-secondary px-3.5 py-1.5 text-xs font-bold text-amber-950 bg-amber-200/90 hover:bg-amber-300 whitespace-nowrap shadow-sm">
                 ⚡ Auto-Fill Code
               </button>
               <button @click="openSmtpModal()" class="clay-btn-pill-secondary px-3 py-1.5 text-xs font-bold text-stone-900 bg-white/90 whitespace-nowrap">
-                ⚙️ Setup Gmail SMTP
+                ⚙️ SMTP Setup
               </button>
             </div>
           </div>
@@ -1532,7 +1574,13 @@
         <span x-text="smtpSuccess"></span>
       </div>
 
-      <div class="flex items-center justify-end gap-3 pt-2">
+      <div class="pt-2 border-t border-stone-200/60">
+        <button type="button" @click="switchToSandboxMode()" class="w-full text-center py-2 px-3 rounded-2xl bg-amber-100 hover:bg-amber-200 text-amber-900 text-xs font-extrabold border border-amber-300 transition">
+          ⚡ Switch to Sandbox Verification Mode (Bypass SMTP)
+        </button>
+      </div>
+
+      <div class="flex items-center justify-end gap-3 pt-1">
         <button @click="closeSmtpModal()" class="clay-btn-pill-secondary text-xs px-4 py-2">
           Cancel
         </button>

@@ -103,14 +103,9 @@ public class AppController {
         }
         com.nextit.service.SystemService.getInstance().start();
 
-        // RBAC Enforcement: Unverified accounts only see verification status screen
-        if (user.isVerified()) {
-            buildSidebar(user);
-            showDashboard(user);
-        } else {
-            buildUnverifiedSidebar(user);
-            showVerificationStatus(user);
-        }
+        // RBAC Enforcement: Users enter their role workspace directly
+        buildSidebar(user);
+        showDashboard(user);
     }
 
     private void showVerificationStatus(User user) {

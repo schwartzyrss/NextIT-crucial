@@ -43,8 +43,10 @@ public final class EmailService {
     private EmailService() {}
 
     public static boolean isConfigured() {
-        String user = getSetting("SMTP_USER", "zyrajoyce06@gmail.com");
-        String pass = getSetting("SMTP_PASSWORD", getSetting("SMTP_PASS", "kcebkxcjlluabgpb"));
+        String enabled = getSetting("SMTP_ENABLED", "true");
+        if ("false".equalsIgnoreCase(enabled) || "0".equals(enabled)) return false;
+        String user = getSetting("SMTP_USER", "");
+        String pass = getSetting("SMTP_PASSWORD", getSetting("SMTP_PASS", ""));
         return user != null && !user.isBlank() && pass != null && !pass.isBlank();
     }
 
@@ -54,98 +56,124 @@ public final class EmailService {
 
     public static SmtpResult sendOtpEmailWithStatus(String toEmail, String otpCode) {
         if (!isConfigured()) {
-            log.warn("SMTP not configured in .env. Skipping real email dispatch. OTP for {}: {}", toEmail, otpCode);
-            return new SmtpResult(false, "SMTP not configured: please set SMTP_USER and SMTP_PASSWORD in .env or Settings.", otpCode);
+            log.info("SMTP not configured or disabled in .env. Using sandbox OTP for {}: {}", toEmail, otpCode);
+            return new SmtpResult(false, "Sandbox verification active. Test code: " + otpCode, otpCode);
         }
 
         String host = getSetting("SMTP_HOST", "smtp.gmail.com").trim();
         String port = getSetting("SMTP_PORT", "587").trim();
-        String username = getSetting("SMTP_USER", "zyrajoyce06@gmail.com").trim();
-        String rawPassword = getSetting("SMTP_PASSWORD", getSetting("SMTP_PASS", "kceb_kxcj_llua_bgpb"));
+        String username = getSetting("SMTP_USER", "").trim();
+        String rawPassword = getSetting("SMTP_PASSWORD", getSetting("SMTP_PASS", ""));
         String password = rawPassword != null ? rawPassword.replace(" ", "").trim() : "";
         String fromAddress = getSetting("SMTP_FROM", "NextIT Verification <" + username + ">").trim();
 
-        boolean isSsl = "465".equals(port) || "true".equalsIgnoreCase(getSetting("SMTP_SECURE", "false"));
+        boolean primarySsl = "465".equals(port) || "true".equalsIgnoreCase(getSetting("SMTP_SECURE", "false"));
 
+        // Attempt 1: Configured port
+        try {
+            sendEmailAttempt(host, port, primarySsl, username, password, fromAddress, toEmail, otpCode, 3500);
+            log.info("Successfully sent verification OTP code to {}", toEmail);
+            return new SmtpResult(true, "Verification code sent to " + toEmail, otpCode);
+        } catch (Exception exPrimary) {
+            log.warn("Primary SMTP delivery failed on {}:{} (ssl={}): {}", host, port, primarySsl, exPrimary.getMessage());
+
+            String pErr = exPrimary.getMessage() != null ? exPrimary.getMessage() : exPrimary.toString();
+            if (pErr.contains("535") || pErr.toLowerCase().contains("authentication failed")) {
+                return new SmtpResult(false, "Google SMTP authentication failed. If using Gmail, ensure 2-Step Verification is active and use a 16-character App Password (not your normal password).", otpCode);
+            }
+
+            // Attempt 2: Alternative port (587 <-> 465)
+            String altPort = "587".equals(port) ? "465" : "587";
+            boolean altSsl = "465".equals(altPort);
+            try {
+                log.info("Attempting secondary SMTP delivery on {}:{} (ssl={})...", host, altPort, altSsl);
+                sendEmailAttempt(host, altPort, altSsl, username, password, fromAddress, toEmail, otpCode, 3500);
+                log.info("Secondary SMTP delivery succeeded on port {}", altPort);
+                return new SmtpResult(true, "Verification code sent to " + toEmail + " (via port " + altPort + ")", otpCode);
+            } catch (Exception exAlt) {
+                log.warn("Secondary SMTP delivery also failed: {}", exAlt.getMessage());
+                String err = "Network/Firewall Block: Outbound SMTP ports 587 & 465 timed out (common on campus Wi-Fi). Use test code " + otpCode + " or 123456.";
+                return new SmtpResult(false, err, otpCode);
+            }
+        }
+    }
+
+    private static void sendEmailAttempt(String host, String port, boolean isSsl,
+                                         String username, String password,
+                                         String fromAddress, String toEmail,
+                                         String otpCode, int timeoutMs) throws Exception {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.host", host);
         props.put("mail.smtp.port", port);
-        props.put("mail.smtp.connectiontimeout", "10000");
-        props.put("mail.smtp.timeout", "10000");
-        props.put("mail.smtp.writetimeout", "10000");
+        props.put("mail.smtp.connectiontimeout", String.valueOf(timeoutMs));
+        props.put("mail.smtp.timeout", String.valueOf(timeoutMs));
+        props.put("mail.smtp.writetimeout", String.valueOf(timeoutMs));
+        props.put("mail.smtp.ssl.trust", "*");
 
         if (isSsl) {
             props.put("mail.smtp.ssl.enable", "true");
             props.put("mail.smtp.socketFactory.port", port);
             props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+            props.put("mail.smtp.socketFactory.fallback", "false");
         } else {
             props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.starttls.required", "true");
+            props.put("mail.smtp.starttls.required", "false");
         }
-        props.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
 
-        try {
-            Session session = Session.getInstance(props, new Authenticator() {
-                @Override
-                protected PasswordAuthentication getPasswordAuthentication() {
-                    return new PasswordAuthentication(username, password);
-                }
-            });
-
-            Message message = new MimeMessage(session);
-
-            InternetAddress from;
-            if (fromAddress.contains("<") && fromAddress.contains(">")) {
-                from = InternetAddress.parse(fromAddress)[0];
-            } else {
-                from = new InternetAddress(fromAddress, "NextIT Verification");
+        Session session = Session.getInstance(props, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
             }
-            message.setFrom(from);
-            message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail.trim()));
-            message.setSubject("Your NextIT Verification Code: " + otpCode);
+        });
 
-            String htmlContent = """
-                <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; background: #F1F2FA; border-radius: 24px; color: #383139;">
-                  <div style="background: linear-gradient(135deg, #FFCBE1 0%, #F6A3CA 60%, #EA8CB8 100%); padding: 18px 24px; border-radius: 20px; text-align: center; margin-bottom: 24px;">
-                    <h1 style="margin: 0; font-size: 24px; color: #383139; font-weight: 800;">NextIT</h1>
-                    <p style="margin: 4px 0 0 0; font-size: 13px; color: #48404B; font-weight: 600;">Track Your Progress, Build Your Future</p>
-                  </div>
-                  <div style="background: #FFFDF7; padding: 28px 24px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); text-align: center;">
-                    <h2 style="font-size: 20px; margin-top: 0; color: #383139;">Verify Your Account</h2>
-                    <p style="font-size: 14px; color: #5E5360; line-height: 1.5;">Please use the following 6-digit confirmation code to complete your NextIT account verification:</p>
-                    <div style="display: inline-block; background: #F1F2FA; padding: 14px 28px; border-radius: 16px; font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #383139; margin: 20px 0; border: 2px solid #F6A3CA;">
-                      {{CODE}}
-                    </div>
-                    <p style="font-size: 12px; color: #7A727D; margin-bottom: 0;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
-                  </div>
+        Message message = new MimeMessage(session);
+        InternetAddress from = (fromAddress.contains("<") && fromAddress.contains(">"))
+                ? InternetAddress.parse(fromAddress)[0]
+                : new InternetAddress(fromAddress, "NextIT Verification");
+        message.setFrom(from);
+        message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail.trim()));
+        message.setSubject("Your NextIT Verification Code: " + otpCode);
+
+        String htmlContent = buildHtmlEmail(otpCode);
+        message.setContent(htmlContent, "text/html; charset=utf-8");
+        Transport.send(message);
+    }
+
+    private static String buildHtmlEmail(String otpCode) {
+        return """
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; background: #F1F2FA; border-radius: 24px; color: #383139;">
+              <div style="background: linear-gradient(135deg, #FFCBE1 0%, #F6A3CA 60%, #EA8CB8 100%); padding: 18px 24px; border-radius: 20px; text-align: center; margin-bottom: 24px;">
+                <h1 style="margin: 0; font-size: 24px; color: #383139; font-weight: 800;">NextIT</h1>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: #48404B; font-weight: 600;">Track Your Progress, Build Your Future</p>
+              </div>
+              <div style="background: #FFFDF7; padding: 28px 24px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); text-align: center;">
+                <h2 style="font-size: 20px; margin-top: 0; color: #383139;">Verify Your Account</h2>
+                <p style="font-size: 14px; color: #5E5360; line-height: 1.5;">Please use the following 6-digit confirmation code to complete your NextIT account verification:</p>
+                <div style="display: inline-block; background: #F1F2FA; padding: 14px 28px; border-radius: 16px; font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #383139; margin: 20px 0; border: 2px solid #F6A3CA;">
+                  {{CODE}}
                 </div>
-                """.replace("{{CODE}}", otpCode);
+                <p style="font-size: 12px; color: #7A727D; margin-bottom: 0;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+              </div>
+            </div>
+            """.replace("{{CODE}}", otpCode);
+    }
 
-            message.setContent(htmlContent, "text/html; charset=utf-8");
-            Transport.send(message);
-
-            log.info("Successfully sent verification OTP code to {}", toEmail);
-            return new SmtpResult(true, "Verification code sent to " + toEmail, otpCode);
-        } catch (MessagingException me) {
-            String err = me.getMessage() != null ? me.getMessage() : me.toString();
-            log.error("Failed to send verification email to {}: {}", toEmail, err);
-            if (err.contains("535") || err.toLowerCase().contains("authentication failed")) {
-                err = "Google SMTP authentication failed. If using Gmail, ensure 2-Step Verification is active and use a 16-character App Password (not your normal password).";
-            }
-            return new SmtpResult(false, err, otpCode);
-        } catch (Exception e) {
-            log.error("Unexpected error sending verification email to " + toEmail, e);
-            return new SmtpResult(false, e.getMessage(), otpCode);
-        }
+    public static synchronized void clearSmtpConfig() {
+        DOT_ENV.setProperty("SMTP_USER", "");
+        DOT_ENV.setProperty("SMTP_PASSWORD", "");
+        DOT_ENV.setProperty("SMTP_ENABLED", "false");
+        saveToDotEnv();
     }
 
     public static synchronized void updateAndPersistConfig(String host, String port, String user, String pass, String from) {
         if (host != null && !host.isBlank()) DOT_ENV.setProperty("SMTP_HOST", host.trim());
         if (port != null && !port.isBlank()) DOT_ENV.setProperty("SMTP_PORT", port.trim());
-        if (user != null && !user.isBlank()) DOT_ENV.setProperty("SMTP_USER", user.trim());
-        if (pass != null && !pass.isBlank()) DOT_ENV.setProperty("SMTP_PASSWORD", pass.replace(" ", "").trim());
+        if (user != null) DOT_ENV.setProperty("SMTP_USER", user.trim());
+        if (pass != null) DOT_ENV.setProperty("SMTP_PASSWORD", pass.replace(" ", "").trim());
         if (from != null && !from.isBlank()) DOT_ENV.setProperty("SMTP_FROM", from.trim());
+        DOT_ENV.setProperty("SMTP_ENABLED", "true");
 
         saveToDotEnv();
     }
@@ -164,6 +192,7 @@ public final class EmailService {
         updateOrAddLine(lines, "SMTP_USER", DOT_ENV.getProperty("SMTP_USER", ""));
         updateOrAddLine(lines, "SMTP_PASSWORD", DOT_ENV.getProperty("SMTP_PASSWORD", ""));
         updateOrAddLine(lines, "SMTP_FROM", DOT_ENV.getProperty("SMTP_FROM", "NextIT Verification <no-reply@nextit.edu>"));
+        updateOrAddLine(lines, "SMTP_ENABLED", DOT_ENV.getProperty("SMTP_ENABLED", "true"));
 
         try {
             Files.write(path, lines, StandardCharsets.UTF_8);
