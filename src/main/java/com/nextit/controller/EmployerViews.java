@@ -323,7 +323,7 @@ public final class EmployerViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #F8F3EA;");
+        headerContainer.setStyle("-fx-background-color: #f1f2fa;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards Row
@@ -473,7 +473,7 @@ public final class EmployerViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #F8F3EA;");
+        scrollContent.setStyle("-fx-background-color: #f1f2fa;");
         scrollContent.setPadding(new Insets(10, 24, 32, 24));
         scrollContent.getChildren().addAll(cardsRow, middleRow, appTray);
 
@@ -492,7 +492,7 @@ public final class EmployerViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #F8F3EA;");
+        dashboardRoot.setStyle("-fx-background-color: #f1f2fa;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
 
@@ -543,14 +543,14 @@ public final class EmployerViews {
 
         VBox queueBox = new VBox(8);
         Label queueHeader = new Label("PIPELINE HEALTH");
-        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #4F6B66; -fx-letter-spacing: 0.5px;");
+        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
 
         long pendingReviewCount = apps.stream().filter(a -> "Pending".equalsIgnoreCase(a.getStatus())).count();
 
         HBox pendingRow = new HBox(8);
         pendingRow.setAlignment(Pos.CENTER_LEFT);
         Label pLabel = new Label("Applications Pending:");
-        pLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
+        pLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
         Region pSp = new Region();
         HBox.setHgrow(pSp, Priority.ALWAYS);
         Node pBadge = pendingReviewCount > 0
@@ -561,7 +561,7 @@ public final class EmployerViews {
         HBox openRow = new HBox(8);
         openRow.setAlignment(Pos.CENTER_LEFT);
         Label oLabel = new Label("Open Positions:");
-        oLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
+        oLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
         Region oSp = new Region();
         HBox.setHgrow(oSp, Priority.ALWAYS);
         Node oBadge = Ui.badge(openPositions + " Active", "badge-pill-blue");
@@ -570,7 +570,7 @@ public final class EmployerViews {
         HBox totalRow = new HBox(8);
         totalRow.setAlignment(Pos.CENTER_LEFT);
         Label tLabel = new Label("Total Applicant Pool:");
-        tLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
+        tLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
         Region tSp = new Region();
         HBox.setHgrow(tSp, Priority.ALWAYS);
         Node tBadge = Ui.badge(apps.size() + " Candidates", "badge-pill-lavender");
@@ -583,11 +583,11 @@ public final class EmployerViews {
         // Company info
         VBox compBox = new VBox(6);
         Label compHeader = new Label("COMPANY PROFILE");
-        compHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #4F6B66; -fx-letter-spacing: 0.5px;");
+        compHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
         Label cName = new Label(emp != null && emp.getCompanyName() != null ? emp.getCompanyName() : "NextIT Partner");
-        cName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
+        cName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
         Label cInd = new Label(emp != null && emp.getIndustry() != null ? emp.getIndustry() : "Technology");
-        cInd.setStyle("-fx-font-size: 11px; -fx-text-fill: #4F6B66;");
+        cInd.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
         compBox.getChildren().addAll(compHeader, cName, cInd);
 
         pipelineCard.getChildren().addAll(new VBox(3, pipeTitle, pipeSub), queueBox, sep, compBox);
@@ -608,7 +608,7 @@ public final class EmployerViews {
 
         if (recentApps.isEmpty()) {
             Label empty = new Label("No candidate submissions yet.");
-            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #4F6B66;");
+            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
             candidateCard.getChildren().add(empty);
         } else {
             for (Application a : recentApps) {
@@ -623,14 +623,14 @@ public final class EmployerViews {
 
                 VBox info = new VBox(2);
                 Label name = new Label(stName);
-                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #4F6B66;");
+                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
                 String oppTitle = owned.stream()
                         .filter(o -> o.getOpportunityId() == a.getOpportunityId())
                         .map(JobOpportunity::getTitle)
                         .findFirst()
                         .orElse("Opportunity #" + a.getOpportunityId());
                 Label role = new Label(oppTitle);
-                role.setStyle("-fx-font-size: 10px; -fx-text-fill: #4F6B66;");
+                role.setStyle("-fx-font-size: 10px; -fx-text-fill: #8e8394;");
                 info.getChildren().addAll(name, role);
                 HBox.setHgrow(info, Priority.ALWAYS);
 

@@ -149,7 +149,7 @@ public final class Ui {
         SVGPath svg = new SVGPath();
         svg.setContent(SYNC_ICON_PATH);
         svg.setFill(Color.TRANSPARENT);
-        svg.setStroke(Color.web("#4F6B66"));
+        svg.setStroke(Color.web("#1E293B"));
         svg.setStrokeWidth(1.8);
         svg.setStrokeLineCap(StrokeLineCap.ROUND);
         svg.setStrokeLineJoin(StrokeLineJoin.ROUND);
@@ -187,7 +187,7 @@ public final class Ui {
         private void setupInteractions() {
             button.hoverProperty().addListener((obs, old, hovered) -> {
                 if (svg != null) {
-                    svg.setStroke(hovered ? Color.web("#9BC8C1") : Color.web("#4F6B66"));
+                    svg.setStroke(hovered ? Color.web("#4F46E5") : Color.web("#1E293B"));
                 }
                 if (!fetching.get()) {
                     RotateTransition hoverTrans = new RotateTransition(Duration.millis(hovered ? 280 : 200), iconBox);
