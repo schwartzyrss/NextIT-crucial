@@ -1517,7 +1517,7 @@
 .system-label-primary {
     -fx-font-size: 13px;
     -fx-font-weight: 600;
-    -fx-text-fill: #222222;
+    -fx-text-fill: #1E293B;
 }
 
 .system-label-subtext {
@@ -1576,8 +1576,8 @@
     -fx-background-radius: 4;
     -fx-text-fill: #FFFFFF;
     -fx-font-size: 13px;
-    -fx-font-weight: 700;
-    -fx-padding: 10 24;
+    -fx-font-weight: 600;
+    -fx-padding: 9 22;
     -fx-cursor: hand;
     -fx-border-width: 0;
     -fx-effect: null;

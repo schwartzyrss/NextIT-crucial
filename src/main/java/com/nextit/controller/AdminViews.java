@@ -28,6 +28,10 @@ import javafx.scene.Cursor;
 import javafx.scene.control.Slider;
 import javafx.scene.shape.Circle;
 import javafx.scene.shape.Rectangle;
+import javafx.scene.shape.SVGPath;
+import javafx.scene.shape.StrokeLineCap;
+import javafx.scene.shape.StrokeLineJoin;
+
 
 
 import java.time.Duration;
@@ -1250,35 +1254,55 @@ public final class AdminViews {
     }
 
     /**
-     * Interactive pill-shaped toggle switch with Dark Cerulean track (#073D7F)
-     * and circular United Nations Blue thumb (#6491DE).
+     * Creates a consistent 20px monochrome line icon in Dark Cerulean (#073D7F).
+     */
+    private static Node createLineIcon(String pathData) {
+        SVGPath path = new SVGPath();
+        path.setContent(pathData);
+        path.setStroke(javafx.scene.paint.Color.web("#073D7F"));
+        path.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        path.setStrokeWidth(1.65);
+        path.setStrokeLineCap(StrokeLineCap.ROUND);
+        path.setStrokeLineJoin(StrokeLineJoin.ROUND);
+
+        StackPane pane = new StackPane(path);
+        pane.setMinSize(20, 20);
+        pane.setPrefSize(20, 20);
+        pane.setMaxSize(20, 20);
+        pane.setAlignment(Pos.CENTER);
+        return pane;
+    }
+
+    /**
+     * Precision pill-shaped toggle switch with Dark Cerulean (#073D7F) active track
+     * paired with circular United Nations Blue (#6491DE) thumb.
      */
     private static Node createPillToggle(boolean initial, Consumer<Boolean> onToggle) {
         StackPane toggle = new StackPane();
-        toggle.setPrefSize(42, 22);
-        toggle.setMinSize(42, 22);
-        toggle.setMaxSize(42, 22);
+        toggle.setPrefSize(38, 20);
+        toggle.setMinSize(38, 20);
+        toggle.setMaxSize(38, 20);
         toggle.setAlignment(Pos.CENTER);
         toggle.setCursor(Cursor.HAND);
 
-        Rectangle track = new Rectangle(40, 20);
-        track.setArcWidth(20);
-        track.setArcHeight(20);
+        Rectangle track = new Rectangle(36, 18);
+        track.setArcWidth(18);
+        track.setArcHeight(18);
 
-        Circle thumb = new Circle(7.5);
+        Circle thumb = new Circle(6.5);
         thumb.setFill(javafx.scene.paint.Color.web("#6491DE"));
 
         final java.util.concurrent.atomic.AtomicBoolean state = new java.util.concurrent.atomic.AtomicBoolean(initial);
 
-        track.setFill(javafx.scene.paint.Color.web(initial ? "#073D7F" : "#CBD5E1"));
-        thumb.setTranslateX(initial ? 10 : -10);
+        track.setFill(javafx.scene.paint.Color.web(initial ? "#073D7F" : "#E2E8F0"));
+        thumb.setTranslateX(initial ? 8.5 : -8.5);
 
         toggle.setOnMouseClicked(e -> {
             boolean next = !state.get();
             state.set(next);
-            TranslateTransition tt = new TranslateTransition(javafx.util.Duration.millis(160), thumb);
-            tt.setToX(next ? 10 : -10);
-            track.setFill(javafx.scene.paint.Color.web(next ? "#073D7F" : "#CBD5E1"));
+            TranslateTransition tt = new TranslateTransition(javafx.util.Duration.millis(150), thumb);
+            tt.setToX(next ? 8.5 : -8.5);
+            track.setFill(javafx.scene.paint.Color.web(next ? "#073D7F" : "#E2E8F0"));
             tt.play();
             if (onToggle != null) {
                 onToggle.accept(next);
@@ -1290,16 +1314,16 @@ public final class AdminViews {
     }
 
     /**
-     * Thin horizontal slider with Dark Cerulean track (#073D7F) and UN Blue thumb (#6491DE),
-     * paired with a secondary text highlight label in United Nations Blue (#6491DE).
+     * Thin horizontal range slider with Dark Cerulean (#073D7F) active track
+     * paired with circular United Nations Blue (#6491DE) thumb and value highlight.
      */
     private static Node createSliderSetting(double min, double max, double value, String unit, Consumer<Double> onChange) {
-        HBox box = new HBox(10);
+        HBox box = new HBox(8);
         box.setAlignment(Pos.CENTER_RIGHT);
 
         Slider slider = new Slider(min, max, value);
         slider.getStyleClass().add("flat-slider");
-        slider.setPrefWidth(120);
+        slider.setPrefWidth(110);
 
         Label valueLabel = new Label(Math.round(value) + unit);
         valueLabel.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 700; -fx-text-fill: #6491DE; -fx-min-width: 44px;");
@@ -1317,31 +1341,31 @@ public final class AdminViews {
     }
 
     private static VBox createSettingRow(String title, String subtitle, String highlight, Node control) {
-        VBox row = new VBox(4);
+        VBox row = new VBox(3);
         row.setFillWidth(true);
         row.setPadding(new Insets(10, 0, 10, 0));
 
         HBox topHBox = new HBox(12);
         topHBox.setAlignment(Pos.CENTER_LEFT);
 
-        VBox textBox = new VBox(3);
+        VBox textBox = new VBox(2);
         HBox.setHgrow(textBox, Priority.ALWAYS);
 
         HBox labelHBox = new HBox(8);
         labelHBox.setAlignment(Pos.CENTER_LEFT);
 
         Label primaryLabel = new Label(title);
-        primaryLabel.getStyleClass().add("system-label-primary");
+        primaryLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #1E293B;");
         labelHBox.getChildren().add(primaryLabel);
 
         if (highlight != null && !highlight.isBlank()) {
             Label chip = new Label(highlight);
-            chip.getStyleClass().add("system-highlight-chip");
+            chip.setStyle("-fx-background-color: rgba(100, 145, 222, 0.12); -fx-text-fill: #6491DE; -fx-font-weight: 700; -fx-font-size: 11px; -fx-background-radius: 4; -fx-padding: 2 7;");
             labelHBox.getChildren().add(chip);
         }
 
         Label subLabel = new Label(subtitle);
-        subLabel.getStyleClass().add("system-label-subtext");
+        subLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: normal;");
         subLabel.setWrapText(true);
 
         textBox.getChildren().addAll(labelHBox, subLabel);
@@ -1351,9 +1375,9 @@ public final class AdminViews {
         return row;
     }
 
-    private static VBox createSettingsCard(String sectionTitle, String iconSymbol, Node... rows) {
-        VBox card = new VBox(12);
-        card.getStyleClass().add("system-section-card");
+    private static VBox createSettingsColumnCard(String categoryTitle, Node iconNode, Node... rows) {
+        VBox card = new VBox(10);
+        card.setStyle("-fx-background-color: #FFFFFF; -fx-background-radius: 6; -fx-border-color: #E2E8F0; -fx-border-width: 1; -fx-border-radius: 6; -fx-padding: 20 22;");
         HBox.setHgrow(card, Priority.ALWAYS);
 
         HBox header = new HBox(10);
@@ -1361,13 +1385,10 @@ public final class AdminViews {
         header.setPadding(new Insets(0, 0, 10, 0));
         header.setStyle("-fx-border-color: #E2E8F0; -fx-border-width: 0 0 1 0;");
 
-        Label icon = new Label(iconSymbol);
-        icon.getStyleClass().add("system-section-icon");
+        Label title = new Label(categoryTitle);
+        title.setStyle("-fx-font-size: 15px; -fx-font-weight: 700; -fx-text-fill: #073D7F;");
 
-        Label title = new Label(sectionTitle);
-        title.getStyleClass().add("system-section-header");
-
-        header.getChildren().addAll(icon, title);
+        header.getChildren().addAll(iconNode, title);
         card.getChildren().add(header);
 
         for (int i = 0; i < rows.length; i++) {
@@ -1383,133 +1404,118 @@ public final class AdminViews {
     }
 
     /**
-     * Redesigned clean, minimalist, flat light-mode System Settings UI using the three-color palette:
+     * Redesigned enterprise-grade, minimalist flat light-mode System Settings UI
+     * anchored by the strict three-color palette:
      * Anti-Flash White (#F1F1F1), United Nations Blue (#6491DE), and Dark Cerulean (#073D7F).
      */
     public static Node system() {
         SystemService system = SystemService.getInstance();
 
-        // 1. Top Minimal Neutral Gray Status Bar (avoiding heavy shadows, borders, or gradients)
-        HBox statusBar = new HBox(16);
-        statusBar.getStyleClass().add("system-status-bar");
+        // 1. Top-Right Minimal System Status Bar in Neutral Gray (avoiding heavy shadows, gradients, or clutter)
+        HBox statusBar = new HBox(18);
         statusBar.setAlignment(Pos.CENTER_RIGHT);
+        statusBar.setPadding(new Insets(0, 0, 16, 0));
 
-        Label netStatus = new Label("● Network: Online (1 Gbps)");
-        netStatus.getStyleClass().add("system-status-text");
+        Label netStatus = new Label("Wi-Fi: Connected");
+        netStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
 
-        Label latencyStatus = new Label("⚡ Host Latency: 6ms");
-        latencyStatus.getStyleClass().add("system-status-text");
+        Label batStatus = new Label("Battery: 85%");
+        batStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
 
-        Label dbEngineStatus = new Label("🗄 Engine: MariaDB / Supabase");
-        dbEngineStatus.getStyleClass().add("system-status-text");
+        Label soundStatus = new Label("Sound: 70%");
+        soundStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
 
-        Label tlsStatus = new Label("🔒 TLS 1.3 Active");
-        tlsStatus.getStyleClass().add("system-status-text");
+        Label storageStatus = new Label("Storage: 24.8 GB Free");
+        storageStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
 
-        Label timestampStatus = new Label("⏱ Synced Just Now");
-        timestampStatus.getStyleClass().add("system-status-text");
+        Label timeStatus = new Label("⏱ Synced 15:47");
+        timeStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
 
-        statusBar.getChildren().addAll(netStatus, latencyStatus, dbEngineStatus, tlsStatus, timestampStatus);
+        statusBar.getChildren().addAll(netStatus, batStatus, soundStatus, storageStatus, timeStatus);
 
-        // 2. Main Title & Subtitle
-        VBox titleBox = new VBox(4);
+        // 2. Main Title in Dark Cerulean (#073D7F) with Subtitle
+        VBox titleBox = new VBox(3);
         titleBox.setPadding(new Insets(0, 0, 20, 0));
 
         Label mainTitle = new Label("System Settings");
-        mainTitle.getStyleClass().add("system-main-title");
+        mainTitle.setStyle("-fx-font-size: 26px; -fx-font-weight: 800; -fx-text-fill: #073D7F; -fx-letter-spacing: -0.3px;");
 
-        Label mainSubtitle = new Label("Clean, minimalist, flat configuration interface for core runtime parameters, security governance, and system telemetry.");
-        mainSubtitle.getStyleClass().add("system-main-subtitle");
+        Label mainSubtitle = new Label("Enterprise runtime parameters, network connectivity, display preferences, and storage management.");
+        mainSubtitle.setStyle("-fx-font-size: 13px; -fx-text-fill: #64748B;");
 
         titleBox.getChildren().addAll(mainTitle, mainSubtitle);
 
-        // 3. Multi-Column Settings Layout (Spacious 3-Column Arrangement)
-        // Column 1: Database & Telemetry
-        Label dbLiveStatus = new Label("Database Connected");
-        dbLiveStatus.setStyle("-fx-font-weight: 700; -fx-font-size: 11.5px; -fx-text-fill: #073D7F;");
+        // 3. 20px Monochrome Line Icons in Dark Cerulean (#073D7F)
+        // Network line icon: Globe with latitude/longitude lines (20x20)
+        Node networkIcon = createLineIcon("M10 1A9 9 0 1 0 19 10A9 9 0 0 0 10 1zm0 0v18M1 10h18M3.5 5.5a13 13 0 0 0 0 9M16.5 5.5a13 13 0 0 1 0 9");
 
-        Label dbDetails = new Label("JDBC URL: " + (system.status() != null ? system.status().url() : "jdbc:mariadb://localhost:3306/nextit"));
-        dbDetails.setStyle("-fx-font-size: 11px; -fx-text-fill: #6B7280;");
-        dbDetails.setWrapText(true);
+        // Display line icon: Monitor screen (20x20)
+        Node displayIcon = createLineIcon("M2 3h16a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm5 14h6m-3-2v4");
 
-        Button testConnBtn = new Button("Test Connection");
-        testConnBtn.getStyleClass().add("flat-primary-rect-btn");
-        testConnBtn.setStyle("-fx-font-size: 11px; -fx-padding: 6 14;");
+        // Storage line icon: Server / Storage drive (20x20)
+        Node storageIcon = createLineIcon("M2 3h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zm0 8h16a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1v-3a1 1 0 0 1 1-1zm13-5h.01M15 14h.01");
 
-        VBox dbDiagnosticBox = new VBox(6, dbLiveStatus, dbDetails, testConnBtn);
-        dbDiagnosticBox.setStyle("-fx-background-color: #F8FAFD; -fx-padding: 12; -fx-background-radius: 4; -fx-border-color: #E2E8F0; -fx-border-width: 1; -fx-border-radius: 4;");
-
-        testConnBtn.setOnAction(e -> {
-            testConnBtn.setDisable(true);
-            testConnBtn.setText("Testing...");
-            system.checkNow().whenComplete((res, err) -> Platform.runLater(() -> {
-                testConnBtn.setDisable(false);
-                testConnBtn.setText("Test Connection");
-                boolean ok = (res != null && res.connected());
-                dbLiveStatus.setText(ok ? "✓ Connection Verified" : "✕ Connection Failed");
-                dbLiveStatus.setStyle(ok ? "-fx-font-weight: 700; -fx-font-size: 11.5px; -fx-text-fill: #073D7F;"
-                                         : "-fx-font-weight: 700; -fx-font-size: 11.5px; -fx-text-fill: #DC2626;");
-            }));
-        });
-
-        VBox col1 = createSettingsCard(
-            "Database & Telemetry", "🗄",
-            createSettingRow("Real-Time Telemetry", "Continuously poll database health and schema status", "Active", createPillToggle(true, null)),
-            createSettingRow("Heartbeat Interval", "Frequency of background database health probes", null, createSliderSetting(2, 30, 5, "s", null)),
-            createSettingRow("Connection Pool", "Pre-allocate cached JDBC sockets for fast queries", "Optimized", createPillToggle(true, null)),
-            createSettingRow("Query Buffer Size", "Maximum memory limit for CSV report generation", null, createSliderSetting(8, 128, 32, "MB", null)),
-            dbDiagnosticBox
+        // 4. Structured, evenly aligned Three-Column Grid
+        // Column 1: Network
+        VBox col1 = createSettingsColumnCard(
+            "Network", networkIcon,
+            createSettingRow("Wi-Fi", "Connected to institutional wireless network", "eduroam-5G", createPillToggle(true, null)),
+            createSettingRow("Network Bandwidth", "Allocated throughput quota for data transfers", "100 Mbps", createSliderSetting(10, 500, 100, " Mbps", null)),
+            createSettingRow("Bluetooth", "Short-range peripheral wireless synchronization", "Disabled", createPillToggle(false, null)),
+            createSettingRow("Cloud Synchronization", "Continuous automated background sync with remote cluster", "Connected", createPillToggle(true, null)),
+            createSettingRow("Latency Sensitivity", "Connection timeout and heartbeat granularity", "15 ms", createSliderSetting(5, 50, 15, " ms", null))
         );
 
-        // Column 2: Security & Governance
-        VBox col2 = createSettingsCard(
-            "Security & Governance", "🛡",
-            createSettingRow("Anti-Fake Verification", "Cross-check identity against institutional registries", "Strict", createPillToggle(true, null)),
-            createSettingRow("Security Audit Logging", "Immutable audit trail of administrative modifications", "Enforced", createPillToggle(true, null)),
-            createSettingRow("Session Inactivity Timeout", "Automatically lock client during periods of inactivity", null, createSliderSetting(15, 120, 60, "m", null)),
-            createSettingRow("OTP Challenge Window", "Rate-limit token and verification passcode expiration", null, createSliderSetting(30, 180, 60, "s", null)),
-            createSettingRow("Require Password Symbols", "Enforce alphanumeric symbols and minimum 8 characters", "Active", createPillToggle(true, null))
+        // Column 2: Display
+        VBox col2 = createSettingsColumnCard(
+            "Display", displayIcon,
+            createSettingRow("Brightness", "Display backlight intensity level", "85%", createSliderSetting(10, 100, 85, "%", null)),
+            createSettingRow("Sound", "System notification and feedback audio master level", "70%", createSliderSetting(0, 100, 70, "%", null)),
+            createSettingRow("Hardware Acceleration", "Direct3D / OpenGL hardware rasterizer pipeline", "Enabled", createPillToggle(true, null)),
+            createSettingRow("Night Light", "Warm color temperature shift for reduced eye strain", "Disabled", createPillToggle(false, null)),
+            createSettingRow("High Refresh Rate", "Enable 120 Hz display frame rate synchronization", "120 Hz", createPillToggle(true, null))
         );
 
-        // Column 3: Display & Environment
-        VBox col3 = createSettingsCard(
-            "Display & Environment", "🖥",
-            createSettingRow("Hardware Acceleration", "Enable Direct3D / OpenGL graphics pipeline", "Active", createPillToggle(true, null)),
-            createSettingRow("Anti-Flash Light Mode", "Strict high-contrast flat minimalist styling profile", "Applied", createPillToggle(true, null)),
-            createSettingRow("In-Memory Metric Cache", "Cache row count tallies to minimize SQL roundtrips", "Fast", createPillToggle(true, null)),
-            createSettingRow("Live Ticker Granularity", "UI countdown and timestamp update frequency", null, createSliderSetting(1, 10, 1, "s", null)),
-            createSettingRow("Automated Cold Archival", "Compress security audit logs older than 90 days", null, createPillToggle(false, null))
+        // Column 3: Storage
+        VBox col3 = createSettingsColumnCard(
+            "Storage", storageIcon,
+            createSettingRow("Storage", "NVMe storage drive space and automatic cleanup sense", "24.8 GB Free", createPillToggle(true, null)),
+            createSettingRow("Battery", "Balanced charge threshold for battery longevity", "85%", createSliderSetting(50, 100, 85, "%", null)),
+            createSettingRow("Memory Cache Limit", "Allocated RAM memory for query result caches", "32 MB", createSliderSetting(8, 128, 32, " MB", null)),
+            createSettingRow("Automated Archival", "Weekly archive of security audit and activity logs", "Weekly", createPillToggle(true, null)),
+            createSettingRow("Telemetry & Diagnostics", "Live connection health monitoring and report generation", "Active", createPillToggle(true, null))
         );
 
-        HBox columnsBox = new HBox(22, col1, col2, col3);
+        HBox columnsBox = new HBox(20, col1, col2, col3);
         columnsBox.setFillHeight(true);
 
-        // 4. Bottom Action Bar (Status Subtext on left, Solid Dark Cerulean Rectangular Button on right)
+        // 5. Bottom Action Bar: Muted Secondary Status Text on left, Solid Dark Cerulean Rectangular Button on right
         HBox bottomBar = new HBox(16);
         bottomBar.setAlignment(Pos.CENTER_LEFT);
-        bottomBar.setPadding(new Insets(20, 0, 8, 0));
+        bottomBar.setPadding(new Insets(24, 0, 8, 0));
 
-        VBox statusBox = new VBox(2);
+        VBox statusBox = new VBox(3);
         HBox.setHgrow(statusBox, Priority.ALWAYS);
 
         HBox statusLine = new HBox(6);
         statusLine.setAlignment(Pos.CENTER_LEFT);
 
         Label statusPrefix = new Label("System State:");
-        statusPrefix.getStyleClass().add("system-label-subtext");
+        statusPrefix.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-weight: 500;");
 
-        Label statusHighlight = new Label("Optimal • Anti-Flash Mode Active");
-        statusHighlight.getStyleClass().add("system-highlight-text");
+        Label statusHighlight = new Label("Optimal • Anti-Flash White UI Profile Active");
+        statusHighlight.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6491DE; -fx-font-weight: 700;");
 
         statusLine.getChildren().addAll(statusPrefix, statusHighlight);
 
-        Label feedbackLabel = new Label("All configurations active and verified.");
-        feedbackLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6B7280;");
+        Label feedbackLabel = new Label("All system modules and interactive services active.");
+        feedbackLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748B;");
 
         statusBox.getChildren().addAll(statusLine, feedbackLabel);
 
+        // Refined, slightly rounded rectangular "Save Changes" button in solid Dark Cerulean (#073D7F) with crisp white semibold typography
         Button saveChangesBtn = new Button("Save Changes");
-        saveChangesBtn.getStyleClass().add("flat-primary-rect-btn");
+        saveChangesBtn.setStyle("-fx-background-color: #073D7F; -fx-background-radius: 4; -fx-text-fill: #FFFFFF; -fx-font-size: 13px; -fx-font-weight: 600; -fx-padding: 9 22; -fx-cursor: hand; -fx-border-width: 0;");
 
         saveChangesBtn.setOnAction(e -> {
             saveChangesBtn.setDisable(true);
@@ -1517,44 +1523,20 @@ public final class AdminViews {
             system.checkNow().whenComplete((res, err) -> Platform.runLater(() -> {
                 saveChangesBtn.setDisable(false);
                 saveChangesBtn.setText("Save Changes");
-                feedbackLabel.setText("✓ Changes saved and applied successfully at " + java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
-                feedbackLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6491DE; -fx-font-weight: bold;");
+                feedbackLabel.setText("✓ Settings saved and applied successfully at " + java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss")));
+                feedbackLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6491DE; -fx-font-weight: 700;");
             }));
         });
 
         bottomBar.getChildren().addAll(statusBox, saveChangesBtn);
 
-        // Assemble Content inside Solid Anti-Flash White Surface
+        // 6. Solid Anti-Flash White Primary Surface Canvas
         VBox contentBox = new VBox(12, statusBar, titleBox, columnsBox, bottomBar);
-        contentBox.getStyleClass().add("system-settings-root");
         contentBox.setStyle("-fx-background-color: #F1F1F1; -fx-padding: 28 32;");
 
         ScrollPane scroll = new ScrollPane(contentBox);
         scroll.setFitToWidth(true);
-        scroll.getStyleClass().add("system-settings-scroll");
-
-        // Live updater for database telemetry in Column 1
-        Consumer<SystemService.DatabaseStatus> liveTelemetry = cur -> {
-            if (cur != null) {
-                boolean ok = cur.connected();
-                dbLiveStatus.setText(ok ? "Database Connected" : "Database Disconnected");
-                dbLiveStatus.setStyle(ok ? "-fx-font-weight: 700; -fx-font-size: 11.5px; -fx-text-fill: #073D7F;"
-                                         : "-fx-font-weight: 700; -fx-font-size: 11.5px; -fx-text-fill: #DC2626;");
-                dbDetails.setText("JDBC URL: " + cur.url() + " (" + (cur.user() != null ? cur.user() : "root") + ")");
-                netStatus.setText(ok ? "● Network: Online (1 Gbps)" : "○ Network: Offline");
-            }
-        };
-
-        system.addListener(liveTelemetry);
-        if (system.status() != null) {
-            liveTelemetry.accept(system.status());
-        }
-
-        scroll.sceneProperty().addListener((obs, oldScene, newScene) -> {
-            if (newScene == null) {
-                system.removeListener(liveTelemetry);
-            }
-        });
+        scroll.setStyle("-fx-background-color: #F1F1F1; -fx-background: #F1F1F1; -fx-background-insets: 0; -fx-border-width: 0;");
 
         return scroll;
     }
