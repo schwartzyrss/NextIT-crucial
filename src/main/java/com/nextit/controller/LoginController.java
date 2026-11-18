@@ -53,7 +53,7 @@ public class LoginController {
             visiblePasswordField.positionCaret(visiblePasswordField.getText().length());
             if (eyeIcon != null) {
                 eyeIcon.setContent(EYE_CLOSED_PATH);
-                eyeIcon.setFill(javafx.scene.paint.Color.web("#A65E46"));
+                eyeIcon.setFill(javafx.scene.paint.Color.web("#6491DE"));
             }
         } else {
             passwordField.setText(visiblePasswordField.getText());
@@ -65,7 +65,7 @@ public class LoginController {
             passwordField.positionCaret(passwordField.getText().length());
             if (eyeIcon != null) {
                 eyeIcon.setContent(EYE_OPEN_PATH);
-                eyeIcon.setFill(javafx.scene.paint.Color.web("#7C6D65"));
+                eyeIcon.setFill(javafx.scene.paint.Color.web("#4A607A"));
             }
         }
     }
@@ -109,7 +109,7 @@ public class LoginController {
 
         Label desc = new Label(instructions);
         desc.setWrapText(true);
-        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #07203F;");
+        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F;");
 
         TextField mfaField = Ui.field("Enter 6-digit code");
         mfaField.setStyle("-fx-font-size: 18px; -fx-alignment: center; -fx-font-weight: bold; -fx-letter-spacing: 4px;");

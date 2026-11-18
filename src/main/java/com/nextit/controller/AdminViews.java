@@ -138,7 +138,7 @@ public final class AdminViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #EBDED4;");
+        headerContainer.setStyle("-fx-background-color: #F1F1F1;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards
@@ -301,7 +301,7 @@ public final class AdminViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #EBDED4;");
+        scrollContent.setStyle("-fx-background-color: #F1F1F1;");
         scrollContent.setPadding(new Insets(10, 24, 24, 24));
         scrollContent.getChildren().addAll(row1, row2, dashboardBody);
 
@@ -320,7 +320,7 @@ public final class AdminViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #EBDED4;");
+        dashboardRoot.setStyle("-fx-background-color: #F1F1F1;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
 
@@ -421,9 +421,9 @@ public final class AdminViews {
 
             VBox info = new VBox(2);
             Label name = new Label(Ui.value(u.getFullName()));
-            name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
+            name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
             Label uname = new Label("@" + u.getUsername());
-            uname.setStyle("-fx-font-size: 10px; -fx-text-fill: #07203F;");
+            uname.setStyle("-fx-font-size: 10px; -fx-text-fill: #073D7F;");
             info.getChildren().addAll(name, uname);
             HBox.setHgrow(info, Priority.ALWAYS);
 
@@ -456,12 +456,12 @@ public final class AdminViews {
         // Action Queue Section
         VBox queueBox = new VBox(8);
         Label queueHeader = new Label("ACTION REQUIRED");
-        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #07203F; -fx-letter-spacing: 0.5px;");
+        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #073D7F; -fx-letter-spacing: 0.5px;");
 
         HBox verifRow = new HBox(8);
         verifRow.setAlignment(Pos.CENTER_LEFT);
         Label verifLabel = new Label("Pending Verifications:");
-        verifLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
+        verifLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
         Region vSpacer = new Region();
         HBox.setHgrow(vSpacer, Priority.ALWAYS);
         long pendingVerifs = admin.pendingVerificationRequests().size();
@@ -473,7 +473,7 @@ public final class AdminViews {
         HBox pendingRow = new HBox(8);
         pendingRow.setAlignment(Pos.CENTER_LEFT);
         Label pendingLabel = new Label("Pending Portfolios:");
-        pendingLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
+        pendingLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
         Region pSpacer = new Region();
         HBox.setHgrow(pSpacer, Priority.ALWAYS);
         Node pendingBadge = pendingPortfolios > 0
@@ -484,7 +484,7 @@ public final class AdminViews {
         HBox subjectRow = new HBox(8);
         subjectRow.setAlignment(Pos.CENTER_LEFT);
         Label subjLabel = new Label("Active Subjects:");
-        subjLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
+        subjLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
         Region sSpacer = new Region();
         HBox.setHgrow(sSpacer, Priority.ALWAYS);
         Node subjBadge = Ui.badge(totalSubjects + " Registered", "badge-pill-cream");
@@ -493,7 +493,7 @@ public final class AdminViews {
         HBox enrollRow = new HBox(8);
         enrollRow.setAlignment(Pos.CENTER_LEFT);
         Label enrollLabel = new Label("Total Enrollments:");
-        enrollLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
+        enrollLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
         Region eSpacer = new Region();
         HBox.setHgrow(eSpacer, Priority.ALWAYS);
         Node enrollBadge = Ui.badge(totalEnrollments + " Enrolled", "badge-pill-lavender");
@@ -506,12 +506,12 @@ public final class AdminViews {
         // Infrastructure Section
         VBox infraBox = new VBox(8);
         Label infraHeader = new Label("SYSTEM ENVIRONMENT");
-        infraHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #07203F; -fx-letter-spacing: 0.5px;");
+        infraHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #073D7F; -fx-letter-spacing: 0.5px;");
 
         HBox dbRow = new HBox(8);
         dbRow.setAlignment(Pos.CENTER_LEFT);
         Label dbLabel = new Label("Database Storage:");
-        dbLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #07203F;");
+        dbLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F;");
         Region dSpacer = new Region();
         HBox.setHgrow(dSpacer, Priority.ALWAYS);
         Node dbBadge = Ui.badge("MariaDB / Supabase", "badge-pill-blue");
@@ -520,7 +520,7 @@ public final class AdminViews {
         HBox secRow = new HBox(8);
         secRow.setAlignment(Pos.CENTER_LEFT);
         Label secLabel = new Label("Security Clearance:");
-        secLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #07203F;");
+        secLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F;");
         Region secSpacer = new Region();
         HBox.setHgrow(secSpacer, Priority.ALWAYS);
         Node secBadge = Ui.badge("Superuser Admin", "badge-pill-pink");
@@ -1259,7 +1259,7 @@ public final class AdminViews {
         retryBadge.setManaged(false);
 
         Label timestampLabel = new Label("Live • Just now");
-        timestampLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #07203F;");
+        timestampLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #073D7F;");
 
         statusRow.getChildren().addAll(statusLabel, retryBadge, timestampLabel);
 
@@ -1900,11 +1900,11 @@ public final class AdminViews {
         card.setPadding(new Insets(30));
 
         Label title = new Label("Provision System Administrator Account");
-        title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #02000D;");
+        title.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #073D7F;");
 
         Label subtitle = new Label("Public administrator registration is permanently disabled. Only currently authenticated administrators can provision administrative access. In accordance with university cybersecurity policy, all administrator accounts require mandatory Multi-Factor Authentication (MFA).");
         subtitle.setWrapText(true);
-        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #07203F; -fx-line-spacing: 2px;");
+        subtitle.setStyle("-fx-font-size: 12px; -fx-text-fill: #073D7F; -fx-line-spacing: 2px;");
 
         TextField username = Ui.field("Username (e.g. jcruz_admin)");
         TextField email = Ui.field("Official University Administrator Email (e.g. jcruz@nextit.edu)");
@@ -1916,7 +1916,7 @@ public final class AdminViews {
         CheckBox mfaConfirmation = new CheckBox("I confirm that this person is an authorized system administrator and that Multi-Factor Authentication (MFA) will be enforced upon their initial sign-in.");
         mfaConfirmation.setSelected(true);
         mfaConfirmation.setWrapText(true);
-        mfaConfirmation.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #02000D;");
+        mfaConfirmation.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
 
         Button submitBtn = new Button("🔑 Provision Administrator Account");
         submitBtn.getStyleClass().add("primary-button");

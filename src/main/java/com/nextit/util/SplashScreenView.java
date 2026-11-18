@@ -44,7 +44,7 @@ public final class SplashScreenView {
         card.setAlignment(Pos.CENTER);
         card.setMaxWidth(460);
         card.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #FFFFFF 0%, #FAF5F0 60%, #EBDED4 100%);"
+                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #FFFFFF 0%, #FAF5F0 60%, #F1F1F1 100%);"
                         + "-fx-background-radius: 28;"
                         + "-fx-padding: 44 36;"
                         + "-fx-effect: dropshadow(gaussian, rgba(56, 49, 57, 0.12), 24, 0.15, 0, 8);"
@@ -53,29 +53,29 @@ public final class SplashScreenView {
         // Pastel lavender-periwinkle gradient logo orb
         Region logoOrb = new Region();
         logoOrb.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #D9AA90 0%, #A65E46 100%);"
+                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #6491DE 0%, #073D7F 100%);"
                         + "-fx-background-radius: 999;"
                         + "-fx-min-width: 64; -fx-min-height: 64; -fx-max-width: 64; -fx-max-height: 64;"
                         + "-fx-effect: dropshadow(gaussian, rgba(166, 94, 70, 0.45), 16, 0.2, 0, 4);"
         );
 
         Label titleLabel = new Label("NextIT");
-        titleLabel.setStyle("-fx-font-size: 32px; -fx-font-weight: 900; -fx-text-fill: #02000D;");
+        titleLabel.setStyle("-fx-font-size: 32px; -fx-font-weight: 900; -fx-text-fill: #073D7F;");
 
         Label subtitleLabel = new Label("Track Your Progress, Build Your Future");
-        subtitleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #07203F;");
+        subtitleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #6491DE;");
 
         VBox brandBox = new VBox(6, logoOrb, titleLabel, subtitleLabel);
         brandBox.setAlignment(Pos.CENTER);
 
         // Status Message & Progress Indicator
         Label statusLabel = new Label("Initializing desktop application environment...");
-        statusLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #A65E46;");
+        statusLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #073D7F;");
 
         ProgressBar progressBar = new ProgressBar(ProgressBar.INDETERMINATE_PROGRESS);
         progressBar.setPrefWidth(320);
         progressBar.setPrefHeight(6);
-        progressBar.setStyle("-fx-accent: #A65E46;");
+        progressBar.setStyle("-fx-accent: #6491DE;");
 
         // Trust chip
         HBox trustChip = new HBox(8);
@@ -95,7 +95,7 @@ public final class SplashScreenView {
 
         StackPane root = new StackPane(card);
         root.setAlignment(Pos.CENTER);
-        root.setStyle("-fx-background-color: #EBDED4;");
+        root.setStyle("-fx-background-color: #F1F1F1;");
 
         Scene splashScene = new Scene(root, stage.getWidth(), stage.getHeight());
         splashScene.getStylesheets().add(SplashScreenView.class.getResource("/com/nextit/css/application.css").toExternalForm());
