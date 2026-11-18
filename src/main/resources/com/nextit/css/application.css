@@ -1437,3 +1437,156 @@
     -fx-background-color: rgba(255, 255, 255, 0.6);
     -fx-text-fill: #073D7F;
 }
+
+/* ==========================================================================
+   Clean Flat Minimalist System Settings UI
+   Palette: Anti-Flash White (#F1F1F1), United Nations Blue (#6491DE), Dark Cerulean (#073D7F)
+   ========================================================================== */
+.system-settings-root {
+    -fx-background-color: #F1F1F1;
+}
+
+.system-settings-scroll {
+    -fx-background-color: #F1F1F1;
+    -fx-background: #F1F1F1;
+    -fx-background-insets: 0;
+    -fx-border-width: 0;
+}
+
+.system-settings-scroll > .viewport {
+    -fx-background-color: #F1F1F1;
+}
+
+.system-status-bar {
+    -fx-background-color: transparent;
+    -fx-padding: 0 0 14 0;
+    -fx-alignment: CENTER_RIGHT;
+}
+
+.system-status-chip {
+    -fx-background-color: #E5E7EB;
+    -fx-background-radius: 4;
+    -fx-padding: 4 10;
+}
+
+.system-status-icon {
+    -fx-font-size: 11px;
+    -fx-text-fill: #6B7280;
+}
+
+.system-status-text {
+    -fx-font-size: 11px;
+    -fx-text-fill: #6B7280;
+    -fx-font-weight: 500;
+}
+
+.system-main-title {
+    -fx-font-size: 26px;
+    -fx-font-weight: 800;
+    -fx-text-fill: #073D7F;
+}
+
+.system-main-subtitle {
+    -fx-font-size: 13px;
+    -fx-text-fill: #6B7280;
+    -fx-font-weight: normal;
+}
+
+.system-section-card {
+    -fx-background-color: #FFFFFF;
+    -fx-background-radius: 6;
+    -fx-border-radius: 6;
+    -fx-border-color: #E2E8F0;
+    -fx-border-width: 1;
+    -fx-padding: 22 24;
+    -fx-effect: null;
+}
+
+.system-section-header {
+    -fx-font-size: 15px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #073D7F;
+}
+
+.system-section-icon {
+    -fx-text-fill: #073D7F;
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+}
+
+.system-label-primary {
+    -fx-font-size: 13px;
+    -fx-font-weight: 600;
+    -fx-text-fill: #222222;
+}
+
+.system-label-subtext {
+    -fx-font-size: 11.5px;
+    -fx-text-fill: #6B7280;
+    -fx-font-weight: normal;
+}
+
+.system-highlight-text {
+    -fx-font-size: 12px;
+    -fx-font-weight: 700;
+    -fx-text-fill: #6491DE;
+}
+
+.system-highlight-chip {
+    -fx-background-color: rgba(100, 145, 222, 0.12);
+    -fx-text-fill: #6491DE;
+    -fx-font-weight: 700;
+    -fx-font-size: 11px;
+    -fx-background-radius: 4;
+    -fx-padding: 2 8;
+}
+
+.flat-slider {
+    -fx-pref-width: 140;
+}
+
+.flat-slider .track {
+    -fx-background-color: #073D7F;
+    -fx-pref-height: 3px;
+    -fx-max-height: 3px;
+    -fx-background-radius: 999;
+}
+
+.flat-slider .thumb {
+    -fx-background-color: #6491DE;
+    -fx-background-radius: 999;
+    -fx-pref-width: 14px;
+    -fx-pref-height: 14px;
+    -fx-min-width: 14px;
+    -fx-min-height: 14px;
+    -fx-max-width: 14px;
+    -fx-max-height: 14px;
+    -fx-cursor: hand;
+    -fx-effect: null;
+}
+
+.flat-slider .thumb:hover {
+    -fx-background-color: #4D7ECF;
+    -fx-scale-x: 1.15;
+    -fx-scale-y: 1.15;
+}
+
+.flat-primary-rect-btn {
+    -fx-background-color: #073D7F;
+    -fx-background-radius: 4;
+    -fx-text-fill: #FFFFFF;
+    -fx-font-size: 13px;
+    -fx-font-weight: 700;
+    -fx-padding: 10 24;
+    -fx-cursor: hand;
+    -fx-border-width: 0;
+    -fx-effect: null;
+}
+
+.flat-primary-rect-btn:hover {
+    -fx-background-color: #0B4A99;
+}
+
+.flat-primary-rect-btn:pressed {
+    -fx-background-color: #052F63;
+}

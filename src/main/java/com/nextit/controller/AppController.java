@@ -230,7 +230,7 @@ public class AppController {
                 sidebar.getChildren().add(navButton("🌟 Opportunities", () -> setView(AdminViews.opportunities())));
                 sidebar.getChildren().add(navButton("📝 Applications", () -> setView(AdminViews.applications())));
                 sidebar.getChildren().add(navButton("📁 Portfolios", () -> setView(AdminViews.portfolios())));
-                sidebar.getChildren().add(navButton("⚙ System Config", () -> setView(AdminViews.system())));
+                sidebar.getChildren().add(navButton("⚙ System Settings", () -> setView(AdminViews.system())));
 
                 sidebar.getChildren().add(categoryHeader("User Settings"));
                 sidebar.getChildren().add(navButton("👤 Profile", () -> setView(AdminViews.profile())));
