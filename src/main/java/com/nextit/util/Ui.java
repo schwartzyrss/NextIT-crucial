@@ -9,6 +9,8 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -90,6 +92,27 @@ public final class Ui {
         Label label = new Label(text == null ? "" : text);
         label.getStyleClass().addAll("badge-pill", colorVariant);
         return label;
+    }
+
+    /**
+     * Creates a high-DPI smoothed ImageView of the official NextIT circular emblem.
+     */
+    public static ImageView logo(double size) {
+        ImageView iv = new ImageView();
+        iv.setFitWidth(size);
+        iv.setFitHeight(size);
+        iv.setPreserveRatio(true);
+        iv.setSmooth(true);
+        try (java.io.InputStream is = Ui.class.getResourceAsStream("/images/nextit-logo.png")) {
+            if (is != null) {
+                iv.setImage(new Image(is));
+            } else {
+                try (java.io.InputStream fallback = Ui.class.getResourceAsStream("/com/nextit/icons/nextit-logo.png")) {
+                    if (fallback != null) iv.setImage(new Image(fallback));
+                }
+            }
+        } catch (Exception ignored) {}
+        return iv;
     }
 
     /**
