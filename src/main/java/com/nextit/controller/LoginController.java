@@ -6,16 +6,26 @@ import com.nextit.service.AuthenticationService;
 import com.nextit.service.OtpService;
 import com.nextit.util.Alerts;
 import com.nextit.util.Ui;
+import javafx.animation.KeyFrame;
+import javafx.animation.Timeline;
 import javafx.application.Platform;
 import javafx.fxml.FXML;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.layout.HBox;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.SVGPath;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.CompletableFuture;
 
 public class LoginController {
 
@@ -25,6 +35,7 @@ public class LoginController {
     @FXML private PasswordField passwordField;
     @FXML private TextField visiblePasswordField;
     @FXML private Button togglePasswordBtn;
+    @FXML private Hyperlink forgotPasswordLink;
     @FXML private SVGPath eyeIcon;
     @FXML private Label errorLabel;
 
@@ -78,6 +89,7 @@ public class LoginController {
     @SuppressWarnings("PMD.UnusedPrivateMethod")
     private void handleLogin() {
         try {
+            errorLabel.setStyle("");
             errorLabel.setText("");
             if (authenticationService == null) {
                 authenticationService = new AuthenticationService();
@@ -88,15 +100,468 @@ public class LoginController {
             promptMfaDialog(mfa.getUser(), mfa.getMessage());
         } catch (AppException e) {
             com.nextit.security.Session.logout();
+            errorLabel.setStyle("");
             errorLabel.setText(e.getMessage());
         } catch (Exception e) {
             log.error("Login failed due to an unexpected error", e);
             com.nextit.security.Session.logout();
+            errorLabel.setStyle("");
             Alert alert = new Alert(Alert.AlertType.ERROR);
             alert.setTitle("Error");
             alert.setContentText("Could not log in. Please check the database connection.");
             alert.show();
         }
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void handleForgotPassword() {
+        errorLabel.setStyle("");
+        errorLabel.setText("");
+        if (authenticationService == null) {
+            authenticationService = new AuthenticationService();
+        }
+        showForgotPasswordDialog();
+    }
+
+    private void showForgotPasswordDialog() {
+        Dialog<Void> dialog = new Dialog<>();
+        dialog.setTitle("Account Password Recovery");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getStylesheets().add(getClass().getResource("/com/nextit/css/application.css").toExternalForm());
+        dialog.getDialogPane().setStyle("-fx-background-color: #FDFBFA;");
+
+        if (errorLabel.getScene() != null && errorLabel.getScene().getWindow() instanceof Stage ownerStage) {
+            dialog.initOwner(ownerStage);
+        }
+
+        ButtonType closeType = new ButtonType("Close", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().add(closeType);
+        Node sysCloseBtn = dialog.getDialogPane().lookupButton(closeType);
+        if (sysCloseBtn != null) {
+            sysCloseBtn.setVisible(false);
+            sysCloseBtn.setManaged(false);
+        }
+
+        VBox root = new VBox(16);
+        root.setPrefWidth(480);
+        root.setPadding(new Insets(18, 22, 18, 22));
+
+        // Top Banner Emblem & Steps
+        VBox topBanner = new VBox(10);
+        topBanner.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-radius: 12; -fx-background-radius: 12; -fx-padding: 14; -fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.15), 6, 0.05, 0, 2);");
+
+        HBox bannerHeader = new HBox(10);
+        bannerHeader.setAlignment(Pos.CENTER_LEFT);
+        Label icon = new Label("🔐");
+        icon.setStyle("-fx-font-size: 20px;");
+        VBox bannerTitles = new VBox(2);
+        Label title = new Label("Account Password Recovery");
+        title.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F;");
+        Label subtitle = new Label("Follow the 3 steps to verify your identity and set a new password.");
+        subtitle.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
+        bannerTitles.getChildren().addAll(title, subtitle);
+        bannerHeader.getChildren().addAll(icon, bannerTitles);
+
+        HBox stepPills = new HBox(8);
+        stepPills.setAlignment(Pos.CENTER_LEFT);
+        Label pill1 = Ui.badge("1. Account Lookup", "badge-pill-pink");
+        Label pill2 = Ui.badge("2. Verify OTP", "badge-pill-cream");
+        Label pill3 = Ui.badge("3. New Password", "badge-pill-cream");
+        stepPills.getChildren().addAll(pill1, pill2, pill3);
+
+        topBanner.getChildren().addAll(bannerHeader, stepPills);
+
+        VBox stepContent = new VBox(12);
+
+        root.getChildren().addAll(topBanner, stepContent);
+        dialog.getDialogPane().setContent(root);
+
+        User[] targetUser = new User[1];
+        Timeline[] cooldownTimer = new Timeline[1];
+
+        dialog.setOnCloseRequest(ev -> {
+            if (cooldownTimer[0] != null) cooldownTimer[0].stop();
+        });
+
+        Runnable[] showStep1 = new Runnable[1];
+        Runnable[] showStep2 = new Runnable[1];
+        Runnable[] showStep3 = new Runnable[1];
+
+        // Step 1: Account Lookup & Code Dispatch
+        showStep1[0] = () -> {
+            stepContent.getChildren().clear();
+            pill1.getStyleClass().setAll("badge-pill", "badge-pill-pink");
+            pill2.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+            pill3.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+
+            Label stepDesc = new Label("Enter your registered username or institutional email address:");
+            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
+
+            TextField accountField = new TextField();
+            accountField.setPromptText("Username or email address");
+            accountField.getStyleClass().add("text-field");
+            String prefilled = (usernameField.getText() != null) ? usernameField.getText().trim() : "";
+            accountField.setText(prefilled);
+
+            Label helperNote = new Label("We will resolve your verified account and dispatch a 6-digit confirmation code to your email address.");
+            helperNote.setWrapText(true);
+            helperNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+
+            Label step1Msg = new Label();
+            step1Msg.setWrapText(true);
+            step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+
+            HBox buttons = new HBox(10);
+            buttons.setAlignment(Pos.CENTER_RIGHT);
+            Button cancelBtn = new Button("Cancel");
+            cancelBtn.getStyleClass().add("secondary-button");
+            cancelBtn.setOnAction(e -> dialog.close());
+
+            Button sendCodeBtn = new Button("Send Verification Code");
+            sendCodeBtn.getStyleClass().add("primary-button");
+            sendCodeBtn.setStyle("-fx-text-fill: #FDFBFA;");
+
+            sendCodeBtn.setOnAction(e -> {
+                String input = accountField.getText() == null ? "" : accountField.getText().trim();
+                if (input.isBlank()) {
+                    step1Msg.setText("Please enter your username or registered email.");
+                    step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    return;
+                }
+
+                sendCodeBtn.setDisable(true);
+                cancelBtn.setDisable(true);
+                accountField.setDisable(true);
+                step1Msg.setText("🔍 Searching account and dispatching verification code...");
+                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862; -fx-font-style: italic;");
+
+                CompletableFuture.supplyAsync(() -> authenticationService.findUserForPasswordReset(input))
+                        .thenCompose(foundOpt -> {
+                            if (foundOpt.isEmpty()) {
+                                throw new AppException("No NextIT account found matching that username or email address.");
+                            }
+                            User u = foundOpt.get();
+                            if (u.getEmail() == null || u.getEmail().isBlank()) {
+                                throw new AppException("No registered email address is on file for this account. Please contact campus administration.");
+                            }
+                            targetUser[0] = u;
+                            return CompletableFuture.supplyAsync(() -> OtpService.requestPasswordResetOtp(u));
+                        })
+                        .thenAccept(otpResp -> Platform.runLater(() -> {
+                            showStep2[0].run();
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                sendCodeBtn.setDisable(false);
+                                cancelBtn.setDisable(false);
+                                accountField.setDisable(false);
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                step1Msg.setText(cause.getMessage());
+                                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                            });
+                            return null;
+                        });
+            });
+
+            buttons.getChildren().addAll(cancelBtn, sendCodeBtn);
+            stepContent.getChildren().addAll(stepDesc, accountField, helperNote, step1Msg, buttons);
+        };
+
+        // Step 2: OTP Verification
+        showStep2[0] = () -> {
+            stepContent.getChildren().clear();
+            pill1.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+            pill2.getStyleClass().setAll("badge-pill", "badge-pill-pink");
+            pill3.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+
+            String masked = AuthenticationService.maskEmail(targetUser[0].getEmail());
+            Label stepDesc = new Label("Verification code dispatched to " + masked);
+            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
+
+            Label expireNote = new Label("The 6-digit code is valid for 10 minutes. Enter it below to verify your identity:");
+            expireNote.setWrapText(true);
+            expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+
+            TextField otpField = new TextField();
+            otpField.setPromptText("• • • • • •");
+            otpField.setStyle("-fx-font-size: 22px; -fx-alignment: center; -fx-font-weight: 900; -fx-letter-spacing: 6px; -fx-background-color: #FFFFFF; -fx-border-color: #DBC8AA; -fx-border-radius: 12; -fx-background-radius: 12;");
+            otpField.setTextFormatter(new TextFormatter<String>(change -> {
+                String newText = change.getControlNewText();
+                if (newText.length() <= 6 && newText.matches("\\d*")) {
+                    return change;
+                }
+                return null;
+            }));
+
+            Button resendBtn = new Button("Resend Code");
+            resendBtn.getStyleClass().add("secondary-button");
+            resendBtn.setStyle("-fx-font-size: 11px; -fx-padding: 6 14;");
+
+            Label resendStatus = new Label();
+            resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E6B35; -fx-font-weight: 600;");
+
+            int[] seconds = new int[]{45};
+            resendBtn.setDisable(true);
+            resendBtn.setText("Resend Code (" + seconds[0] + "s)");
+
+            if (cooldownTimer[0] != null) cooldownTimer[0].stop();
+            cooldownTimer[0] = new Timeline(new KeyFrame(Duration.seconds(1), ev -> {
+                seconds[0]--;
+                if (seconds[0] > 0) {
+                    resendBtn.setText("Resend Code (" + seconds[0] + "s)");
+                } else {
+                    resendBtn.setText("Resend Code");
+                    resendBtn.setDisable(false);
+                    if (cooldownTimer[0] != null) cooldownTimer[0].stop();
+                }
+            }));
+            cooldownTimer[0].setCycleCount(Timeline.INDEFINITE);
+            cooldownTimer[0].play();
+
+            resendBtn.setOnAction(e -> {
+                resendBtn.setDisable(true);
+                resendStatus.setText("Sending new code...");
+                CompletableFuture.supplyAsync(() -> OtpService.requestPasswordResetOtp(targetUser[0]))
+                        .thenAccept(resp -> Platform.runLater(() -> {
+                            seconds[0] = 45;
+                            resendBtn.setText("Resend Code (" + seconds[0] + "s)");
+                            if (cooldownTimer[0] != null) cooldownTimer[0].playFromStart();
+                            resendStatus.setText("✔ New code sent to your email!");
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                resendBtn.setDisable(false);
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                resendStatus.setText(cause.getMessage());
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F;");
+                            });
+                            return null;
+                        });
+            });
+
+            HBox resendRow = new HBox(10, resendBtn, resendStatus);
+            resendRow.setAlignment(Pos.CENTER_LEFT);
+
+            Label step2Msg = new Label();
+            step2Msg.setWrapText(true);
+            step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+
+            HBox buttons = new HBox(10);
+            buttons.setAlignment(Pos.CENTER_RIGHT);
+            Button backBtn = new Button("Back");
+            backBtn.getStyleClass().add("secondary-button");
+            backBtn.setOnAction(e -> {
+                if (cooldownTimer[0] != null) cooldownTimer[0].stop();
+                showStep1[0].run();
+            });
+
+            Button verifyBtn = new Button("Verify Code & Continue");
+            verifyBtn.getStyleClass().add("primary-button");
+            verifyBtn.setStyle("-fx-text-fill: #FDFBFA;");
+
+            verifyBtn.setOnAction(e -> {
+                String code = otpField.getText() == null ? "" : otpField.getText().trim();
+                if (code.length() < 6) {
+                    step2Msg.setText("Please enter the complete 6-digit confirmation code.");
+                    return;
+                }
+
+                verifyBtn.setDisable(true);
+                backBtn.setDisable(true);
+                resendBtn.setDisable(true);
+                step2Msg.setText("⏳ Verifying confirmation code...");
+                step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862; -fx-font-style: italic;");
+
+                CompletableFuture.supplyAsync(() -> OtpService.verifyPasswordResetOtp(targetUser[0], code))
+                        .thenAccept(valid -> Platform.runLater(() -> {
+                            if (valid) {
+                                if (cooldownTimer[0] != null) cooldownTimer[0].stop();
+                                showStep3[0].run();
+                            } else {
+                                verifyBtn.setDisable(false);
+                                backBtn.setDisable(false);
+                                if (seconds[0] <= 0) resendBtn.setDisable(false);
+                                step2Msg.setText("Invalid or expired code. Please try again or request a new one.");
+                                step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                            }
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                verifyBtn.setDisable(false);
+                                backBtn.setDisable(false);
+                                if (seconds[0] <= 0) resendBtn.setDisable(false);
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                step2Msg.setText("Verification failed: " + cause.getMessage());
+                                step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                            });
+                            return null;
+                        });
+            });
+
+            buttons.getChildren().addAll(backBtn, verifyBtn);
+            stepContent.getChildren().addAll(stepDesc, expireNote, otpField, resendRow, step2Msg, buttons);
+        };
+
+        // Step 3: New Password Reset
+        showStep3[0] = () -> {
+            stepContent.getChildren().clear();
+            pill1.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+            pill2.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+            pill3.getStyleClass().setAll("badge-pill", "badge-pill-pink");
+
+            Label stepDesc = new Label("Set a new password for account @" + targetUser[0].getUsername() + ":");
+            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
+
+            Label newPassLabel = new Label("NEW PASSWORD");
+            newPassLabel.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+
+            PasswordField newPassField = new PasswordField();
+            newPassField.setPromptText("Enter new password (minimum 8 characters)");
+            TextField visibleNewPassField = new TextField();
+            visibleNewPassField.setPromptText("Enter new password (minimum 8 characters)");
+            Button eyeBtn1 = new Button();
+            SVGPath svg1 = new SVGPath();
+            boolean[] v1 = new boolean[]{false};
+            StackPane passBox1 = createEyePasswordField(newPassField, visibleNewPassField, eyeBtn1, svg1, v1);
+
+            Label confirmPassLabel = new Label("CONFIRM NEW PASSWORD");
+            confirmPassLabel.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+
+            PasswordField confirmPassField = new PasswordField();
+            confirmPassField.setPromptText("Confirm new password");
+            TextField visibleConfirmPassField = new TextField();
+            visibleConfirmPassField.setPromptText("Confirm new password");
+            Button eyeBtn2 = new Button();
+            SVGPath svg2 = new SVGPath();
+            boolean[] v2 = new boolean[]{false};
+            StackPane passBox2 = createEyePasswordField(confirmPassField, visibleConfirmPassField, eyeBtn2, svg2, v2);
+
+            Label reqsLabel = new Label("• Minimum 8 characters  • Must match exactly");
+            reqsLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+
+            Label step3Msg = new Label();
+            step3Msg.setWrapText(true);
+            step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+
+            HBox buttons = new HBox(10);
+            buttons.setAlignment(Pos.CENTER_RIGHT);
+            Button cancelBtn = new Button("Cancel");
+            cancelBtn.getStyleClass().add("secondary-button");
+            cancelBtn.setOnAction(e -> dialog.close());
+
+            Button resetBtn = new Button("Reset Password & Sign In");
+            resetBtn.getStyleClass().add("primary-button");
+            resetBtn.setStyle("-fx-text-fill: #FDFBFA;");
+
+            resetBtn.setOnAction(e -> {
+                String pass1 = v1[0] ? visibleNewPassField.getText() : newPassField.getText();
+                String pass2 = v2[0] ? visibleConfirmPassField.getText() : confirmPassField.getText();
+
+                if (pass1 == null || pass1.length() < 8) {
+                    step3Msg.setText("Password must be at least 8 characters long.");
+                    step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    return;
+                }
+                if (!pass1.equals(pass2)) {
+                    step3Msg.setText("Passwords do not match. Please re-enter.");
+                    step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    return;
+                }
+
+                resetBtn.setDisable(true);
+                cancelBtn.setDisable(true);
+                newPassField.setDisable(true);
+                visibleNewPassField.setDisable(true);
+                confirmPassField.setDisable(true);
+                visibleConfirmPassField.setDisable(true);
+                step3Msg.setText("⏳ Updating credentials in Supabase...");
+                step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862; -fx-font-style: italic;");
+
+                CompletableFuture.runAsync(() -> {
+                    authenticationService.resetPassword(targetUser[0].getUserId(), pass1);
+                    OtpService.clearPasswordResetOtp(targetUser[0]);
+                }).thenRun(() -> Platform.runLater(() -> {
+                    dialog.close();
+                    handlePasswordResetSuccess(targetUser[0].getUsername());
+                })).exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        resetBtn.setDisable(false);
+                        cancelBtn.setDisable(false);
+                        newPassField.setDisable(false);
+                        visibleNewPassField.setDisable(false);
+                        confirmPassField.setDisable(false);
+                        visibleConfirmPassField.setDisable(false);
+                        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                        step3Msg.setText("Failed to update password: " + cause.getMessage());
+                        step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    });
+                    return null;
+                });
+            });
+
+            buttons.getChildren().addAll(cancelBtn, resetBtn);
+            stepContent.getChildren().addAll(stepDesc, newPassLabel, passBox1, confirmPassLabel, passBox2, reqsLabel, step3Msg, buttons);
+        };
+
+        showStep1[0].run();
+        dialog.showAndWait();
+    }
+
+    private StackPane createEyePasswordField(PasswordField pf, TextField tf, Button btn, SVGPath svg, boolean[] isVisible) {
+        pf.getStyleClass().add("password-input-with-eye");
+        tf.getStyleClass().add("password-input-with-eye");
+        tf.setManaged(false);
+        tf.setVisible(false);
+
+        svg.setContent(EYE_OPEN_PATH);
+        svg.setFill(javafx.scene.paint.Color.web("#414141"));
+        svg.setScaleX(0.85);
+        svg.setScaleY(0.85);
+
+        btn.setGraphic(svg);
+        btn.getStyleClass().add("eye-toggle-btn");
+        btn.setFocusTraversable(false);
+        StackPane.setAlignment(btn, Pos.CENTER_RIGHT);
+        StackPane.setMargin(btn, new Insets(0, 12, 0, 0));
+
+        btn.setOnAction(e -> {
+            isVisible[0] = !isVisible[0];
+            if (isVisible[0]) {
+                tf.setText(pf.getText());
+                tf.setManaged(true);
+                tf.setVisible(true);
+                pf.setManaged(false);
+                pf.setVisible(false);
+                tf.requestFocus();
+                tf.positionCaret(tf.getText().length());
+                svg.setContent(EYE_CLOSED_PATH);
+                svg.setFill(javafx.scene.paint.Color.web("#9E0B0F"));
+            } else {
+                pf.setText(tf.getText());
+                pf.setManaged(true);
+                pf.setVisible(true);
+                tf.setManaged(false);
+                tf.setVisible(false);
+                pf.requestFocus();
+                pf.positionCaret(pf.getText().length());
+                svg.setContent(EYE_OPEN_PATH);
+                svg.setFill(javafx.scene.paint.Color.web("#414141"));
+            }
+        });
+
+        StackPane pane = new StackPane(pf, tf, btn);
+        pane.setAlignment(Pos.CENTER_RIGHT);
+        return pane;
+    }
+
+    private void handlePasswordResetSuccess(String username) {
+        usernameField.setText(username);
+        passwordField.clear();
+        visiblePasswordField.clear();
+        errorLabel.setStyle("-fx-text-fill: #1E6B35; -fx-font-weight: 800; -fx-background-color: #F4FAF5; -fx-border-color: #BDE4C7; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8 12;");
+        errorLabel.setText("✔ Password reset successfully! You can now sign in with your new password.");
+        Alerts.info("Your password has been updated in Supabase. Please sign in with your new credentials.");
     }
 
     private void promptMfaDialog(User user, String instructions) {

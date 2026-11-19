@@ -256,6 +256,7 @@ CREATE TABLE IF NOT EXISTS applications (
     application_date DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     status VARCHAR(30) NOT NULL,
     remarks TEXT NULL,
+    reviewed_at DATETIME NULL,
     FOREIGN KEY (opportunity_id) REFERENCES job_opportunities(opportunity_id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     UNIQUE KEY uq_application (opportunity_id, student_id),

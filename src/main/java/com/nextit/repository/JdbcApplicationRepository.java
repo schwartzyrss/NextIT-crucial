@@ -75,12 +75,26 @@ public class JdbcApplicationRepository {
     }
 
     public void update(Application a) {
-        try (Connection c = DatabaseConfig.getConnection();
-             PreparedStatement ps = c.prepareStatement("UPDATE applications SET status=?, remarks=? WHERE application_id=?")) {
-            ps.setString(1, a.getStatus());
-            ps.setString(2, a.getRemarks());
-            ps.setInt(3, a.getApplicationId());
-            ps.executeUpdate();
+        String sqlWithReviewed = "UPDATE applications SET status=?, remarks=?, reviewed_at=? WHERE application_id=?";
+        String sqlFallback = "UPDATE applications SET status=?, remarks=? WHERE application_id=?";
+        try (Connection c = DatabaseConfig.getConnection()) {
+            try (PreparedStatement ps = c.prepareStatement(sqlWithReviewed)) {
+                ps.setString(1, a.getStatus());
+                ps.setString(2, a.getRemarks());
+                java.time.LocalDateTime rev = a.getReviewedAt() != null ? a.getReviewedAt() : java.time.LocalDateTime.now();
+                ps.setTimestamp(3, Timestamp.valueOf(rev));
+                ps.setInt(4, a.getApplicationId());
+                ps.executeUpdate();
+                return;
+            } catch (SQLException e) {
+                // Fallback if reviewed_at column does not exist on target database
+                try (PreparedStatement ps = c.prepareStatement(sqlFallback)) {
+                    ps.setString(1, a.getStatus());
+                    ps.setString(2, a.getRemarks());
+                    ps.setInt(3, a.getApplicationId());
+                    ps.executeUpdate();
+                }
+            }
         } catch (SQLException e) { throw new AppException("Failed to update application", e); }
     }
 
@@ -93,6 +107,10 @@ public class JdbcApplicationRepository {
         if (t != null) a.setApplicationDate(t.toLocalDateTime());
         a.setStatus(rs.getString("status"));
         a.setRemarks(rs.getString("remarks"));
+        try {
+            Timestamp rev = rs.getTimestamp("reviewed_at");
+            if (rev != null) a.setReviewedAt(rev.toLocalDateTime());
+        } catch (SQLException ignored) {}
         return a;
     }
 }

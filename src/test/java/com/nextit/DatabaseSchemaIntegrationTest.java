@@ -303,7 +303,8 @@ class DatabaseSchemaIntegrationTest {
                                 col("int", 10, 0, false), "student_id",
                                 col("datetime", 0, 0, false), "application_date",
                                 col("varchar", 30, 0, false), "status",
-                                col("text", 0, 0, true), "remarks"),
+                                col("text", 0, 0, true), "remarks",
+                                col("datetime", 0, 0, true), "reviewed_at"),
                         Set.of(Set.of("opportunity_id", "student_id")))));
 
         try (Connection connection = openTestConnection()) {

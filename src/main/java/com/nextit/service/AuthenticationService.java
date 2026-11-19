@@ -186,7 +186,30 @@ public class AuthenticationService {
         }
     }
 
-    private String maskEmail(String email) {
+    public Optional<User> findUserForPasswordReset(String identifier) {
+        if (identifier == null || identifier.isBlank()) return Optional.empty();
+        String term = identifier.trim();
+        Optional<User> found = userRepository.findByUsername(term);
+        if (found.isEmpty()) {
+            found = userRepository.findByEmail(term);
+        }
+        return found;
+    }
+
+    public void resetPassword(int userId, String newPassword) {
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new AppException("Password must be at least 8 characters long.");
+        }
+        String hashed = hashPassword(newPassword);
+        userRepository.updatePassword(userId, hashed);
+        userRepository.resetFailedLogins(userId);
+        userRepository.findById(userId).ifPresent(user -> {
+            auditService.log(user.getUserId(), user.getUsername(), "PASSWORD_RESET_SUCCESS", user.getUserId(),
+                    "127.0.0.1", "Password reset successfully via email verification", "INFO");
+        });
+    }
+
+    public static String maskEmail(String email) {
         if (email == null || !email.contains("@")) return email;
         int at = email.indexOf('@');
         String name = email.substring(0, at);

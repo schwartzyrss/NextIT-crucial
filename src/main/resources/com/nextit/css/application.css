@@ -756,7 +756,8 @@
 }
 
 /* Primary Button (Deep Crimson Red with Dark Maroon and Ochre Trim) */
-.primary-button {
+.primary-button,
+.button.primary-button {
     -fx-background-color:
         linear-gradient(from 0% 0% to 100% 100%, #B51217 0%, #9E0B0F 55%, #660508 100%);
     -fx-background-insets: 0, 1;
@@ -771,19 +772,64 @@
     -fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.45), 12, 0.1, 1, 4);
 }
 
-.primary-button:hover {
+.primary-button:hover,
+.button.primary-button:hover {
     -fx-background-color:
         linear-gradient(from 0% 0% to 100% 100%, #C9161B 0%, #B51217 55%, #7D090D 100%);
     -fx-border-color: #FDFBFA;
+    -fx-text-fill: #FFFFFF;
     -fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.65), 16, 0.14, 1, 6);
 }
 
-.primary-button:pressed {
+.primary-button:pressed,
+.button.primary-button:pressed {
     -fx-background-color:
         linear-gradient(from 0% 0% to 100% 100%, #660508 0%, #4D0305 100%);
     -fx-background-insets: 0, 1;
     -fx-background-radius: 999;
+    -fx-text-fill: #FFFFFF;
     -fx-effect: dropshadow(gaussian, rgba(65, 65, 65, 0.2), 4, 0.08, 0, 1);
+}
+
+.primary-button:disabled,
+.button.primary-button:disabled {
+    -fx-opacity: 0.75;
+    -fx-background-color:
+        linear-gradient(from 0% 0% to 100% 100%, #A83A3E 0%, #8A2529 55%, #590B0E 100%);
+    -fx-border-color: #D6C29E;
+    -fx-border-width: 1.2;
+    -fx-text-fill: #FDFBFA;
+    -fx-font-weight: 800;
+    -fx-effect: none;
+    -fx-cursor: default;
+}
+
+/* Quick-Select Feedback Chips */
+.feedback-chip {
+    -fx-background-color: #FAF6F0;
+    -fx-border-color: #DBC8AA;
+    -fx-border-radius: 999;
+    -fx-background-radius: 999;
+    -fx-border-width: 1;
+    -fx-text-fill: #4A3E3D;
+    -fx-font-size: 11.5px;
+    -fx-font-weight: 600;
+    -fx-padding: 5 12;
+    -fx-cursor: hand;
+    -fx-alignment: CENTER;
+}
+
+.feedback-chip:hover {
+    -fx-background-color: #EFE2CA;
+    -fx-border-color: #C6A75E;
+    -fx-text-fill: #9E0B0F;
+    -fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.25), 4, 0.05, 0, 1);
+}
+
+.feedback-chip:pressed {
+    -fx-background-color: #E0CEAC;
+    -fx-border-color: #9E0B0F;
+    -fx-text-fill: #9E0B0F;
 }
 
 /* Refresh Pill Button */
@@ -874,6 +920,30 @@
 /* Password Field with Eye Toggle Icon */
 .password-input-with-eye {
     -fx-padding: 9 44 9 18;
+}
+
+/* Forgot Password Link on Login Screen */
+.forgot-password-link {
+    -fx-text-fill: #9E0B0F;
+    -fx-font-size: 11px;
+    -fx-font-weight: 700;
+    -fx-border-color: transparent;
+    -fx-padding: 0;
+    -fx-underline: false;
+    -fx-cursor: hand;
+}
+
+.forgot-password-link:hover {
+    -fx-text-fill: #C6A75E;
+    -fx-underline: true;
+}
+
+.forgot-password-link:pressed {
+    -fx-text-fill: #660508;
+}
+
+.forgot-password-link:focused {
+    -fx-border-color: transparent;
 }
 
 .eye-toggle-btn {

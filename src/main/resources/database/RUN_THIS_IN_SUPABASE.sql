@@ -286,6 +286,7 @@ CREATE TABLE applications (
     application_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status VARCHAR(30) NOT NULL,
     remarks TEXT NULL,
+    reviewed_at TIMESTAMPTZ NULL,
     CONSTRAINT uq_application UNIQUE (opportunity_id, student_id)
 );
 CREATE INDEX idx_applications_opportunity ON applications(opportunity_id);

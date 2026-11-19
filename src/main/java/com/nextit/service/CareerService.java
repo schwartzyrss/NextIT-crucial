@@ -106,20 +106,28 @@ public class CareerService {
     }
 
     public void updateApplicationStatus(int employerId, Application a, String status, String remarks) {
-        if (a.getApplicationId() <= 0) throw new AppException("Select an application to review.");
+        if (a == null || a.getApplicationId() <= 0) throw new AppException("Select an application to review.");
         Application stored = appRepo.findById(a.getApplicationId())
                 .orElseThrow(() -> new AppException("Application not found."));
         JobOpportunity opportunity = opportunityById(stored.getOpportunityId());
         if (opportunity.getEmployerId() != employerId) {
             throw new AppException("You can only manage applications for your own opportunities.");
         }
-        if (status == null || !List.of("Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted").contains(status)) {
+        if (status == null || !List.of("Pending", "Under Review", "Reviewed", "Shortlisted", "Rejected", "Accepted").contains(status)) {
             throw new AppException("Select a valid application status.");
         }
         Validator.maxLength(remarks, 16000, "Remarks");
         stored.setStatus(status);
-        stored.setRemarks(remarks);
+        stored.setRemarks(remarks != null && !remarks.isBlank() ? remarks.trim() : null);
+        stored.setReviewedAt(LocalDateTime.now());
         appRepo.update(stored);
+        a.setStatus(status);
+        a.setRemarks(stored.getRemarks());
+        a.setReviewedAt(stored.getReviewedAt());
+    }
+
+    public java.util.concurrent.CompletableFuture<Void> updateApplicationStatusAsync(int employerId, Application a, String status, String remarks) {
+        return java.util.concurrent.CompletableFuture.runAsync(() -> updateApplicationStatus(employerId, a, status, remarks));
     }
 
     private void validate(JobOpportunity o) {
