@@ -933,8 +933,14 @@ public final class StudentViews {
                 target.setStudentId(studentId);
                 target.setCertificationName(name.getText());
                 target.setIssuingOrganization(issuer.getText());
-                target.setIssueDate(issued.getValue());
-                target.setExpirationDate(expires.getValue());
+                LocalDate issuedVal = (issued.getEditor().getText() == null || issued.getEditor().getText().trim().isEmpty())
+                        ? null
+                        : issued.getValue();
+                LocalDate expiryVal = (expires.getEditor().getText() == null || expires.getEditor().getText().trim().isEmpty())
+                        ? null
+                        : expires.getValue();
+                target.setIssueDate(issuedVal);
+                target.setExpirationDate(expiryVal);
                 target.setCredentialUrl(url.getText());
                 studentService.saveCertification(target);
                 refresh.run();

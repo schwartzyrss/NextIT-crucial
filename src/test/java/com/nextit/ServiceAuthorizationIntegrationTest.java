@@ -100,6 +100,19 @@ class ServiceAuthorizationIntegrationTest {
                 .findFirst().orElseThrow();
         assertNull(fetched.getExpirationDate());
 
+        // Verify updating with an expiration date and updating back to null (optional)
+        fetched.setExpirationDate(LocalDate.now().plusYears(1));
+        service.saveCertification(fetched);
+        assertEquals(LocalDate.now().plusYears(1), service.certificationsFor(owner.getStudentId()).stream()
+                .filter(c -> c.getCertificationId() == certification.getCertificationId())
+                .findFirst().orElseThrow().getExpirationDate());
+
+        fetched.setExpirationDate(null);
+        service.saveCertification(fetched);
+        assertNull(service.certificationsFor(owner.getStudentId()).stream()
+                .filter(c -> c.getCertificationId() == certification.getCertificationId())
+                .findFirst().orElseThrow().getExpirationDate());
+
         certification.setStudentId(other.getStudentId());
         assertThrows(AppException.class, () -> service.saveCertification(certification));
         assertThrows(AppException.class,
