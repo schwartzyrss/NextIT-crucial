@@ -51,11 +51,6 @@ BEGIN
     ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_employer_user;
 
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
-    ('admin1',      '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu',      'ADMIN',     'System', 'Admin', 'VERIFIED', NOW(), TRUE)
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
-    RETURNING user_id INTO v_admin_user;
-
     -- 2. Students
     INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status)
     VALUES (v_student_user, '2023-0001', 'BS Information Technology', 3, 'A', 'Enrolled')
@@ -215,7 +210,7 @@ BEGIN
 
     -- 23. Security Audit Logs
     INSERT INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES
-    (v_admin_user, 'admin1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
+    (v_instructor_user, 'instructor1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
     (v_student_user, 'student1', 'LOGIN_SUCCESS', v_student_user, '127.0.0.1', 'Successful authentication for verified student account.', 'INFO');
 
 END $$;

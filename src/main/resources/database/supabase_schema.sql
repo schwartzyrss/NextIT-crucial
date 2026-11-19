@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verification_status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
@@ -278,4 +278,23 @@ CREATE TABLE IF NOT EXISTS security_audit_logs (
 );
 CREATE INDEX IF NOT EXISTS idx_security_audit_logs_action ON security_audit_logs(action);
 CREATE INDEX IF NOT EXISTS idx_security_audit_logs_created ON security_audit_logs(created_at);
+
+CREATE TABLE IF NOT EXISTS recommendation_letters (
+    letter_id SERIAL PRIMARY KEY,
+    student_id INT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    instructor_id INT NOT NULL REFERENCES instructors(instructor_id) ON DELETE CASCADE,
+    opportunity_id INT NULL REFERENCES job_opportunities(opportunity_id) ON DELETE SET NULL,
+    application_id INT NULL REFERENCES applications(application_id) ON DELETE SET NULL,
+    letter_title VARCHAR(200) NOT NULL,
+    recommendation_body TEXT NOT NULL,
+    endorsement_highlights TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED', 'ISSUED', 'ATTACHED')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    issued_at TIMESTAMPTZ NULL
+);
+CREATE INDEX IF NOT EXISTS idx_rec_student ON recommendation_letters(student_id);
+CREATE INDEX IF NOT EXISTS idx_rec_instructor ON recommendation_letters(instructor_id);
+CREATE INDEX IF NOT EXISTS idx_rec_opportunity ON recommendation_letters(opportunity_id);
+CREATE INDEX IF NOT EXISTS idx_rec_application ON recommendation_letters(application_id);
+CREATE INDEX IF NOT EXISTS idx_rec_status ON recommendation_letters(status);
 

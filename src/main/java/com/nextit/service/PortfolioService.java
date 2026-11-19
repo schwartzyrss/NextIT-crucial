@@ -79,7 +79,7 @@ public class PortfolioService {
         Optional<Portfolio> existing = portfolioRepo.findByStudentId(p.getStudentId());
         if ("Approved".equalsIgnoreCase(p.getVisibility())
                 && existing.map(e -> !"Approved".equalsIgnoreCase(e.getVisibility())).orElse(true)) {
-            throw new AppException("Only an administrator can approve a portfolio.");
+            throw new AppException("Only an instructor can approve a portfolio.");
         }
         if (existing.isPresent()) {
             Portfolio stored = existing.get();

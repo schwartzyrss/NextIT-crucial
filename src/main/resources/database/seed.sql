@@ -7,12 +7,11 @@
 USE nextit;
 
 INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
-('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'ADMIN',     'Kakong', 'Admin', 'VERIFIED', CURRENT_TIMESTAMP, TRUE),
+('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'INSTRUCTOR', 'Kakong', 'Instructor', 'VERIFIED', CURRENT_TIMESTAMP, TRUE),
 ('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
-('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
-('admin1',      '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu',      'ADMIN',     'System', 'Admin', 'VERIFIED', CURRENT_TIMESTAMP, TRUE);
+('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE);
 
 SET @student_user    = (SELECT user_id FROM users WHERE username = 'student1');
 SET @student2_user   = (SELECT user_id FROM users WHERE username = 'student2');
@@ -132,6 +131,6 @@ INSERT INTO verification_requests (user_id, role, id_number, institutional_email
 
 -- Security Audit Logs
 INSERT INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES
-(@admin_user, 'admin1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
+(@instructor_user, 'instructor1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
 (@student_user, 'student1', 'LOGIN_SUCCESS', @student_user, '127.0.0.1', 'Successful authentication for verified student account.', 'INFO');
 

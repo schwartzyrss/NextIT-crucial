@@ -47,7 +47,7 @@ public class AuthenticationService {
             throw new AppException("This account has been suspended due to security or policy concerns. Please contact campus administration.");
         }
 
-        // If user is an Administrator or has MFA enabled, MFA code verification is required
+        // If user has MFA enabled, MFA code verification is required
         if (isMfaRequired(user)) {
             OtpService.requestMfaOtp(user);
             throw new MfaRequiredException(user, "Multi-Factor Authentication required for " + user.getRole() + " access. A 6-digit authorization code has been sent to " + maskEmail(user.getEmail()) + ".");
@@ -79,7 +79,7 @@ public class AuthenticationService {
     }
 
     public boolean isMfaRequired(User user) {
-        return user != null && (user.getRole() == Role.ADMIN || user.isMfaEnabled());
+        return user != null && user.isMfaEnabled();
     }
 
     public User validateCredentials(String usernameOrEmail, String password) {
@@ -89,8 +89,7 @@ public class AuthenticationService {
         String term = usernameOrEmail.trim();
 
         // Convenience shortcuts for demo roles:
-        if ("admin".equalsIgnoreCase(term)) term = "admin1";
-        else if ("student".equalsIgnoreCase(term)) term = "student1";
+        if ("student".equalsIgnoreCase(term)) term = "student1";
         else if ("instructor".equalsIgnoreCase(term)) term = "instructor1";
         else if ("employer".equalsIgnoreCase(term)) term = "employer1";
 
@@ -105,9 +104,9 @@ public class AuthenticationService {
             kakong.setUsername("kakonggg");
             kakong.setPasswordHash(hashPassword(password));
             kakong.setEmail("kakonggg@nextit.edu");
-            kakong.setRole(Role.ADMIN);
+            kakong.setRole(Role.INSTRUCTOR);
             kakong.setFirstName("Kakong");
-            kakong.setLastName("Admin");
+            kakong.setLastName("Instructor");
             kakong.setVerificationStatus(VerificationStatus.VERIFIED);
             userRepository.save(kakong);
             found = Optional.of(kakong);
@@ -125,7 +124,7 @@ public class AuthenticationService {
             long minutesRemaining = Duration.between(LocalDateTime.now(), user.getLockedUntil()).toMinutes() + 1;
             auditService.log(user.getUserId(), user.getUsername(), "LOGIN_BLOCKED_LOCKED", user.getUserId(),
                     "127.0.0.1", "Login blocked due to active account lockout", "WARNING");
-            throw new AppException(String.format("Account is temporarily locked due to repeated failed login attempts. Please try again in %d minute%s or contact an administrator.",
+            throw new AppException(String.format("Account is temporarily locked due to repeated failed login attempts. Please try again in %d minute%s or contact support.",
                     minutesRemaining, minutesRemaining == 1 ? "" : "s"));
         }
 

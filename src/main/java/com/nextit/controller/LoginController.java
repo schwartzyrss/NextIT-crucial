@@ -53,7 +53,7 @@ public class LoginController {
             visiblePasswordField.positionCaret(visiblePasswordField.getText().length());
             if (eyeIcon != null) {
                 eyeIcon.setContent(EYE_CLOSED_PATH);
-                eyeIcon.setFill(javafx.scene.paint.Color.web("#F6A3CA"));
+                eyeIcon.setFill(javafx.scene.paint.Color.web("#9E0B0F"));
             }
         } else {
             passwordField.setText(visiblePasswordField.getText());
@@ -65,7 +65,7 @@ public class LoginController {
             passwordField.positionCaret(passwordField.getText().length());
             if (eyeIcon != null) {
                 eyeIcon.setContent(EYE_OPEN_PATH);
-                eyeIcon.setFill(javafx.scene.paint.Color.web("#7D7581"));
+                eyeIcon.setFill(javafx.scene.paint.Color.web("#414141"));
             }
         }
     }
@@ -109,20 +109,20 @@ public class LoginController {
 
         Label desc = new Label(instructions);
         desc.setWrapText(true);
-        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #48404b;");
+        desc.setStyle("-fx-font-size: 12px; -fx-text-fill: #414141;");
 
         TextField mfaField = Ui.field("Enter 6-digit code");
         mfaField.setStyle("-fx-font-size: 18px; -fx-alignment: center; -fx-font-weight: bold; -fx-letter-spacing: 4px;");
 
         Label statusLbl = new Label("");
-        statusLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #b3261e;");
+        statusLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F;");
 
         Button resendBtn = new Button("Resend Code");
         resendBtn.getStyleClass().add("secondary-button");
         resendBtn.setOnAction(e -> {
             OtpService.OtpResponse r = OtpService.requestMfaOtp(user);
             statusLbl.setText(r.message());
-            statusLbl.setStyle(r.sent() ? "-fx-font-size: 11px; -fx-text-fill: #2d6a4f;" : "-fx-font-size: 11px; -fx-text-fill: #b3261e;");
+            statusLbl.setStyle(r.sent() ? "-fx-font-size: 11px; -fx-text-fill: #660508; -fx-font-weight: bold;" : "-fx-font-size: 11px; -fx-text-fill: #9E0B0F;");
         });
 
         HBox resendRow = new HBox(8, resendBtn);

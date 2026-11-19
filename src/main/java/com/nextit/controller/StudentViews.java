@@ -6,6 +6,7 @@ import com.nextit.security.Session;
 import com.nextit.service.*;
 import com.nextit.util.Alerts;
 import com.nextit.util.Ui;
+import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -30,6 +31,7 @@ public final class StudentViews {
     private static final SupportService support = new SupportService();
     private static final DirectoryService directory = new DirectoryService();
     private static final ProfileService profiles = new ProfileService();
+    private static final RecommendationLetterService recLetters = new RecommendationLetterService();
 
     private StudentViews() {}
 
@@ -121,12 +123,12 @@ public final class StudentViews {
         notice.getStyleClass().add("profile-notice-cushion");
         Label noticeIcon = new Label("ℹ");
         noticeIcon.getStyleClass().add("profile-notice-icon");
-        Label noticeText = new Label("Student records and credentials are synchronized with the registrar. Contact an administrator if any details need correction.");
+        Label noticeText = new Label("Student records and credentials are synchronized with the registrar. Contact the department registrar if any details need correction.");
         noticeText.getStyleClass().add("profile-notice-text");
         noticeText.setWrapText(true);
         notice.getChildren().addAll(noticeIcon, noticeText);
 
-        return Ui.page("My Profile", "Your account and student profile information. Contact an administrator if any details need correction.",
+        return Ui.page("My Profile", "Your account and student profile information. Contact the department registrar if any details need correction.",
                 hero, traysRow, notice);
     }
 
@@ -153,7 +155,7 @@ public final class StudentViews {
         statusPillBox.setAlignment(Pos.CENTER_RIGHT);
         StackPane statusDot = Ui.statusDot(true);
         Label statusText = new Label("Active Student");
-        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d6a4f; -fx-font-size: 12px;");
+        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
         HBox liveChip = new HBox(8, statusDot, statusText);
         liveChip.setAlignment(Pos.CENTER);
         liveChip.getStyleClass().addAll("badge-pill", "badge-pill-mint");
@@ -166,7 +168,7 @@ public final class StudentViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #f1f2fa;");
+        headerContainer.setStyle("-fx-background-color: #FDFBFA;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards (Row 1 & Row 2)
@@ -336,7 +338,7 @@ public final class StudentViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #f1f2fa;");
+        scrollContent.setStyle("-fx-background-color: #FDFBFA;");
         scrollContent.setPadding(new Insets(10, 24, 32, 24));
         scrollContent.getChildren().addAll(cards1, cards2, middleRow, lowerRow);
 
@@ -355,7 +357,7 @@ public final class StudentViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #f1f2fa;");
+        dashboardRoot.setStyle("-fx-background-color: #FDFBFA;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
 
@@ -803,148 +805,188 @@ public final class StudentViews {
     }
 
     public static Node achievements() {
-        int sid = studentId();
-        TableView<Achievement> table = Ui.table();
-        Ui.addColumn(table, "Title", Achievement::getTitle);
-        Ui.addColumn(table, "Organization", Achievement::getOrganization);
-        Ui.addColumn(table, "Date", a -> Ui.formatDate(a.getAchievementDate()));
-        Ui.addColumn(table, "Description", Achievement::getDescription);
-        Ui.addColumn(table, "Verification", Achievement::getVerificationUrl);
-        TextField search = Ui.field("Search by title, organization or description...");
-        Runnable refresh = () -> {
-            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(studentService.achievementsFor(sid).stream().filter(a ->
-                    String.valueOf(a.getTitle()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(a.getOrganization()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(a.getDescription()).toLowerCase(Locale.ROOT).contains(q)).toList()));
-        };
-        search.textProperty().addListener((obs, old, value) -> refresh.run());
-        refresh.run();
-
-        Button add = new Button("Add Achievement");
-        add.getStyleClass().add("primary-button");
-        add.setOnAction(e -> editAchievement(sid, null, refresh));
-        Button edit = new Button("Edit");
-        edit.setOnAction(e -> {
-            Achievement selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select an achievement to edit."); return; }
-            editAchievement(sid, selected, refresh);
-        });
-        Button delete = new Button("Delete");
-        delete.setOnAction(e -> {
-            Achievement selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select an achievement to delete."); return; }
-            if (Ui.confirmed("Delete achievement \"" + selected.getTitle() + "\"?")) {
-                guard(() -> { studentService.deleteAchievement(selected.getAchievementId(), sid); refresh.run(); });
-            }
-        });
-        return Ui.page("Achievements", "Record awards, recognitions and other milestones that strengthen your portfolio.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, delete, refreshButton(refresh)), table);
-    }
-
-    private static void editAchievement(int studentId, Achievement existing, Runnable refresh) {
-        Achievement a = existing == null ? new Achievement() : existing;
-        TextField title = Ui.field("Title");
-        title.setText(a.getTitle());
-        TextArea description = Ui.area("Description");
-        description.setText(a.getDescription());
-        TextField organization = Ui.field("Organization");
-        organization.setText(a.getOrganization());
-        DatePicker date = Ui.date(a.getAchievementDate());
-        TextField url = Ui.field("https://...");
-        url.setText(a.getVerificationUrl());
-        Node form = Ui.form(new String[]{"Title", "Description", "Organization", "Date", "Verification URL"},
-                new Node[]{title, description, organization, date, url});
-        Ui.dialog(existing == null ? "Add Achievement" : "Edit Achievement", form).ifPresent(button -> {
-            if (button != ButtonType.OK) return;
-            guard(() -> {
-                Achievement target = new Achievement();
-                if (existing != null) target.setAchievementId(existing.getAchievementId());
-                target.setStudentId(studentId);
-                target.setTitle(title.getText());
-                target.setDescription(description.getText());
-                target.setOrganization(organization.getText());
-                target.setAchievementDate(date.getValue());
-                target.setVerificationUrl(url.getText());
-                studentService.saveAchievement(target);
-                refresh.run();
-                Alerts.info("Achievement saved.");
-            });
-        });
+        return achievementsAndCertifications();
     }
 
     public static Node certifications() {
+        return achievementsAndCertifications();
+    }
+
+    public static Node achievementsAndCertifications() {
         int sid = studentId();
-        TableView<Certification> table = Ui.table();
-        Ui.addColumn(table, "Certification", Certification::getCertificationName);
-        Ui.addColumn(table, "Issuer", Certification::getIssuingOrganization);
-        Ui.addColumn(table, "Issued", c -> Ui.formatDate(c.getIssueDate()));
-        Ui.addColumn(table, "Expires", c -> c.getExpirationDate() == null ? "Does not expire" : Ui.formatDate(c.getExpirationDate()));
-        Ui.addColumn(table, "Credential", Certification::getCredentialUrl);
-        TextField search = Ui.field("Search by certification or issuer...");
-        Runnable refresh = () -> {
-            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(studentService.certificationsFor(sid).stream().filter(c ->
-                    String.valueOf(c.getCertificationName()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(c.getIssuingOrganization()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+        TableView<AcademicCredential> table = Ui.table("No achievements or certifications recorded yet.");
+
+        TableColumn<AcademicCredential, AcademicCredential> typeCol = Ui.actionColumn("Type", cred ->
+                Ui.badge(cred.getType().getDisplay(), cred.getType().getBadgeStyle()));
+        typeCol.setPrefWidth(130);
+        typeCol.setMinWidth(110);
+        table.getColumns().add(typeCol);
+
+        Ui.addColumn(table, "Title / Credential", AcademicCredential::getTitle);
+        Ui.addColumn(table, "Organization / Issuer", AcademicCredential::getOrganization);
+        Ui.addColumn(table, "Date / Timeline", AcademicCredential::getDateDisplay);
+        Ui.addColumn(table, "Description / Notes", AcademicCredential::getDescription);
+        Ui.addColumn(table, "Verification / Credential URL", AcademicCredential::getVerificationUrl);
+
+        TextField search = Ui.field("Search by title, organization, issuer, description...");
+        search.setPrefWidth(280);
+
+        final String[] activeFilter = {"ALL"};
+
+        Button filterAll = new Button("All");
+        Button filterAchievements = new Button("Achievements");
+        Button filterCertifications = new Button("Certifications");
+
+        HBox filterBox = new HBox(6, filterAll, filterAchievements, filterCertifications);
+        filterBox.setAlignment(Pos.CENTER_LEFT);
+
+        Runnable updateFilterPillStyles = () -> {
+            for (Button btn : List.of(filterAll, filterAchievements, filterCertifications)) {
+                btn.setStyle("-fx-background-color: #EFE2CA; -fx-text-fill: #414141; -fx-border-color: #C6A75E; " +
+                        "-fx-border-radius: 999; -fx-background-radius: 999; -fx-padding: 4 12; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand;");
+            }
+            Button active = "ACHIEVEMENT".equals(activeFilter[0]) ? filterAchievements :
+                    "CERTIFICATION".equals(activeFilter[0]) ? filterCertifications : filterAll;
+            active.setStyle("-fx-background-color: #9E0B0F; -fx-text-fill: #FDFBFA; -fx-border-color: #9E0B0F; " +
+                    "-fx-border-radius: 999; -fx-background-radius: 999; -fx-padding: 4 12; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand;");
         };
+
+        Runnable refresh = () -> {
+            String q = search.getText() == null ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
+            List<AcademicCredential> all = studentService.credentialsFor(sid);
+            List<AcademicCredential> filtered = all.stream().filter(cred -> {
+                if ("ACHIEVEMENT".equals(activeFilter[0]) && cred.getType() != AcademicCredential.Type.ACHIEVEMENT) return false;
+                if ("CERTIFICATION".equals(activeFilter[0]) && cred.getType() != AcademicCredential.Type.CERTIFICATION) return false;
+                if (q.isEmpty()) return true;
+                return (cred.getTitle() != null && cred.getTitle().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getOrganization() != null && cred.getOrganization().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getDescription() != null && cred.getDescription().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getVerificationUrl() != null && cred.getVerificationUrl().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getDateDisplay() != null && cred.getDateDisplay().toLowerCase(Locale.ROOT).contains(q));
+            }).toList();
+            table.setItems(FXCollections.observableArrayList(filtered));
+        };
+
+        filterAll.setOnAction(e -> { activeFilter[0] = "ALL"; updateFilterPillStyles.run(); refresh.run(); });
+        filterAchievements.setOnAction(e -> { activeFilter[0] = "ACHIEVEMENT"; updateFilterPillStyles.run(); refresh.run(); });
+        filterCertifications.setOnAction(e -> { activeFilter[0] = "CERTIFICATION"; updateFilterPillStyles.run(); refresh.run(); });
+
+        updateFilterPillStyles.run();
         search.textProperty().addListener((obs, old, value) -> refresh.run());
         refresh.run();
 
-        Button add = new Button("Add Certification");
+        Button add = new Button("Add Credential");
         add.getStyleClass().add("primary-button");
-        add.setOnAction(e -> editCertification(sid, null, refresh));
+        add.setOnAction(e -> editCredential(sid, null, refresh));
+
         Button edit = new Button("Edit");
         edit.setOnAction(e -> {
-            Certification selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select a certification to edit."); return; }
-            editCertification(sid, selected, refresh);
+            AcademicCredential selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                Alerts.error("Select an achievement or certification to edit.");
+                return;
+            }
+            editCredential(sid, selected, refresh);
         });
+
         Button delete = new Button("Delete");
         delete.setOnAction(e -> {
-            Certification selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select a certification to delete."); return; }
-            if (Ui.confirmed("Delete certification \"" + selected.getCertificationName() + "\"?")) {
-                guard(() -> { studentService.deleteCertification(selected.getCertificationId(), sid); refresh.run(); });
+            AcademicCredential selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                Alerts.error("Select an achievement or certification to delete.");
+                return;
+            }
+            String typeName = selected.getType() == AcademicCredential.Type.ACHIEVEMENT ? "achievement" : "certification";
+            if (Ui.confirmed("Delete " + typeName + " \"" + selected.getTitle() + "\"?")) {
+                guard(() -> {
+                    studentService.deleteCredential(selected);
+                    refresh.run();
+                });
             }
         });
-        return Ui.page("Certifications", "Track professional certifications, issue dates and expiry information.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, delete, refreshButton(refresh)), table);
+
+        return Ui.page("Achievements & Certifications",
+                "Record awards, recognitions, milestones, and professional certifications that strengthen your portfolio.",
+                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), filterBox, add, edit, delete, refreshButton(refresh)),
+                table);
     }
 
-    private static void editCertification(int studentId, Certification existing, Runnable refresh) {
-        Certification c = existing == null ? new Certification() : existing;
-        TextField name = Ui.field("Certification name");
-        name.setText(c.getCertificationName());
-        TextField issuer = Ui.field("Issuing organization");
-        issuer.setText(c.getIssuingOrganization());
-        DatePicker issued = Ui.date(c.getIssueDate());
-        DatePicker expires = Ui.date(c.getExpirationDate());
-        expires.setPromptText("Optional (e.g. Does not expire)");
-        TextField url = Ui.field("https://...");
-        url.setText(c.getCredentialUrl());
-        Node form = Ui.form(new String[]{"Certification", "Issuing organization", "Issue date", "Expiration date (Optional)", "Credential URL"},
-                new Node[]{name, issuer, issued, expires, url});
-        Ui.dialog(existing == null ? "Add Certification" : "Edit Certification", form).ifPresent(button -> {
+    private static void editCredential(int studentId, AcademicCredential existing, Runnable refresh) {
+        ComboBox<AcademicCredential.Type> typeCombo = Ui.combo(
+                List.of(AcademicCredential.Type.ACHIEVEMENT, AcademicCredential.Type.CERTIFICATION),
+                AcademicCredential.Type::getDisplay);
+        if (existing != null) {
+            typeCombo.setValue(existing.getType());
+            typeCombo.setDisable(true);
+        } else {
+            typeCombo.setValue(AcademicCredential.Type.ACHIEVEMENT);
+        }
+
+        TextField title = Ui.field("Title / Certification Name");
+        if (existing != null) title.setText(existing.getTitle());
+
+        TextField organization = Ui.field("Issuing Organization / Issuer");
+        if (existing != null) organization.setText(existing.getOrganization());
+
+        DatePicker date = Ui.date(existing != null ? existing.getDate() : LocalDate.now());
+
+        DatePicker expires = Ui.date(existing != null ? existing.getExpirationDate() : null);
+        expires.setPromptText("Optional (leave empty if non-expiring)");
+
+        TextArea description = Ui.area("Description, honors, or notes");
+        if (existing != null) description.setText(existing.getDescription());
+
+        TextField url = Ui.field("https://... (verification or credential link)");
+        if (existing != null) url.setText(existing.getVerificationUrl());
+
+        Runnable syncFieldsForType = () -> {
+            boolean isCert = typeCombo.getValue() == AcademicCredential.Type.CERTIFICATION;
+            expires.setDisable(!isCert);
+            if (!isCert) {
+                expires.setValue(null);
+            }
+        };
+        typeCombo.valueProperty().addListener((obs, old, val) -> syncFieldsForType.run());
+        syncFieldsForType.run();
+
+        Node form = Ui.form(new String[]{
+                "Credential Type",
+                "Title / Name",
+                "Organization / Issuer",
+                "Date / Issue Date",
+                "Expiration Date (Certifications)",
+                "Description / Notes",
+                "Verification / Credential URL"
+        }, new Node[]{typeCombo, title, organization, date, expires, description, url});
+
+        String dialogTitle = existing == null ? "Add Achievement or Certification" :
+                (existing.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Edit Achievement" : "Edit Certification");
+
+        Ui.dialog(dialogTitle, form).ifPresent(button -> {
             if (button != ButtonType.OK) return;
             guard(() -> {
-                Certification target = new Certification();
-                if (existing != null) target.setCertificationId(existing.getCertificationId());
+                AcademicCredential target = new AcademicCredential();
+                target.setType(typeCombo.getValue());
                 target.setStudentId(studentId);
-                target.setCertificationName(name.getText());
-                target.setIssuingOrganization(issuer.getText());
-                LocalDate issuedVal = (issued.getEditor().getText() == null || issued.getEditor().getText().trim().isEmpty())
+                if (existing != null) {
+                    target.setId(existing.getId());
+                }
+                target.setTitle(title.getText());
+                target.setOrganization(organization.getText());
+                LocalDate dateVal = (date.getEditor().getText() == null || date.getEditor().getText().trim().isEmpty())
                         ? null
-                        : issued.getValue();
+                        : date.getValue();
                 LocalDate expiryVal = (expires.getEditor().getText() == null || expires.getEditor().getText().trim().isEmpty())
                         ? null
                         : expires.getValue();
-                target.setIssueDate(issuedVal);
+                target.setDate(dateVal);
                 target.setExpirationDate(expiryVal);
-                target.setCredentialUrl(url.getText());
-                studentService.saveCertification(target);
+                target.setDescription(description.getText());
+                target.setVerificationUrl(url.getText());
+
+                studentService.saveCredential(target);
                 refresh.run();
-                Alerts.info("Certification saved.");
+                Alerts.info((target.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Achievement" : "Certification") + " saved.");
             });
         });
     }
@@ -996,7 +1038,7 @@ public final class StudentViews {
             previewTab.setContent(portfolioPreview(sid, loaded));
             accessTab.setContent(portfolioAccess(loaded));
             String message = "Pending".equals(loaded.getVisibility())
-                    ? "It is now awaiting administrator approval."
+                    ? "It is now awaiting instructor approval."
                     : "Public".equals(loaded.getVisibility())
                             ? "It is now visible to every employer."
                             : "Current visibility: " + loaded.getVisibility() + ".";
@@ -1004,7 +1046,7 @@ public final class StudentViews {
         }));
 
         VBox editor = new VBox(12,
-                Ui.subtitle("Private keeps the portfolio hidden, Public shares it with every employer, and Submit for approval asks an administrator to approve it for granted employer access."),
+                Ui.subtitle("Private keeps the portfolio hidden, Public shares it with every employer, and Submit for approval asks an instructor to approve it for granted employer access."),
                 Ui.form(new String[]{"Headline", "Biography", "Career goal", "Visibility"},
                         new Node[]{headline, bio, goal, visibility}),
                 new HBox(8, new Label("Sharing:"), sharing), save);
@@ -1106,20 +1148,40 @@ public final class StudentViews {
         Ui.addColumn(table, "Deadline", o -> Ui.formatDate(o.getDeadline()));
         Ui.addColumn(table, "Posted", o -> Ui.formatDate(o.getCreatedAt() == null ? null : o.getCreatedAt().toLocalDate()));
         Ui.addColumn(table, "Status", JobOpportunity::getStatus);
+
+        Map<Integer, RecommendationLetter> lettersByOpp = new java.util.HashMap<>();
+        Ui.addColumn(table, "Faculty Recommendation", o -> {
+            RecommendationLetter l = lettersByOpp.get(o.getOpportunityId());
+            if (l == null) return "-";
+            if ("ATTACHED".equalsIgnoreCase(l.getStatus())) return "✔ Attached";
+            if ("ISSUED".equalsIgnoreCase(l.getStatus())) return "✔ Ready to Attach";
+            if ("REQUESTED".equalsIgnoreCase(l.getStatus())) return "⏳ Requested";
+            return l.getStatus();
+        });
+
         table.setItems(FXCollections.observableArrayList(all));
 
         TextField search = Ui.field("Search opportunities...");
         ComboBox<String> type = Ui.combo(List.of("All types", "Internship", "Employment"), s -> s);
         type.getSelectionModel().selectFirst();
         Runnable filter = () -> {
-            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            String t = type.getValue();
-            table.setItems(FXCollections.observableArrayList(career.openOpportunities().stream().filter(o ->
-                    (q.isBlank()
-                            || String.valueOf(o.getTitle()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(o.getRequiredSkills()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(o.getLocation()).toLowerCase(Locale.ROOT).contains(q))
-                    && ("All types".equals(t) || String.valueOf(o.getOpportunityType()).equalsIgnoreCase(t))).toList()));
+            recLetters.getLettersForStudentAsync(sid).thenAccept(letters -> Platform.runLater(() -> {
+                lettersByOpp.clear();
+                for (RecommendationLetter l : letters) {
+                    if (l.getOpportunityId() != null) {
+                        lettersByOpp.put(l.getOpportunityId(), l);
+                    }
+                }
+                String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
+                String t = type.getValue();
+                table.setItems(FXCollections.observableArrayList(career.openOpportunities().stream().filter(o ->
+                        (q.isBlank()
+                                || String.valueOf(o.getTitle()).toLowerCase(Locale.ROOT).contains(q)
+                                || String.valueOf(o.getRequiredSkills()).toLowerCase(Locale.ROOT).contains(q)
+                                || String.valueOf(o.getLocation()).toLowerCase(Locale.ROOT).contains(q))
+                        && ("All types".equals(t) || String.valueOf(o.getOpportunityType()).equalsIgnoreCase(t))).toList()));
+                table.refresh();
+            }));
         };
         search.textProperty().addListener((obs, old, value) -> filter.run());
         type.valueProperty().addListener((obs, old, value) -> filter.run());
@@ -1130,10 +1192,62 @@ public final class StudentViews {
         apply.setOnAction(e -> {
             JobOpportunity selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select an opportunity to apply to."); return; }
+            if (career.hasApplied(sid, selected.getOpportunityId())) {
+                Alerts.error("You have already submitted an application for this opportunity.");
+                return;
+            }
+
+            // Find student's issued recommendation letters (either matching this opportunity or general)
+            List<RecommendationLetter> issuedLetters = recLetters.getLettersForStudent(sid).stream()
+                    .filter(RecommendationLetter::isIssued)
+                    .filter(l -> l.getOpportunityId() == null || l.getOpportunityId() == selected.getOpportunityId())
+                    .toList();
+
+            Map<Integer, String> instructorNames = directory.instructorNames();
+
+            ComboBox<String> letterSelector = new ComboBox<>();
+            letterSelector.getItems().add("None / Submit without recommendation letter");
+            Map<String, RecommendationLetter> letterMap = new java.util.HashMap<>();
+            for (RecommendationLetter l : issuedLetters) {
+                String instName = instructorNames.getOrDefault(l.getInstructorId(), "Instructor #" + l.getInstructorId());
+                String label = String.format("✔ Prof. %s - %s (%s)",
+                        instName, l.getLetterTitle(),
+                        l.getIssuedAt() != null ? Ui.formatDate(l.getIssuedAt().toLocalDate()) : "Issued");
+                letterSelector.getItems().add(label);
+                letterMap.put(label, l);
+            }
+            letterSelector.getSelectionModel().selectFirst();
+
             TextArea remarks = Ui.area("Why are you a good fit for this opportunity?");
-            Node form = Ui.form(new String[]{"Opportunity", "Remarks"},
-                    new Node[]{new Label(selected.getTitle() + " at " + selected.getLocation()), remarks});
-            Ui.dialog("Apply to Opportunity", form).ifPresent(button -> {
+
+            VBox formBox = new VBox(12);
+            formBox.setPrefWidth(480);
+            formBox.getChildren().addAll(
+                    new Label("Applying to: " + selected.getTitle() + " at " + selected.getLocation()),
+                    new Label("Your Statement / Remarks:"), remarks
+            );
+
+            if (!issuedLetters.isEmpty()) {
+                VBox recSection = new VBox(6);
+                recSection.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-padding: 10;");
+                Label recTitle = new Label("Attach Verified Faculty Recommendation Letter:");
+                recTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
+                recSection.getChildren().addAll(recTitle, letterSelector);
+                formBox.getChildren().add(recSection);
+            } else {
+                VBox recPrompt = new VBox(6);
+                recPrompt.setStyle("-fx-background-color: #FEF9E7; -fx-border-color: #C6A75E; -fx-border-radius: 8; -fx-padding: 10;");
+                Label pTitle = new Label("💡 Optional: Boost your application with a Faculty Recommendation");
+                pTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #7D6608; -fx-font-size: 11.5px;");
+                Label pDesc = new Label("You can request an official endorsement letter from your course instructors before or after applying.");
+                pDesc.setStyle("-fx-font-size: 11px; -fx-text-fill: #414141;");
+                Button reqQuickBtn = Ui.button("Request Recommendation from Instructor", "secondary-button");
+                reqQuickBtn.setOnAction(ev -> showRequestRecommendationDialog(sid, selected.getOpportunityId(), filter));
+                recPrompt.getChildren().addAll(pTitle, pDesc, reqQuickBtn);
+                formBox.getChildren().add(recPrompt);
+            }
+
+            Ui.dialog("Apply to Opportunity - " + selected.getTitle(), formBox).ifPresent(button -> {
                 if (button != ButtonType.OK) return;
                 guard(() -> {
                     Application application = new Application();
@@ -1141,29 +1255,51 @@ public final class StudentViews {
                     application.setOpportunityId(selected.getOpportunityId());
                     application.setRemarks(remarks.getText());
                     career.apply(application);
-                    Alerts.info("Application submitted.");
+
+                    String chosenLabel = letterSelector.getValue();
+                    if (chosenLabel != null && letterMap.containsKey(chosenLabel)) {
+                        RecommendationLetter attachedLetter = letterMap.get(chosenLabel);
+                        recLetters.attachLetterToApplication(attachedLetter.getLetterId(), application.getApplicationId(), sid);
+                        Alerts.info("Application submitted with verified faculty recommendation letter attached!");
+                    } else {
+                        Alerts.info("Application submitted successfully.");
+                    }
+                    filter.run();
                 });
             });
         });
+
         Button details = new Button("View Details");
         details.setOnAction(e -> {
             JobOpportunity selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select an opportunity to view."); return; }
             Label description = new Label(value(selected.getDescription()));
             description.setWrapText(true);
-            Node content = Ui.form(new String[]{"Title", "Type", "Location", "Required Skills", "Deadline", "Posted", "Status", "Description"},
+
+            Button reqFromDetails = Ui.button("✍ Request Faculty Recommendation for this Role", "clay-btn-secondary");
+            reqFromDetails.setOnAction(ev -> showRequestRecommendationDialog(sid, selected.getOpportunityId(), filter));
+
+            Node content = Ui.form(new String[]{"Title", "Type", "Location", "Required Skills", "Deadline", "Posted", "Status", "Endorsement", "Description"},
                     new Node[]{new Label(value(selected.getTitle())), new Label(value(selected.getOpportunityType())),
                             new Label(value(selected.getLocation())), new Label(value(selected.getRequiredSkills())),
                             new Label(Ui.formatDate(selected.getDeadline())),
                             new Label(Ui.formatDate(selected.getCreatedAt() == null ? null : selected.getCreatedAt().toLocalDate())),
                             new Label(value(selected.getStatus())),
+                            reqFromDetails,
                             description});
             Ui.viewDialog("Opportunity Details", content);
         });
+
+        Button requestRec = Ui.button("Request Recommendation", "secondary-button");
+        requestRec.setOnAction(e -> {
+            JobOpportunity selected = table.getSelectionModel().getSelectedItem();
+            showRequestRecommendationDialog(sid, selected != null ? selected.getOpportunityId() : null, filter);
+        });
+
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
         return Ui.page("Opportunities", "Browse internships and employment opportunities from industry partners.",
-                Ui.toolbar(new Label("Search:"), search, type, apply, details, refresh), table);
+                Ui.toolbar(new Label("Search:"), search, type, apply, details, requestRec, refresh), table);
     }
 
     public static Node applications() {
@@ -1171,6 +1307,7 @@ public final class StudentViews {
         Map<Integer, String> opportunities = new java.util.HashMap<>();
         Map<Integer, String> employers = new java.util.HashMap<>();
         Map<Integer, JobOpportunity> byId = new java.util.HashMap<>();
+        Map<Integer, RecommendationLetter> lettersByApp = new java.util.HashMap<>();
 
         TableView<Application> table = Ui.table();
         Ui.addColumn(table, "Opportunity", a -> opportunities.getOrDefault(a.getOpportunityId(), "Opportunity #" + a.getOpportunityId()));
@@ -1180,6 +1317,7 @@ public final class StudentViews {
         });
         Ui.addColumn(table, "Applied", a -> a.getApplicationDate() == null ? "" : a.getApplicationDate().toLocalDate().toString());
         Ui.addColumn(table, "Status", Application::getStatus);
+        Ui.addColumn(table, "Faculty Endorsement", a -> lettersByApp.containsKey(a.getApplicationId()) ? "✔ Endorsed" : "-");
         Ui.addColumn(table, "Remarks", Application::getRemarks);
 
         ComboBox<String> status = Ui.combo(List.of("All statuses", "Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted"), s -> s);
@@ -1194,23 +1332,143 @@ public final class StudentViews {
             });
             employers.clear();
             employers.putAll(directory.employerNames());
-            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            String selectedStatus = status.getValue();
-            table.setItems(FXCollections.observableArrayList(career.applicationsByStudent(sid).stream().filter(a ->
-                    ("All statuses".equals(selectedStatus) || selectedStatus.equalsIgnoreCase(a.getStatus()))
-                            && (q.isBlank()
-                            || String.valueOf(opportunities.getOrDefault(a.getOpportunityId(), "")).toLowerCase(Locale.ROOT).contains(q)
-                            || companyFor(a, byId, employers).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(a.getRemarks()).toLowerCase(Locale.ROOT).contains(q))).toList()));
+
+            recLetters.getLettersForStudentAsync(sid).thenAccept(letters -> Platform.runLater(() -> {
+                lettersByApp.clear();
+                for (RecommendationLetter l : letters) {
+                    if (l.getApplicationId() != null) {
+                        lettersByApp.put(l.getApplicationId(), l);
+                    }
+                }
+                String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
+                String selectedStatus = status.getValue();
+                table.setItems(FXCollections.observableArrayList(career.applicationsByStudent(sid).stream().filter(a ->
+                        ("All statuses".equals(selectedStatus) || selectedStatus.equalsIgnoreCase(a.getStatus()))
+                                && (q.isBlank()
+                                || String.valueOf(opportunities.getOrDefault(a.getOpportunityId(), "")).toLowerCase(Locale.ROOT).contains(q)
+                                || companyFor(a, byId, employers).toLowerCase(Locale.ROOT).contains(q)
+                                || String.valueOf(a.getRemarks()).toLowerCase(Locale.ROOT).contains(q))).toList()));
+                table.refresh();
+            }));
         };
         filter.run();
         search.textProperty().addListener((obs, old, value) -> filter.run());
         status.valueProperty().addListener((obs, old, value) -> filter.run());
+
+        Button viewLetterBtn = new Button("View Recommendation Letter");
+        viewLetterBtn.setOnAction(e -> {
+            Application sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) {
+                Alerts.error("Select an application to view.");
+                return;
+            }
+            RecommendationLetter l = lettersByApp.get(sel.getApplicationId());
+            if (l == null) {
+                Alerts.info("No faculty recommendation letter was attached to this application.");
+                return;
+            }
+            InstructorViews.showViewLetterModal(l);
+        });
+
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
 
         return Ui.page("My Applications", "Follow the status of every internship and employment application you have submitted.",
-                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), status, refresh), table);
+                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), status, viewLetterBtn, refresh), table);
+    }
+
+    public static void showRequestRecommendationDialog(int sid, Integer preselectedOppId, Runnable onComplete) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Request Faculty Recommendation Letter");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        VBox form = new VBox(12);
+        form.setPrefWidth(500);
+        form.setPadding(new Insets(10));
+
+        // Header info
+        VBox banner = new VBox(4);
+        banner.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-padding: 12;");
+        Label bTitle = new Label("Request an Endorsement for Internships & Employment");
+        bTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 13px;");
+        Label bDesc = new Label("Your instructor will compose an official verified letter endorsing your skills, capstone project, and academic standing.");
+        bDesc.setWrapText(true);
+        bDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
+        banner.getChildren().addAll(bTitle, bDesc);
+        form.getChildren().add(banner);
+
+        // Instructor ComboBox
+        List<Instructor> instructors = directory.instructors();
+        Map<Integer, String> instNames = directory.instructorNames();
+        ComboBox<Instructor> instPicker = Ui.combo(instructors, i -> String.format("Prof. %s (%s • %s)",
+                instNames.getOrDefault(i.getInstructorId(), "Instructor #" + i.getInstructorId()),
+                i.getDepartment() == null ? "CS/IT" : i.getDepartment(),
+                i.getSpecialization() == null ? "Software" : i.getSpecialization()));
+        instPicker.getSelectionModel().selectFirst();
+
+        // Opportunity ComboBox
+        List<JobOpportunity> opportunities = career.allOpportunities();
+        ComboBox<String> oppPicker = new ComboBox<>();
+        oppPicker.getItems().add("General Endorsement (All Opportunities)");
+        Map<String, Integer> oppMap = new java.util.HashMap<>();
+        for (JobOpportunity o : opportunities) {
+            String label = String.format("[%s] %s (%s)", o.getOpportunityType(), o.getTitle(), o.getLocation() == null ? "Remote" : o.getLocation());
+            oppPicker.getItems().add(label);
+            oppMap.put(label, o.getOpportunityId());
+        }
+        oppPicker.getSelectionModel().selectFirst();
+        if (preselectedOppId != null) {
+            opportunities.stream().filter(o -> o.getOpportunityId() == preselectedOppId).findFirst().ifPresent(o -> {
+                String label = String.format("[%s] %s (%s)", o.getOpportunityType(), o.getTitle(), o.getLocation() == null ? "Remote" : o.getLocation());
+                oppPicker.getSelectionModel().select(label);
+            });
+        }
+
+        TextField titleField = Ui.field("Letter Title (e.g. Faculty Recommendation for Java Backend Role)");
+        titleField.setText("Faculty Recommendation for " + (preselectedOppId != null ? "Target Opportunity" : "Internship / Employment"));
+
+        TextArea noteArea = Ui.area("Tell your instructor what competencies, achievements, or projects to highlight...");
+        noteArea.setPrefRowCount(4);
+
+        form.getChildren().addAll(
+                new Label("Select Faculty Instructor:"), instPicker,
+                new Label("Target Opportunity:"), oppPicker,
+                new Label("Request Title:"), titleField,
+                new Label("Student Request Notes (Optional):"), noteArea
+        );
+
+        dialog.getDialogPane().setContent(form);
+
+        Button okBtn = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okBtn.setText("Submit Request");
+        okBtn.getStyleClass().add("primary-button");
+
+        okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            Instructor chosenInst = instPicker.getValue();
+            if (chosenInst == null) {
+                Alerts.error("Please select an instructor.");
+                event.consume();
+                return;
+            }
+            String title = titleField.getText();
+            if (title == null || title.isBlank()) {
+                Alerts.error("Please enter a title for the recommendation request.");
+                event.consume();
+                return;
+            }
+            Integer chosenOpp = oppMap.get(oppPicker.getValue());
+            try {
+                recLetters.requestRecommendation(sid, chosenInst.getInstructorId(), chosenOpp, title, noteArea.getText());
+                Alerts.info("Recommendation request submitted to Prof. " + instNames.getOrDefault(chosenInst.getInstructorId(), "Instructor") + "!");
+                if (onComplete != null) onComplete.run();
+            } catch (Exception ex) {
+                Alerts.error("Failed to request recommendation: " + ex.getMessage());
+                event.consume();
+            }
+        });
+
+        dialog.showAndWait();
     }
 
     private static String companyFor(Application a, Map<Integer, JobOpportunity> byId, Map<Integer, String> employers) {

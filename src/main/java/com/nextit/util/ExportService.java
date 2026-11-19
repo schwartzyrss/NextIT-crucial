@@ -121,17 +121,17 @@ public final class ExportService {
             sb.append("<!DOCTYPE html>\n<html>\n<head>\n<meta charset='utf-8'>\n");
             sb.append("<title>").append(escapeHtml(title)).append(" - NextIT Report</title>\n");
             sb.append("<style>\n");
-            sb.append("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #faf9f6; color: #2d2630; margin: 0; padding: 32px; }\n");
-            sb.append(".header { background: linear-gradient(135deg, #FFCBE1 0%, #E8D7FF 100%); padding: 24px 32px; border-radius: 18px; margin-bottom: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }\n");
-            sb.append(".header h1 { margin: 0 0 6px 0; font-size: 24px; color: #383139; }\n");
-            sb.append(".header p { margin: 0; font-size: 13px; color: #5a505e; font-weight: 500; }\n");
-            sb.append(".meta { margin-bottom: 16px; font-size: 12px; color: #7a7080; display: flex; justify-content: space-between; }\n");
-            sb.append("table { width: 100%; border-collapse: collapse; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(0,0,0,0.04); }\n");
-            sb.append("th { background: #f4edf8; color: #443a47; font-weight: 700; text-align: left; padding: 12px 16px; font-size: 13px; border-bottom: 2px solid #e5d8ea; }\n");
-            sb.append("td { padding: 12px 16px; border-bottom: 1px solid #f0e9f2; font-size: 13px; }\n");
-            sb.append("tr:nth-child(even) td { background: #faf7fc; }\n");
-            sb.append("tr:hover td { background: #f3ebf7; }\n");
-            sb.append(".footer { margin-top: 24px; text-align: center; font-size: 11px; color: #998e9e; }\n");
+            sb.append("body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #FDFBFA; color: #414141; margin: 0; padding: 32px; }\n");
+            sb.append(".header { background: linear-gradient(135deg, #660508 0%, #9E0B0F 55%, #C6A75E 100%); padding: 24px 32px; border-radius: 18px; margin-bottom: 24px; box-shadow: 0 4px 16px rgba(102,5,8,0.18); border: 2px solid #C6A75E; }\n");
+            sb.append(".header h1 { margin: 0 0 6px 0; font-size: 24px; color: #FDFBFA; font-weight: 900; }\n");
+            sb.append(".header p { margin: 0; font-size: 13px; color: #EFE2CA; font-weight: 600; }\n");
+            sb.append(".meta { margin-bottom: 16px; font-size: 12px; color: #6E6862; display: flex; justify-content: space-between; }\n");
+            sb.append("table { width: 100%; border-collapse: collapse; background: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 2px 8px rgba(65,65,65,0.06); border: 1.5px solid #C6A75E; }\n");
+            sb.append("th { background: #9E0B0F; color: #FDFBFA; font-weight: 800; text-align: left; padding: 12px 16px; font-size: 13px; border-bottom: 2px solid #C6A75E; }\n");
+            sb.append("td { padding: 12px 16px; border-bottom: 1px solid #EFE2CA; font-size: 13px; color: #414141; }\n");
+            sb.append("tr:nth-child(even) td { background: #FAF6EE; }\n");
+            sb.append("tr:hover td { background: #F4ECE0; }\n");
+            sb.append(".footer { margin-top: 24px; text-align: center; font-size: 11px; color: #6E6862; }\n");
             sb.append("@media print { body { padding: 0; background: #fff; } .header { box-shadow: none; } table { box-shadow: none; } }\n");
             sb.append("</style>\n</head>\n<body>\n");
 

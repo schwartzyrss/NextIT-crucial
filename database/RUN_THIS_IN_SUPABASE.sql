@@ -46,7 +46,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verification_status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
@@ -341,6 +341,25 @@ CREATE TABLE security_audit_logs (
 CREATE INDEX idx_security_audit_logs_action ON security_audit_logs(action);
 CREATE INDEX idx_security_audit_logs_created ON security_audit_logs(created_at);
 
+CREATE TABLE recommendation_letters (
+    letter_id SERIAL PRIMARY KEY,
+    student_id INT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    instructor_id INT NOT NULL REFERENCES instructors(instructor_id) ON DELETE CASCADE,
+    opportunity_id INT NULL REFERENCES job_opportunities(opportunity_id) ON DELETE SET NULL,
+    application_id INT NULL REFERENCES applications(application_id) ON DELETE SET NULL,
+    letter_title VARCHAR(200) NOT NULL,
+    recommendation_body TEXT NOT NULL,
+    endorsement_highlights TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED', 'ISSUED', 'ATTACHED')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    issued_at TIMESTAMPTZ NULL
+);
+CREATE INDEX idx_rec_student ON recommendation_letters(student_id);
+CREATE INDEX idx_rec_instructor ON recommendation_letters(instructor_id);
+CREATE INDEX idx_rec_opportunity ON recommendation_letters(opportunity_id);
+CREATE INDEX idx_rec_application ON recommendation_letters(application_id);
+CREATE INDEX idx_rec_status ON recommendation_letters(status);
+
 -- ------------------------------------------------------------------------------
 -- 3. SEED INITIAL DEMO DATA
 -- ------------------------------------------------------------------------------
@@ -378,14 +397,9 @@ BEGIN
 
     -- A. Users
     INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
-    ('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'ADMIN',     'Kakong', 'Admin', 'VERIFIED', NOW(), TRUE)
+    ('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'INSTRUCTOR', 'Kakong', 'Instructor', 'VERIFIED', NOW(), TRUE)
     ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_admin_kakong;
-
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
-    ('admin1',      '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu',      'ADMIN',     'System', 'Admin', 'VERIFIED', NOW(), TRUE)
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
-    RETURNING user_id INTO v_admin_user;
 
     INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
     ('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes', 'VERIFIED', NOW(), FALSE)
@@ -566,7 +580,7 @@ BEGIN
 
     -- W. Security Audit Logs
     INSERT INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES
-    (v_admin_user, 'admin1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
+    (v_instructor_user, 'instructor1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
     (v_student_user, 'student1', 'LOGIN_SUCCESS', v_student_user, '127.0.0.1', 'Successful authentication for verified student account.', 'INFO');
 
 END $$;

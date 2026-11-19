@@ -95,11 +95,6 @@ public class SecurityAuditService {
                 "127.0.0.1", "Account reinstated to VERIFIED status", "INFO");
     }
 
-    public void logAdminProvisioned(String actor, String newAdminUsername) {
-        log(null, actor, "ADMIN_PROVISIONED", null,
-                "127.0.0.1", "New administrator account provisioned: @" + newAdminUsername, "SECURITY_ALERT");
-    }
-
     public void logRoleChangeBlocked(String actor, String targetUsername, String requestedRole) {
         log(null, actor, "ROLE_CHANGE_BLOCKED", null,
                 "127.0.0.1", "Blocked unauthorized role change attempt for @" + targetUsername + " to " + requestedRole, "CRITICAL");

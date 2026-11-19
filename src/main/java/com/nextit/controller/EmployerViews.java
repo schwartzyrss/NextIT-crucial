@@ -12,14 +12,15 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.application.Platform;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 import javafx.util.Duration;
 
 import java.time.LocalDate;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.time.LocalDateTime;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 public final class EmployerViews {
@@ -31,6 +32,9 @@ public final class EmployerViews {
     private static final ProjectService projects = new ProjectService();
     private static final DirectoryService directory = new DirectoryService();
     private static final ProfileService profiles = new ProfileService();
+    private static final RecommendationService recommendationService = new RecommendationService();
+    private static final RecommendationLetterService recLetters = new RecommendationLetterService();
+    private static final com.nextit.repository.JdbcPortfolioAccessRepository accessRepo = new com.nextit.repository.JdbcPortfolioAccessRepository();
 
     private EmployerViews() {}
 
@@ -311,7 +315,7 @@ public final class EmployerViews {
         statusPillBox.setAlignment(Pos.CENTER_RIGHT);
         StackPane statusDot = Ui.statusDot(true);
         Label statusText = new Label("Recruitment Active");
-        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d6a4f; -fx-font-size: 12px;");
+        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
         HBox liveChip = new HBox(8, statusDot, statusText);
         liveChip.setAlignment(Pos.CENTER);
         liveChip.getStyleClass().addAll("badge-pill", "badge-pill-mint");
@@ -323,7 +327,7 @@ public final class EmployerViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #f1f2fa;");
+        headerContainer.setStyle("-fx-background-color: #FDFBFA;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards Row
@@ -473,7 +477,7 @@ public final class EmployerViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #f1f2fa;");
+        scrollContent.setStyle("-fx-background-color: #FDFBFA;");
         scrollContent.setPadding(new Insets(10, 24, 32, 24));
         scrollContent.getChildren().addAll(cardsRow, middleRow, appTray);
 
@@ -492,7 +496,7 @@ public final class EmployerViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #f1f2fa;");
+        dashboardRoot.setStyle("-fx-background-color: #FDFBFA;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
 
@@ -520,6 +524,16 @@ public final class EmployerViews {
         addOppBtn.getStyleClass().add("primary-button");
         addOppBtn.setOnAction(e -> editOpportunity(eid, null, refresh));
 
+        Button recBtn = new Button("✨ Recommended Students");
+        recBtn.setMaxWidth(Double.MAX_VALUE);
+        recBtn.setStyle("-fx-border-color: #9E0B0F; -fx-text-fill: #9E0B0F; -fx-font-weight: bold; -fx-background-color: #F8EBE8;");
+        recBtn.setOnAction(e -> {
+            AppController app = AppController.getInstance();
+            if (app != null) {
+                app.navigateTo(recommendedStudents(), "Recommended Students");
+            }
+        });
+
         Button refreshBtn = new Button("Refresh Pipeline Data");
         refreshBtn.setMaxWidth(Double.MAX_VALUE);
         StackPane refIcon = Ui.refreshIcon();
@@ -530,7 +544,7 @@ public final class EmployerViews {
             Alerts.info("Recruitment pipeline refreshed.");
         });
 
-        quickActions.getChildren().addAll(new VBox(3, actTitle, actSub), addOppBtn, refreshBtn);
+        quickActions.getChildren().addAll(new VBox(3, actTitle, actSub), addOppBtn, recBtn, refreshBtn);
 
         // 2. Hiring Pipeline & Company Overview
         VBox pipelineCard = new VBox(14);
@@ -543,14 +557,14 @@ public final class EmployerViews {
 
         VBox queueBox = new VBox(8);
         Label queueHeader = new Label("PIPELINE HEALTH");
-        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
+        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F; -fx-letter-spacing: 0.8px;");
 
         long pendingReviewCount = apps.stream().filter(a -> "Pending".equalsIgnoreCase(a.getStatus())).count();
 
         HBox pendingRow = new HBox(8);
         pendingRow.setAlignment(Pos.CENTER_LEFT);
         Label pLabel = new Label("Applications Pending:");
-        pLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        pLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Region pSp = new Region();
         HBox.setHgrow(pSp, Priority.ALWAYS);
         Node pBadge = pendingReviewCount > 0
@@ -561,7 +575,7 @@ public final class EmployerViews {
         HBox openRow = new HBox(8);
         openRow.setAlignment(Pos.CENTER_LEFT);
         Label oLabel = new Label("Open Positions:");
-        oLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        oLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Region oSp = new Region();
         HBox.setHgrow(oSp, Priority.ALWAYS);
         Node oBadge = Ui.badge(openPositions + " Active", "badge-pill-blue");
@@ -570,7 +584,7 @@ public final class EmployerViews {
         HBox totalRow = new HBox(8);
         totalRow.setAlignment(Pos.CENTER_LEFT);
         Label tLabel = new Label("Total Applicant Pool:");
-        tLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        tLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Region tSp = new Region();
         HBox.setHgrow(tSp, Priority.ALWAYS);
         Node tBadge = Ui.badge(apps.size() + " Candidates", "badge-pill-lavender");
@@ -583,11 +597,11 @@ public final class EmployerViews {
         // Company info
         VBox compBox = new VBox(6);
         Label compHeader = new Label("COMPANY PROFILE");
-        compHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
+        compHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F; -fx-letter-spacing: 0.8px;");
         Label cName = new Label(emp != null && emp.getCompanyName() != null ? emp.getCompanyName() : "NextIT Partner");
-        cName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        cName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Label cInd = new Label(emp != null && emp.getIndustry() != null ? emp.getIndustry() : "Technology");
-        cInd.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
+        cInd.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
         compBox.getChildren().addAll(compHeader, cName, cInd);
 
         pipelineCard.getChildren().addAll(new VBox(3, pipeTitle, pipeSub), queueBox, sep, compBox);
@@ -608,7 +622,7 @@ public final class EmployerViews {
 
         if (recentApps.isEmpty()) {
             Label empty = new Label("No candidate submissions yet.");
-            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
+            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
             candidateCard.getChildren().add(empty);
         } else {
             for (Application a : recentApps) {
@@ -623,14 +637,14 @@ public final class EmployerViews {
 
                 VBox info = new VBox(2);
                 Label name = new Label(stName);
-                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
                 String oppTitle = owned.stream()
                         .filter(o -> o.getOpportunityId() == a.getOpportunityId())
                         .map(JobOpportunity::getTitle)
                         .findFirst()
                         .orElse("Opportunity #" + a.getOpportunityId());
                 Label role = new Label(oppTitle);
-                role.setStyle("-fx-font-size: 10px; -fx-text-fill: #8e8394;");
+                role.setStyle("-fx-font-size: 10px; -fx-text-fill: #6E6862;");
                 info.getChildren().addAll(name, role);
                 HBox.setHgrow(info, Priority.ALWAYS);
 
@@ -648,7 +662,8 @@ public final class EmployerViews {
             }
         }
 
-        rightSide.getChildren().addAll(quickActions, pipelineCard, candidateCard);
+        VBox topRecCard = createDashboardRecommendationsCard(eid);
+        rightSide.getChildren().addAll(quickActions, topRecCard, pipelineCard, candidateCard);
         return rightSide;
     }
 
@@ -724,10 +739,22 @@ public final class EmployerViews {
                 guard(() -> { career.deleteOpportunity(selected.getOpportunityId(), eid); applyFilter.run(); });
             }
         });
+        Button topCandidates = new Button("🎯 Top Candidates");
+        topCandidates.getStyleClass().add("secondary-button");
+        topCandidates.setStyle("-fx-border-color: #9E0B0F; -fx-text-fill: #9E0B0F; -fx-font-weight: bold;");
+        topCandidates.setOnAction(e -> {
+            JobOpportunity selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                Alerts.error("Select an opportunity to view top recommended candidates.");
+                return;
+            }
+            showTopCandidatesModal(selected);
+        });
+
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> applyFilter.run());
         return Ui.page("Opportunities", "Create and maintain internship and employment opportunities for NextIT students.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, close, delete, refresh), table);
+                Ui.toolbar(new Label("Search:"), search, add, edit, topCandidates, close, delete, refresh), table);
     }
 
     private static void editOpportunity(int employerId, JobOpportunity existing, Runnable refresh) {
@@ -775,12 +802,14 @@ public final class EmployerViews {
         int eid = employerId();
         Map<Integer, String> opportunityTitles = new java.util.HashMap<>();
         Map<Integer, String> studentsById = new java.util.HashMap<>();
+        Map<Integer, RecommendationLetter> attachedLettersByApp = new java.util.HashMap<>();
 
         TableView<Application> table = Ui.table();
         Ui.addColumn(table, "Student", a -> studentsById.getOrDefault(a.getStudentId(), "Student #" + a.getStudentId()));
         Ui.addColumn(table, "Opportunity", a -> opportunityTitles.getOrDefault(a.getOpportunityId(), "Opportunity #" + a.getOpportunityId()));
         Ui.addColumn(table, "Applied", a -> a.getApplicationDate() == null ? "" : a.getApplicationDate().toLocalDate().toString());
         Ui.addColumn(table, "Status", Application::getStatus);
+        Ui.addColumn(table, "Faculty Recommendation", a -> attachedLettersByApp.containsKey(a.getApplicationId()) ? "✔ Faculty Endorsed" : "-");
         Ui.addColumn(table, "Remarks", Application::getRemarks);
 
         ComboBox<String> statusFilter = Ui.combo(List.of("All statuses", "Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted"), s -> s);
@@ -792,6 +821,12 @@ public final class EmployerViews {
                     .forEach(o -> opportunityTitles.put(o.getOpportunityId(), o.getTitle()));
             studentsById.clear();
             studentsById.putAll(directory.studentNames());
+            attachedLettersByApp.clear();
+            recLetters.findAll().stream()
+                    .filter(RecommendationLetter::isAttached)
+                    .filter(l -> l.getApplicationId() != null)
+                    .forEach(l -> attachedLettersByApp.put(l.getApplicationId(), l));
+
             String value = statusFilter.getValue();
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
             table.setItems(FXCollections.observableArrayList(career.applicationsForEmployer(eid).stream()
@@ -801,6 +836,7 @@ public final class EmployerViews {
                             || opportunityTitles.getOrDefault(a.getOpportunityId(), "").toLowerCase(Locale.ROOT).contains(q)
                             || String.valueOf(a.getRemarks()).toLowerCase(Locale.ROOT).contains(q))
                     .toList()));
+            table.refresh();
         };
         statusFilter.valueProperty().addListener((obs, old, value) -> filter.run());
         search.textProperty().addListener((obs, old, value) -> filter.run());
@@ -826,10 +862,26 @@ public final class EmployerViews {
                 });
             });
         });
+
+        Button viewLetter = new Button("View Recommendation Letter");
+        viewLetter.setOnAction(e -> {
+            Application selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                Alerts.error("Select an application to view.");
+                return;
+            }
+            RecommendationLetter l = attachedLettersByApp.get(selected.getApplicationId());
+            if (l == null) {
+                Alerts.info("No faculty recommendation letter was attached to this application.");
+                return;
+            }
+            InstructorViews.showViewLetterModal(l);
+        });
+
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
-        return Ui.page("Applications", "Review applications submitted to your opportunities and update their status.",
-                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), statusFilter, review, refresh), table);
+        return Ui.page("Applications", "Review applications submitted to your opportunities and review verified faculty recommendation letters.",
+                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), statusFilter, review, viewLetter, refresh), table);
     }
 
     public static Node portfolioSearch() {
@@ -955,5 +1007,708 @@ public final class EmployerViews {
             Alerts.error("Could not complete the operation. Please check the database connection.");
             org.slf4j.LoggerFactory.getLogger(EmployerViews.class).error("Employer action failed", e);
         }
+    }
+
+    // =========================================================================
+    // STUDENT RECOMMENDATION ENGINE & TALENT DISCOVERY
+    // =========================================================================
+
+    public static Node recommendedStudents() {
+        return recommendedStudents(null);
+    }
+
+    public static Node recommendedStudents(Integer preselectedOpportunityId) {
+        int eid = employerId();
+        List<JobOpportunity> ownedOpps = career.opportunitiesForEmployer(eid);
+        List<JobOpportunity> openOpps = ownedOpps.stream().filter(o -> "Open".equalsIgnoreCase(o.getStatus())).toList();
+
+        // 1. Fallback / Notice banner if employer has NO open opportunities yet
+        VBox bannerHolder = new VBox();
+        if (openOpps.isEmpty()) {
+            HBox fallbackBanner = new HBox(16);
+            fallbackBanner.setAlignment(Pos.CENTER_LEFT);
+            fallbackBanner.setStyle("-fx-background-color: #EFE2CA; -fx-border-color: #C6A75E; " +
+                    "-fx-border-width: 1.5; -fx-border-radius: 12; -fx-background-radius: 12; -fx-padding: 16;");
+
+            Label noticeIcon = Ui.badge("Notice", "badge-pill-yellow");
+            noticeIcon.setStyle("-fx-font-weight: bold;");
+
+            VBox bannerTexts = new VBox(4);
+            Label bTitle = new Label("No Active Opportunities Posted");
+            bTitle.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
+            Label bDesc = new Label("You currently have no open job listings. Showing top candidates across core IT competencies. Post an opportunity for tailored candidate scoring.");
+            bDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #414141;");
+            bannerTexts.getChildren().addAll(bTitle, bDesc);
+
+            Region bSpacer = new Region();
+            HBox.setHgrow(bSpacer, Priority.ALWAYS);
+
+            Button postOppBtn = new Button("➕ Post New Opportunity");
+            postOppBtn.getStyleClass().add("primary-button");
+            postOppBtn.setOnAction(e -> editOpportunity(eid, null, () -> {
+                AppController app = AppController.getInstance();
+                if (app != null) app.navigateTo(recommendedStudents(), "Recommended Students");
+            }));
+
+            fallbackBanner.getChildren().addAll(noticeIcon, bannerTexts, bSpacer, postOppBtn);
+            bannerHolder.getChildren().add(fallbackBanner);
+        }
+
+        // 2. Toolbar & Controls
+        ComboBox<String> oppFilter = new ComboBox<>();
+        oppFilter.getItems().add("All Open Opportunities");
+        Map<String, Integer> oppMap = new HashMap<>();
+        for (JobOpportunity o : openOpps) {
+            String label = o.getTitle() + " (#" + o.getOpportunityId() + ")";
+            oppFilter.getItems().add(label);
+            oppMap.put(label, o.getOpportunityId());
+        }
+
+        if (preselectedOpportunityId != null) {
+            for (Map.Entry<String, Integer> entry : oppMap.entrySet()) {
+                if (entry.getValue().equals(preselectedOpportunityId)) {
+                    oppFilter.setValue(entry.getKey());
+                    break;
+                }
+            }
+        }
+        if (oppFilter.getValue() == null) {
+            oppFilter.setValue("All Open Opportunities");
+        }
+
+        ComboBox<String> scoreFilter = new ComboBox<>(FXCollections.observableArrayList(
+                "All Match Scores",
+                "90%+ Match (Exceptional)",
+                "80%+ Match (Top Match)",
+                "60%+ Match (Good Match)",
+                "40%+ Match (Moderate Match)"
+        ));
+        scoreFilter.setValue("All Match Scores");
+
+        List<String> skillOptions = new ArrayList<>();
+        skillOptions.add("All Skills");
+        directory.technicalSkills().stream()
+                .map(TechnicalSkill::getSkillName)
+                .distinct().sorted()
+                .forEach(skillOptions::add);
+        ComboBox<String> skillFilter = new ComboBox<>(FXCollections.observableArrayList(skillOptions));
+        skillFilter.setValue("All Skills");
+
+        ComboBox<String> sortSelector = new ComboBox<>(FXCollections.observableArrayList(
+                "Highest Match Score",
+                "Most Verified Skills",
+                "Most Certifications & Awards",
+                "Candidate Name (A-Z)"
+        ));
+        sortSelector.setValue("Highest Match Score");
+
+        TextField searchField = Ui.field("Search candidates by name, program, skills, or projects...");
+        searchField.setPrefWidth(260);
+
+        Button refreshBtn = new Button("Refresh");
+        StackPane refIcon = Ui.refreshIcon();
+        refreshBtn.setGraphic(refIcon);
+        refreshBtn.getStyleClass().add("secondary-button");
+
+        HBox toolbar = Ui.toolbar(
+                new Label("Opportunity:"), oppFilter,
+                new Label("Min Score:"), scoreFilter,
+                new Label("Skill:"), skillFilter,
+                new Label("Sort:"), sortSelector,
+                searchField,
+                refreshBtn
+        );
+
+        // 3. Results Container & Data State
+        VBox cardsContainer = new VBox(14);
+        cardsContainer.setFillWidth(true);
+
+        List<StudentRecommendation> rawRecommendations = new ArrayList<>();
+
+        final Runnable[] filterAndRenderRef = new Runnable[1];
+        filterAndRenderRef[0] = () -> {
+            cardsContainer.getChildren().clear();
+
+            String query = searchField.getText() == null ? "" : searchField.getText().trim().toLowerCase(Locale.ROOT);
+            String selectedScore = scoreFilter.getValue();
+            int minScore = switch (selectedScore == null ? "All" : selectedScore) {
+                case "90%+ Match (Exceptional)" -> 90;
+                case "80%+ Match (Top Match)" -> 80;
+                case "60%+ Match (Good Match)" -> 60;
+                case "40%+ Match (Moderate Match)" -> 40;
+                default -> 0;
+            };
+
+            String selectedSkill = skillFilter.getValue();
+            boolean filterSkill = selectedSkill != null && !"All Skills".equalsIgnoreCase(selectedSkill);
+
+            String selectedSort = sortSelector.getValue();
+
+            List<StudentRecommendation> filtered = new ArrayList<>(rawRecommendations.stream()
+                    .filter(c -> c.getMatchScore() >= minScore)
+                    .filter(c -> !filterSkill || c.getAllStudentSkills().stream().anyMatch(s -> s.equalsIgnoreCase(selectedSkill)))
+                    .filter(c -> {
+                        if (query.isEmpty()) return true;
+                        String sName = c.getStudentName().toLowerCase(Locale.ROOT);
+                        String sProg = c.getProgramAndYear().toLowerCase(Locale.ROOT);
+                        String sSkills = String.join(" ", c.getAllStudentSkills()).toLowerCase(Locale.ROOT);
+                        String sReason = c.getMatchReason().toLowerCase(Locale.ROOT);
+                        return sName.contains(query) || sProg.contains(query) || sSkills.contains(query) || sReason.contains(query);
+                    })
+                    .toList());
+
+            if ("Most Verified Skills".equalsIgnoreCase(selectedSort)) {
+                filtered.sort((a, b) -> Integer.compare(b.getMatchedSkills().size(), a.getMatchedSkills().size()));
+            } else if ("Most Certifications & Awards".equalsIgnoreCase(selectedSort)) {
+                filtered.sort((a, b) -> Integer.compare(b.getRelevantCredentials().size(), a.getRelevantCredentials().size()));
+            } else if ("Candidate Name (A-Z)".equalsIgnoreCase(selectedSort)) {
+                filtered.sort(Comparator.comparing(StudentRecommendation::getStudentName));
+            } else {
+                filtered.sort(Comparator.comparingInt(StudentRecommendation::getMatchScore).reversed());
+            }
+
+            if (filtered.isEmpty()) {
+                VBox emptyCard = new VBox(12);
+                emptyCard.setAlignment(Pos.CENTER);
+                emptyCard.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 12; -fx-background-radius: 12; -fx-padding: 36;");
+                Label emptyTitle = new Label("No matching candidates found.");
+                emptyTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #414141;");
+                Label emptyDesc = new Label("Try lowering the minimum match score or clearing the skill search filter.");
+                emptyDesc.setStyle("-fx-font-size: 12px; -fx-text-fill: #6E6862;");
+                Button resetBtn = new Button("Reset All Filters");
+                resetBtn.getStyleClass().add("secondary-button");
+                resetBtn.setOnAction(e -> {
+                    scoreFilter.setValue("All Match Scores");
+                    skillFilter.setValue("All Skills");
+                    sortSelector.setValue("Highest Match Score");
+                    searchField.clear();
+                });
+                emptyCard.getChildren().addAll(emptyTitle, emptyDesc, resetBtn);
+                cardsContainer.getChildren().add(emptyCard);
+                return;
+            }
+
+            HBox countRow = new HBox(8);
+            countRow.setAlignment(Pos.CENTER_LEFT);
+            Label countLabel = new Label("Showing " + filtered.size() + " Ranked Candidates");
+            countLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: bold; -fx-text-fill: #414141;");
+            countRow.getChildren().add(countLabel);
+            cardsContainer.getChildren().add(countRow);
+
+            for (StudentRecommendation c : filtered) {
+                VBox cCard = createCandidateCard(c, ownedOpps, filterAndRenderRef[0]);
+                cardsContainer.getChildren().add(cCard);
+            }
+        };
+
+        Runnable filterAndRender = () -> filterAndRenderRef[0].run();
+
+        Runnable loadData = () -> {
+            cardsContainer.getChildren().clear();
+            VBox loadingCard = new VBox(14);
+            loadingCard.setAlignment(Pos.CENTER);
+            loadingCard.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 12; -fx-background-radius: 12; -fx-padding: 40;");
+            ProgressIndicator pi = new ProgressIndicator();
+            pi.setPrefSize(42, 42);
+            Label loadingLbl = new Label("Analyzing student profiles, verified skills, and certifications against hiring criteria...");
+            loadingLbl.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #6E6862; -fx-font-weight: 500;");
+            loadingCard.getChildren().addAll(pi, loadingLbl);
+            cardsContainer.getChildren().add(loadingCard);
+
+            String selOpp = oppFilter.getValue();
+            Integer chosenOppId = (selOpp == null || "All Open Opportunities".equals(selOpp))
+                    ? null
+                    : oppMap.get(selOpp);
+
+            recommendationService.getRecommendationsAsync(chosenOppId, eid)
+                    .thenAccept(list -> Platform.runLater(() -> {
+                        rawRecommendations.clear();
+                        rawRecommendations.addAll(list);
+                        filterAndRender.run();
+                    }))
+                    .exceptionally(ex -> {
+                        Platform.runLater(() -> {
+                            cardsContainer.getChildren().clear();
+                            Alerts.error("Failed to load candidate recommendations: " + ex.getMessage());
+                        });
+                        return null;
+                    });
+        };
+
+        oppFilter.valueProperty().addListener((obs, old, val) -> loadData.run());
+        scoreFilter.valueProperty().addListener((obs, old, val) -> filterAndRender.run());
+        skillFilter.valueProperty().addListener((obs, old, val) -> filterAndRender.run());
+        sortSelector.valueProperty().addListener((obs, old, val) -> filterAndRender.run());
+        searchField.textProperty().addListener((obs, old, val) -> filterAndRender.run());
+        refreshBtn.setOnAction(e -> loadData.run());
+
+        loadData.run();
+
+        List<Node> pageElements = new ArrayList<>();
+        pageElements.add(toolbar);
+        if (!bannerHolder.getChildren().isEmpty()) {
+            pageElements.add(bannerHolder);
+        }
+        pageElements.add(cardsContainer);
+
+        return Ui.page("Recommended Students",
+                "Discover, rank, and review top-matching student candidates tailored to your opportunities using multi-criteria weighted scoring.",
+                pageElements.toArray(new Node[0]));
+    }
+
+    private static VBox createCandidateCard(StudentRecommendation cand, List<JobOpportunity> owned, Runnable onRefresh) {
+        VBox card = new VBox(10);
+        card.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-width: 1.5; " +
+                "-fx-border-radius: 10; -fx-background-radius: 10; -fx-padding: 14; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0,0,0,0.04), 4, 0, 0, 2);");
+
+        HBox topRow = new HBox(12);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
+        StackPane avatar = Ui.avatar(Ui.initials(cand.getStudentName()), cand.getMatchScore() >= 80 ? "avatar-mint" : "avatar-yellow");
+        avatar.setPrefSize(42, 42);
+        avatar.setMinSize(42, 42);
+
+        VBox nameBox = new VBox(3);
+        HBox nameAndBadges = new HBox(8);
+        nameAndBadges.setAlignment(Pos.CENTER_LEFT);
+
+        Label nameLbl = new Label(cand.getStudentName());
+        nameLbl.setStyle("-fx-font-size: 14px; -fx-font-weight: bold; -fx-text-fill: #414141;");
+
+        Node verifiedBadge = cand.isIdentityVerified()
+                ? Ui.badge("✓ Verified Identity", "badge-pill-mint")
+                : Ui.badge("Unverified", "badge-pill-cream");
+
+        nameAndBadges.getChildren().addAll(nameLbl, verifiedBadge);
+
+        if (cand.isHasApplied()) {
+            nameAndBadges.getChildren().add(Ui.badge("Applied: " + cand.getApplicationStatus(), "badge-pill-blue"));
+        }
+
+        List<RecommendationLetter> cLetters = recLetters.getLettersForStudent(cand.getStudentId());
+        if (cLetters.stream().anyMatch(RecommendationLetter::isIssued)) {
+            nameAndBadges.getChildren().add(Ui.badge("📜 Faculty Endorsed", "badge-pill-mint"));
+        }
+
+        Label subLbl = new Label(cand.getProgramAndYear() + "  •  #" + (cand.getStudent() != null ? cand.getStudent().getStudentNumber() : ""));
+        subLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
+
+        nameBox.getChildren().addAll(nameAndBadges, subLbl);
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        VBox scoreBox = new VBox(2);
+        scoreBox.setAlignment(Pos.CENTER_RIGHT);
+
+        Label scoreBadge = Ui.badge(cand.getMatchScore() + "% MATCH", cand.getMatchScoreBadgeStyle());
+        scoreBadge.setStyle(scoreBadge.getStyle() + "; -fx-font-size: 13px; -fx-font-weight: bold; -fx-padding: 4 12;");
+
+        Label breakdownLbl = new Label(String.format("Skills: %.0f/45 • Projects: %.0f/25 • Certs: %.0f/20 • Academic: %.0f/10",
+                cand.getSkillsScore(), cand.getProjectsScore(), cand.getCredentialsScore(), cand.getReadinessScore()));
+        breakdownLbl.setStyle("-fx-font-size: 9px; -fx-text-fill: #8E8882;");
+
+        scoreBox.getChildren().addAll(scoreBadge, breakdownLbl);
+        topRow.getChildren().addAll(avatar, nameBox, spacer, scoreBox);
+
+        Label reasonLbl = new Label("💡 " + cand.getMatchReason());
+        reasonLbl.setStyle("-fx-font-size: 11.5px; -fx-font-weight: bold; -fx-text-fill: #9E0B0F; " +
+                "-fx-background-color: #F8EBE8; -fx-padding: 5 10; -fx-background-radius: 6; -fx-border-color: #E6C2BA; -fx-border-radius: 6;");
+
+        FlowPane skillsFlow = new FlowPane(6, 6);
+        skillsFlow.setAlignment(Pos.CENTER_LEFT);
+
+        Label skTitle = new Label("Skills: ");
+        skTitle.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #555555;");
+        skillsFlow.getChildren().add(skTitle);
+
+        for (String m : cand.getMatchedSkills()) {
+            skillsFlow.getChildren().add(Ui.badge("✓ " + m, "badge-pill-mint"));
+        }
+        for (String miss : cand.getMissingSkills().stream().limit(2).toList()) {
+            skillsFlow.getChildren().add(Ui.badge("Missing: " + miss, "badge-pill-pink"));
+        }
+        for (String other : cand.getAllStudentSkills().stream()
+                .filter(s -> !cand.getMatchedSkills().contains(s))
+                .limit(3)
+                .toList()) {
+            skillsFlow.getChildren().add(Ui.badge(other, "badge-pill-cream"));
+        }
+
+        HBox highlightsBox = new HBox(12);
+        highlightsBox.setAlignment(Pos.CENTER_LEFT);
+
+        if (!cand.getRelevantProjects().isEmpty()) {
+            String projText = cand.getRelevantProjects().stream()
+                    .map(Project::getProjectTitle)
+                    .limit(2)
+                    .collect(Collectors.joining(", "));
+            Label prLbl = new Label("📂 Projects: " + projText);
+            prLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #414141;");
+            highlightsBox.getChildren().add(prLbl);
+        }
+
+        if (!cand.getRelevantCredentials().isEmpty()) {
+            String credText = cand.getRelevantCredentials().stream()
+                    .map(AcademicCredential::getTitle)
+                    .limit(2)
+                    .collect(Collectors.joining(", "));
+            Label crLbl = new Label("🏆 Credentials: " + credText);
+            crLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #414141;");
+            highlightsBox.getChildren().add(crLbl);
+        }
+
+        HBox actionsRow = new HBox(8);
+        actionsRow.setAlignment(Pos.CENTER_RIGHT);
+
+        Button viewPortfolioBtn = new Button("View Full Portfolio");
+        viewPortfolioBtn.getStyleClass().add("secondary-button");
+        viewPortfolioBtn.setStyle("-fx-font-size: 11px; -fx-padding: 4 12;");
+        viewPortfolioBtn.setOnAction(e -> showCandidatePortfolioOrProfile(cand));
+
+        Button shortlistBtn = new Button("Shortlist / Invite to Apply");
+        if (cand.isHasApplied() && "Shortlisted".equalsIgnoreCase(cand.getApplicationStatus())) {
+            shortlistBtn.setText("✓ Shortlisted");
+            shortlistBtn.setDisable(true);
+            shortlistBtn.setStyle("-fx-font-size: 11px; -fx-padding: 4 12; -fx-background-color: #EFE2CA; -fx-text-fill: #414141;");
+        } else {
+            shortlistBtn.getStyleClass().add("primary-button");
+            shortlistBtn.setStyle("-fx-font-size: 11px; -fx-padding: 4 12;");
+            shortlistBtn.setOnAction(e -> promptShortlistOrInvite(cand, owned, onRefresh));
+        }
+
+        actionsRow.getChildren().addAll(viewPortfolioBtn, shortlistBtn);
+
+        card.getChildren().addAll(topRow, reasonLbl, skillsFlow);
+        if (!highlightsBox.getChildren().isEmpty()) {
+            card.getChildren().add(highlightsBox);
+        }
+        card.getChildren().add(actionsRow);
+
+        return card;
+    }
+
+    public static void showTopCandidatesModal(JobOpportunity opportunity) {
+        if (opportunity == null) return;
+        VBox root = new VBox(14);
+        root.setPadding(new Insets(16));
+        root.setStyle("-fx-background-color: #FDFBFA;");
+
+        HBox oppHeader = new HBox(12);
+        oppHeader.setAlignment(Pos.CENTER_LEFT);
+        oppHeader.setStyle("-fx-background-color: #EFE2CA; -fx-padding: 12 16; -fx-background-radius: 10; -fx-border-color: #C6A75E; -fx-border-radius: 10;");
+
+        VBox oppInfo = new VBox(4);
+        Label oppTitle = new Label(opportunity.getTitle());
+        oppTitle.setStyle("-fx-font-size: 15px; -fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
+        Label oppSkills = new Label("Required Skills: " + (opportunity.getRequiredSkills() == null || opportunity.getRequiredSkills().isBlank() ? "Not specified" : opportunity.getRequiredSkills()));
+        oppSkills.setStyle("-fx-font-size: 11px; -fx-text-fill: #414141;");
+        oppInfo.getChildren().addAll(oppTitle, oppSkills);
+
+        Region oppSp = new Region();
+        HBox.setHgrow(oppSp, Priority.ALWAYS);
+
+        Label typeBadge = Ui.badge(opportunity.getOpportunityType(), "badge-pill-blue");
+        oppHeader.getChildren().addAll(oppInfo, oppSp, typeBadge);
+
+        VBox listContainer = new VBox(10);
+        listContainer.setAlignment(Pos.CENTER);
+
+        ProgressIndicator pi = new ProgressIndicator();
+        pi.setPrefSize(40, 40);
+        Label loadingLbl = new Label("Calculating candidate matches for " + opportunity.getTitle() + "...");
+        loadingLbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #6E6862;");
+        listContainer.getChildren().addAll(pi, loadingLbl);
+
+        ScrollPane scroll = new ScrollPane(listContainer);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportWidth(720);
+        scroll.setPrefViewportHeight(480);
+        scroll.setStyle("-fx-background-color: transparent;");
+
+        root.getChildren().addAll(oppHeader, scroll);
+
+        recommendationService.getRecommendationsAsync(opportunity.getOpportunityId(), opportunity.getEmployerId())
+                .thenAccept(candidates -> Platform.runLater(() -> {
+                    listContainer.getChildren().clear();
+                    listContainer.setAlignment(Pos.TOP_LEFT);
+
+                    List<StudentRecommendation> topCandidates = candidates.stream().limit(10).toList();
+                    if (topCandidates.isEmpty()) {
+                        Label empty = new Label("No matching candidates found for this opportunity.");
+                        empty.setStyle("-fx-font-size: 13px; -fx-text-fill: #6E6862; -fx-padding: 20;");
+                        listContainer.getChildren().add(empty);
+                        return;
+                    }
+
+                    List<JobOpportunity> owned = career.opportunitiesForEmployer(opportunity.getEmployerId());
+
+                    for (StudentRecommendation cand : topCandidates) {
+                        VBox candCard = createCandidateCard(cand, owned, () -> showTopCandidatesModal(opportunity));
+                        listContainer.getChildren().add(candCard);
+                    }
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        listContainer.getChildren().clear();
+                        Label err = new Label("Failed to load recommendations: " + ex.getMessage());
+                        err.setStyle("-fx-text-fill: #9E0B0F; -fx-padding: 20;");
+                        listContainer.getChildren().add(err);
+                    });
+                    return null;
+                });
+
+        Ui.viewDialog("Top Recommended Candidates - " + opportunity.getTitle(), root);
+    }
+
+    private static VBox createDashboardRecommendationsCard(int eid) {
+        VBox recCard = new VBox(12);
+        recCard.getStyleClass().add("clay-tray");
+
+        HBox head = new HBox(8);
+        head.setAlignment(Pos.CENTER_LEFT);
+
+        VBox titles = new VBox(2);
+        Label title = new Label("Top Recommended Candidates");
+        title.getStyleClass().add("tray-title");
+        Label subtitle = new Label("AI-matched talent for your open roles");
+        subtitle.getStyleClass().add("tray-subtitle");
+        titles.getChildren().addAll(title, subtitle);
+
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+
+        Label badge = Ui.badge("AI Match", "badge-pill-mint");
+        head.getChildren().addAll(titles, sp, badge);
+        recCard.getChildren().add(head);
+
+        VBox contentList = new VBox(8);
+        ProgressIndicator pi = new ProgressIndicator();
+        pi.setPrefSize(24, 24);
+        contentList.setAlignment(Pos.CENTER);
+        contentList.getChildren().addAll(pi, new Label("Matching candidate profiles..."));
+        recCard.getChildren().add(contentList);
+
+        Button exploreBtn = new Button("Explore All Recommendations →");
+        exploreBtn.setMaxWidth(Double.MAX_VALUE);
+        exploreBtn.setStyle("-fx-background-color: transparent; -fx-text-fill: #9E0B0F; -fx-font-weight: bold; -fx-cursor: hand; -fx-font-size: 11.5px; -fx-padding: 4 0;");
+        exploreBtn.setOnAction(e -> {
+            AppController app = AppController.getInstance();
+            if (app != null) {
+                app.navigateTo(recommendedStudents(), "Recommended Students");
+            }
+        });
+        recCard.getChildren().add(exploreBtn);
+
+        recommendationService.getRecommendationsAsync(null, eid)
+                .thenAccept(list -> Platform.runLater(() -> {
+                    contentList.getChildren().clear();
+                    contentList.setAlignment(Pos.TOP_LEFT);
+
+                    List<StudentRecommendation> top = list.stream().limit(3).toList();
+                    if (top.isEmpty()) {
+                        Label empty = new Label("No recommended candidates found yet.");
+                        empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
+                        contentList.getChildren().add(empty);
+                    } else {
+                        for (StudentRecommendation c : top) {
+                            HBox row = new HBox(10);
+                            row.setAlignment(Pos.CENTER_LEFT);
+                            row.getStyleClass().add("activity-item");
+                            row.setStyle("-fx-padding: 8; -fx-background-color: #FFFFFF; -fx-background-radius: 8; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-cursor: hand;");
+
+                            StackPane av = Ui.avatar(Ui.initials(c.getStudentName()), c.getMatchScore() >= 80 ? "avatar-mint" : "avatar-yellow");
+                            av.setPrefSize(32, 32);
+                            av.setMinSize(32, 32);
+
+                            VBox info = new VBox(2);
+                            Label name = new Label(c.getStudentName());
+                            name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
+                            String skillSummary = c.getMatchedSkills().isEmpty()
+                                    ? (c.getAllStudentSkills().isEmpty() ? c.getProgramAndYear() : c.getAllStudentSkills().get(0))
+                                    : c.getMatchedSkills().get(0);
+                            Label prog = new Label(c.getProgramAndYear() + " • " + skillSummary);
+                            prog.setStyle("-fx-font-size: 10px; -fx-text-fill: #6E6862;");
+                            info.getChildren().addAll(name, prog);
+                            HBox.setHgrow(info, Priority.ALWAYS);
+
+                            Label scPill = Ui.badge(c.getMatchScore() + "%", c.getMatchScoreBadgeStyle());
+                            scPill.setStyle("-fx-font-weight: bold; -fx-font-size: 11px; -fx-padding: 3 8;");
+
+                            row.getChildren().addAll(av, info, scPill);
+                            row.setOnMouseClicked(ev -> showCandidatePortfolioOrProfile(c));
+                            contentList.getChildren().add(row);
+                        }
+                    }
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        contentList.getChildren().clear();
+                        contentList.getChildren().add(new Label("Could not load recommendations."));
+                    });
+                    return null;
+                });
+
+        return recCard;
+    }
+
+    private static void showCandidatePortfolioOrProfile(StudentRecommendation candidate) {
+        int sid = candidate.getStudent().getStudentId();
+        int eid = employerId();
+        Optional<Portfolio> portOpt = portfolios.portfolioForStudent(sid);
+
+        if (portOpt.isPresent()) {
+            Portfolio p = portOpt.get();
+            if (!portfolios.isVisibleToEmployer(p.getPortfolioId(), eid)) {
+                accessRepo.findByPortfolioAndEmployer(p.getPortfolioId(), eid).ifPresentOrElse(
+                        a -> {
+                            a.setAccessStatus("Approved");
+                            a.setGrantedAt(LocalDateTime.now());
+                            accessRepo.update(a);
+                        },
+                        () -> {
+                            PortfolioAccess a = new PortfolioAccess();
+                            a.setPortfolioId(p.getPortfolioId());
+                            a.setEmployerId(eid);
+                            a.setAccessStatus("Approved");
+                            a.setGrantedAt(LocalDateTime.now());
+                            accessRepo.save(a);
+                        }
+                );
+            }
+            guard(() -> PortfolioDetailsView.show(p, false));
+        } else {
+            showCandidateProfileDialog(candidate);
+        }
+    }
+
+    private static void showCandidateProfileDialog(StudentRecommendation candidate) {
+        int sid = candidate.getStudent().getStudentId();
+        String studentName = candidate.getStudentName();
+
+        VBox content = new VBox(14);
+        content.setPadding(new Insets(10));
+
+        GridPane infoGrid = new GridPane();
+        infoGrid.setHgap(16);
+        infoGrid.setVgap(8);
+        infoGrid.add(Ui.propertyTile("Student Name", studentName), 0, 0);
+        infoGrid.add(Ui.propertyTile("Student Number", candidate.getStudent().getStudentNumber()), 1, 0);
+        infoGrid.add(Ui.propertyTile("Degree / Program", candidate.getStudent().getProgram()), 0, 1);
+        infoGrid.add(Ui.propertyTile("Year Level", String.valueOf(candidate.getStudent().getYearLevel())), 1, 1);
+        infoGrid.add(Ui.propertyTile("Identity Status", candidate.isIdentityVerified() ? Ui.badge("Verified", "badge-pill-mint") : Ui.badge("Unverified", "badge-pill-cream")), 0, 2);
+        infoGrid.add(Ui.propertyTile("Enrollment Status", candidate.getStudent().getEnrollmentStatus()), 1, 2);
+
+        VBox skillsBox = new VBox(6);
+        Label skTitle = new Label("Recorded Technical Skills");
+        skTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
+        skillsBox.getChildren().add(skTitle);
+        var sSkills = skills.forStudent(sid);
+        if (sSkills.isEmpty()) {
+            skillsBox.getChildren().add(new Label("No technical skills recorded yet."));
+        } else {
+            var skillNames = directory.skillNames();
+            for (StudentSkill ss : sSkills) {
+                String label = skillNames.getOrDefault(ss.getSkillId(), "Skill #" + ss.getSkillId()) +
+                        " — " + ss.getProficiencyLevel() + (ss.getAssessmentScore() != null ? " (" + ss.getAssessmentScore() + "%)" : "");
+                skillsBox.getChildren().add(new Label("• " + label));
+            }
+        }
+
+        VBox projBox = new VBox(6);
+        Label prTitle = new Label("Projects & Capstone Experience");
+        prTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
+        projBox.getChildren().add(prTitle);
+        var sProjects = projects.projectsForStudent(sid);
+        if (sProjects.isEmpty()) {
+            projBox.getChildren().add(new Label("No projects recorded yet."));
+        } else {
+            for (Project p : sProjects) {
+                String item = p.getProjectTitle() + " (" + p.getProjectType() + ")" +
+                        (p.getTechnologiesUsed() != null ? " — Tech: " + p.getTechnologiesUsed() : "");
+                projBox.getChildren().add(new Label("• " + item));
+            }
+        }
+
+        VBox credBox = new VBox(6);
+        Label crTitle = new Label("Achievements & Certifications");
+        crTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
+        credBox.getChildren().add(crTitle);
+        var sCreds = students.credentialsFor(sid);
+        if (sCreds.isEmpty()) {
+            credBox.getChildren().add(new Label("No credentials recorded yet."));
+        } else {
+            for (AcademicCredential c : sCreds) {
+                credBox.getChildren().add(new Label("• " + c.getType().getDisplay() + ": " + c.getTitle() + " (" + c.getOrganization() + ")"));
+            }
+        }
+
+        content.getChildren().addAll(infoGrid, new Separator(), skillsBox, new Separator(), projBox, new Separator(), credBox);
+        ScrollPane sp = new ScrollPane(content);
+        sp.setFitToWidth(true);
+        sp.setPrefViewportWidth(650);
+        sp.setPrefViewportHeight(500);
+
+        Ui.viewDialog("Candidate Profile - " + studentName, sp);
+    }
+
+    private static void promptShortlistOrInvite(StudentRecommendation candidate,
+                                                List<JobOpportunity> ownedOpportunities,
+                                                Runnable onComplete) {
+        if (ownedOpportunities == null || ownedOpportunities.isEmpty()) {
+            Alerts.error("You need at least one open opportunity to shortlist or invite candidates. Please post an opportunity first.");
+            return;
+        }
+
+        ComboBox<JobOpportunity> oppCombo = new ComboBox<>(FXCollections.observableArrayList(ownedOpportunities));
+        oppCombo.setConverter(new javafx.util.StringConverter<>() {
+            @Override
+            public String toString(JobOpportunity o) {
+                return o == null ? "" : o.getTitle() + " (" + o.getOpportunityType() + ")";
+            }
+            @Override
+            public JobOpportunity fromString(String string) { return null; }
+        });
+
+        if (candidate.getOpportunity() != null) {
+            ownedOpportunities.stream()
+                    .filter(o -> o.getOpportunityId() == candidate.getOpportunity().getOpportunityId())
+                    .findFirst()
+                    .ifPresent(oppCombo.getSelectionModel()::select);
+        }
+        if (oppCombo.getSelectionModel().getSelectedItem() == null) {
+            oppCombo.getSelectionModel().selectFirst();
+        }
+
+        TextArea noteField = Ui.area("Personalized invitation message or shortlist note...");
+        noteField.setText("We evaluated your verified skills and portfolio on NextIT and invite you to interview / apply for this opportunity.");
+
+        Label studentLabel = new Label(candidate.getStudentName() + " (" + candidate.getProgramAndYear() + ")");
+        studentLabel.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
+
+        Node form = Ui.form(
+                new String[]{"Candidate", "Opportunity Position", "Invitation / Shortlist Note"},
+                new Node[]{studentLabel, oppCombo, noteField}
+        );
+
+        Ui.dialog("Shortlist & Invite Candidate", form).ifPresent(btn -> {
+            if (btn != ButtonType.OK) return;
+            JobOpportunity chosen = oppCombo.getValue();
+            if (chosen == null) {
+                Alerts.error("Please select an opportunity.");
+                return;
+            }
+            guard(() -> {
+                recommendationService.shortlistOrInviteCandidate(
+                        chosen.getEmployerId(),
+                        candidate.getStudent().getStudentId(),
+                        chosen.getOpportunityId(),
+                        noteField.getText()
+                );
+                Alerts.info("Candidate " + candidate.getStudentName() + " has been shortlisted and invited for \"" + chosen.getTitle() + "\"!");
+                if (onComplete != null) onComplete.run();
+            });
+        });
     }
 }

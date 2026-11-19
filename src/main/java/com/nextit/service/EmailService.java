@@ -143,18 +143,18 @@ public final class EmailService {
 
     private static String buildHtmlEmail(String otpCode) {
         return """
-            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; background: #F1F2FA; border-radius: 24px; color: #383139;">
-              <div style="background: linear-gradient(135deg, #FFCBE1 0%, #F6A3CA 60%, #EA8CB8 100%); padding: 18px 24px; border-radius: 20px; text-align: center; margin-bottom: 24px;">
-                <h1 style="margin: 0; font-size: 24px; color: #383139; font-weight: 800;">NextIT</h1>
-                <p style="margin: 4px 0 0 0; font-size: 13px; color: #48404B; font-weight: 600;">Track Your Progress, Build Your Future</p>
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; background: #FDFBFA; border-radius: 24px; color: #414141; border: 1.5px solid #C6A75E;">
+              <div style="background: linear-gradient(135deg, #660508 0%, #9E0B0F 55%, #C6A75E 100%); padding: 18px 24px; border-radius: 20px; text-align: center; margin-bottom: 24px; border: 1px solid #C6A75E;">
+                <h1 style="margin: 0; font-size: 24px; color: #FDFBFA; font-weight: 900;">NextIT</h1>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: #EFE2CA; font-weight: 700;">Track Your Progress, Build Your Future</p>
               </div>
-              <div style="background: #FFFDF7; padding: 28px 24px; border-radius: 20px; box-shadow: 0 4px 12px rgba(0,0,0,0.05); text-align: center;">
-                <h2 style="font-size: 20px; margin-top: 0; color: #383139;">Verify Your Account</h2>
-                <p style="font-size: 14px; color: #5E5360; line-height: 1.5;">Please use the following 6-digit confirmation code to complete your NextIT account verification:</p>
-                <div style="display: inline-block; background: #F1F2FA; padding: 14px 28px; border-radius: 16px; font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #383139; margin: 20px 0; border: 2px solid #F6A3CA;">
+              <div style="background: #EFE2CA; padding: 28px 24px; border-radius: 20px; box-shadow: 0 4px 12px rgba(65,65,65,0.08); text-align: center; border: 1px solid #C6A75E;">
+                <h2 style="font-size: 20px; margin-top: 0; color: #414141; font-weight: 800;">Verify Your Account</h2>
+                <p style="font-size: 14px; color: #414141; line-height: 1.5;">Please use the following 6-digit confirmation code to complete your NextIT account verification:</p>
+                <div style="display: inline-block; background: #FDFBFA; padding: 14px 28px; border-radius: 16px; font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #9E0B0F; margin: 20px 0; border: 2.5px solid #9E0B0F; box-shadow: 0 2px 8px rgba(158,11,15,0.15);">
                   {{CODE}}
                 </div>
-                <p style="font-size: 12px; color: #7A727D; margin-bottom: 0;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
+                <p style="font-size: 12px; color: #6E6862; margin-bottom: 0;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
               </div>
             </div>
             """.replace("{{CODE}}", otpCode);

@@ -34,7 +34,7 @@ public class AdminService {
                 .orElseThrow(() -> new AppException("Verification request not found."));
         req.setStatus(VerificationStatus.VERIFIED);
         req.setReviewerId(reviewerId);
-        req.setReviewerNotes(notes != null && !notes.isBlank() ? notes.trim() : "Approved by administrator");
+        req.setReviewerNotes(notes != null && !notes.isBlank() ? notes.trim() : "Approved by reviewer");
         req.setReviewedAt(LocalDateTime.now());
         verificationRepo.update(req);
 
@@ -73,34 +73,6 @@ public class AdminService {
                 .orElseThrow(() -> new AppException("User not found."));
         userRepo.updateVerificationStatus(targetUserId, VerificationStatus.VERIFIED, null, null);
         auditService.logReinstated(currentUserUsername(), targetUserId);
-    }
-
-    public void provisionAdmin(User adminUser, String plainPassword) {
-        Validator.notBlank(adminUser.getUsername(), "Username");
-        Validator.email(adminUser.getEmail());
-        Validator.notBlank(adminUser.getFirstName(), "First name");
-        Validator.notBlank(adminUser.getLastName(), "Last name");
-        Validator.notBlank(plainPassword, "Password");
-        if (plainPassword.length() < 8) {
-            throw new AppException("Administrator password must be at least 8 characters.");
-        }
-        if (userRepo.findByUsername(adminUser.getUsername().trim()).isPresent()) {
-            throw new AppException("That username is already taken.");
-        }
-        if (userRepo.findByEmail(adminUser.getEmail().trim()).isPresent()) {
-            throw new AppException("That email address is already registered.");
-        }
-
-        adminUser.setUsername(adminUser.getUsername().trim());
-        adminUser.setEmail(adminUser.getEmail().trim().toLowerCase());
-        adminUser.setRole(Role.ADMIN);
-        adminUser.setVerificationStatus(VerificationStatus.VERIFIED);
-        adminUser.setVerifiedAt(LocalDateTime.now());
-        adminUser.setMfaEnabled(true); // Require MFA for administrator accounts
-        adminUser.setPasswordHash(AuthenticationService.hashPassword(plainPassword));
-        userRepo.save(adminUser);
-
-        auditService.logAdminProvisioned(currentUserUsername(), adminUser.getUsername());
     }
 
     public List<InstitutionalRecord> institutionalRecords() {
@@ -297,6 +269,6 @@ public class AdminService {
 
     private String currentUserUsername() {
         User u = com.nextit.security.Session.currentUser();
-        return u != null ? u.getUsername() : "ADMIN";
+        return u != null ? u.getUsername() : "SYSTEM";
     }
 }

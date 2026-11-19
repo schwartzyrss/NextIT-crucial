@@ -1,6 +1,7 @@
 package com.nextit;
 
 import com.nextit.exception.AppException;
+import com.nextit.model.AcademicCredential;
 import com.nextit.model.Achievement;
 import com.nextit.model.Application;
 import com.nextit.model.Attendance;
@@ -31,6 +32,7 @@ import org.junit.jupiter.api.Test;
 
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -125,6 +127,57 @@ class ServiceAuthorizationIntegrationTest {
         badDates.setIssueDate(LocalDate.now());
         badDates.setExpirationDate(LocalDate.now().minusDays(1));
         assertThrows(AppException.class, () -> service.saveCertification(badDates));
+    }
+
+    @Test
+    void unifiedAcademicCredentialsCanBeQueriedSavedAndDeleted() {
+        Student owner = data.student();
+        StudentService service = new StudentService();
+
+        // 1. Save an achievement through the unified model
+        AcademicCredential cred1 = new AcademicCredential();
+        cred1.setType(AcademicCredential.Type.ACHIEVEMENT);
+        cred1.setStudentId(owner.getStudentId());
+        cred1.setTitle("National Hackathon Champion");
+        cred1.setOrganization("TechFest");
+        cred1.setDate(LocalDate.now().minusMonths(1));
+        cred1.setDescription("First place in national finals");
+        cred1.setVerificationUrl("https://techfest.org/winner/123");
+        service.saveCredential(cred1);
+        assertTrue(cred1.getId() > 0);
+
+        // 2. Save a certification through the unified model
+        AcademicCredential cred2 = new AcademicCredential();
+        cred2.setType(AcademicCredential.Type.CERTIFICATION);
+        cred2.setStudentId(owner.getStudentId());
+        cred2.setTitle("AWS Certified Cloud Practitioner");
+        cred2.setOrganization("Amazon Web Services");
+        cred2.setDate(LocalDate.now().minusWeeks(2));
+        cred2.setExpirationDate(LocalDate.now().plusYears(3));
+        cred2.setVerificationUrl("https://aws.amazon.com/verify/456");
+        service.saveCredential(cred2);
+        assertTrue(cred2.getId() > 0);
+
+        // 3. Query through unified credentialsFor
+        List<AcademicCredential> list = service.credentialsFor(owner.getStudentId());
+        assertTrue(list.stream().anyMatch(c -> "National Hackathon Champion".equals(c.getTitle()) && c.getType() == AcademicCredential.Type.ACHIEVEMENT));
+        assertTrue(list.stream().anyMatch(c -> "AWS Certified Cloud Practitioner".equals(c.getTitle()) && c.getType() == AcademicCredential.Type.CERTIFICATION));
+
+        // 4. Update via saveCredential
+        cred1.setTitle("National Hackathon Champion (Updated)");
+        service.saveCredential(cred1);
+        assertEquals("National Hackathon Champion (Updated)",
+                service.credentialsFor(owner.getStudentId()).stream()
+                        .filter(c -> c.getId() == cred1.getId() && c.getType() == AcademicCredential.Type.ACHIEVEMENT)
+                        .findFirst().orElseThrow().getTitle());
+
+        // 5. Delete via deleteCredential
+        service.deleteCredential(cred1);
+        service.deleteCredential(cred2);
+        assertTrue(service.credentialsFor(owner.getStudentId()).stream()
+                .noneMatch(c -> c.getId() == cred1.getId() && c.getType() == AcademicCredential.Type.ACHIEVEMENT));
+        assertTrue(service.credentialsFor(owner.getStudentId()).stream()
+                .noneMatch(c -> c.getId() == cred2.getId() && c.getType() == AcademicCredential.Type.CERTIFICATION));
     }
 
     @Test

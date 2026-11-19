@@ -22,17 +22,22 @@
           },
           colors: {
             nextit: {
-              ground: '#F1F2FA',
-              ink: '#383139',
-              'ink-secondary': '#48404B',
-              'ink-muted': '#7A727D',
-              surface: '#FFFDF7',
-              accent: '#F6A3CA',
-              'accent-hover': '#EA8CB8',
-              mint: '#C0EFDC',
-              lavender: '#DED0F9',
-              yellow: '#F9E7A8',
-              blue: '#C5E5FB',
+              ground: '#FDFBFA',
+              ink: '#414141',
+              'ink-secondary': '#414141',
+              'ink-muted': '#6E6862',
+              surface: '#EFE2CA',
+              'surface-subtle': '#FAF4EE',
+              accent: '#9E0B0F',
+              'accent-hover': '#B51217',
+              gold: '#C6A75E',
+              'gold-hover': '#B89645',
+              maroon: '#660508',
+              crimson: '#9E0B0F',
+              mint: '#EFE2CA',
+              lavender: '#EFE2CA',
+              yellow: '#C6A75E',
+              blue: '#EFE2CA',
             }
           }
         }
@@ -42,75 +47,85 @@
 
   <style>
     /* ==========================================================================
-       NextIT Claymorphism Design Tokens
+       NEXTIT DEFENSE Onboarding Design System
        ========================================================================== */
     body {
-      background-color: #F1F2FA;
-      color: #383139;
+      background-color: #FDFBFA;
+      color: #414141;
       font-family: 'Plus Jakarta Sans', sans-serif;
       min-height: 100vh;
       -webkit-font-smoothing: antialiased;
       user-select: none;
     }
 
-    /* Shared Cream Reading Tray Container */
+    /* Shared Sand/Cream Reading Tray Container */
     .clay-tray {
-      background: linear-gradient(145deg, #FFFFFF 0%, #FFFDF7 60%, #F8F4EA 100%);
+      background: linear-gradient(145deg, #FFFFFF 0%, #FDFBFA 60%, #EFE2CA 100%);
       border-radius: 36px;
+      border: 1.5px solid #C6A75E;
       box-shadow: 
-        12px 18px 36px rgba(160, 168, 195, 0.28),
-        -10px -10px 28px rgba(255, 255, 255, 0.95),
+        12px 18px 36px rgba(65, 65, 65, 0.1),
+        -8px -8px 24px rgba(255, 255, 255, 0.95),
         inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9),
-        inset -1.5px -1.5px 3px rgba(160, 168, 195, 0.12);
+        inset -1.5px -1.5px 3px rgba(198, 167, 94, 0.15);
     }
 
-    /* Signature Pink Cushion Hero Banner */
+    /* Signature Crimson Hero Banner */
     .clay-cushion-pink {
-      background: linear-gradient(135deg, #FFCBE1 0%, #F6A3CA 55%, #EA8CB8 100%);
+      background: linear-gradient(135deg, #660508 0%, #9E0B0F 55%, #B51217 100%);
       border-radius: 32px;
-      color: #383139;
+      border: 1.5px solid #C6A75E;
+      color: #FDFBFA;
       box-shadow: 
-        10px 14px 28px rgba(246, 163, 202, 0.45),
-        -6px -6px 20px rgba(255, 255, 255, 0.9),
-        inset 2px 2px 4px rgba(255, 255, 255, 0.8),
-        inset -2px -2px 4px rgba(190, 95, 140, 0.22);
+        10px 14px 28px rgba(158, 11, 15, 0.35),
+        -6px -6px 20px rgba(255, 255, 255, 0.8),
+        inset 2px 2px 4px rgba(255, 255, 255, 0.3),
+        inset -2px -2px 4px rgba(102, 5, 8, 0.4);
     }
 
-    /* Soft Pastel Cushions for Roles */
+    /* Modular Cushions for Roles */
     .clay-cushion-mint {
-      background: linear-gradient(145deg, #D4F7E8 0%, #C0EFDC 65%, #A8E5CC 100%);
+      background: linear-gradient(145deg, #FFFFFF 0%, #F5FAF6 55%, #EFE2CA 100%);
+      border: 1.5px solid #C6A75E;
+      color: #414141;
       box-shadow: 
-        8px 10px 20px rgba(170, 215, 195, 0.35),
+        8px 10px 20px rgba(26, 83, 54, 0.08),
         -6px -6px 16px rgba(255, 255, 255, 0.9),
-        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-        inset -1.5px -1.5px 3px rgba(140, 190, 170, 0.2);
+        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9),
+        inset -1.5px -1.5px 3px rgba(198, 167, 94, 0.2);
     }
 
     .clay-cushion-lavender {
-      background: linear-gradient(145deg, #EBE1FC 0%, #DED0F9 65%, #CBB7F0 100%);
+      background: linear-gradient(145deg, #FFFFFF 0%, #F8F3FA 55%, #EFE2CA 100%);
+      border: 1.5px solid #C6A75E;
+      color: #414141;
       box-shadow: 
-        8px 10px 20px rgba(195, 180, 225, 0.35),
+        8px 10px 20px rgba(78, 35, 94, 0.08),
         -6px -6px 16px rgba(255, 255, 255, 0.9),
-        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-        inset -1.5px -1.5px 3px rgba(170, 155, 205, 0.2);
+        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9),
+        inset -1.5px -1.5px 3px rgba(198, 167, 94, 0.2);
     }
 
     .clay-cushion-yellow {
-      background: linear-gradient(145deg, #FCF0C2 0%, #F9E7A8 65%, #EAD48D 100%);
+      background: linear-gradient(145deg, #FFFFFF 0%, #FCF7EB 55%, #EFE2CA 100%);
+      border: 1.5px solid #C6A75E;
+      color: #414141;
       box-shadow: 
-        8px 10px 20px rgba(215, 200, 150, 0.35),
+        8px 10px 20px rgba(198, 167, 94, 0.15),
         -6px -6px 16px rgba(255, 255, 255, 0.9),
-        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-        inset -1.5px -1.5px 3px rgba(195, 175, 120, 0.2);
+        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9),
+        inset -1.5px -1.5px 3px rgba(198, 167, 94, 0.2);
     }
 
     .clay-cushion-blue {
-      background: linear-gradient(145deg, #DCF0FE 0%, #C5E5FB 65%, #AED5F4 100%);
+      background: linear-gradient(145deg, #FFFFFF 0%, #F3F7FA 55%, #EFE2CA 100%);
+      border: 1.5px solid #8DAAC2;
+      color: #414141;
       box-shadow: 
-        8px 10px 20px rgba(175, 205, 230, 0.35),
+        8px 10px 20px rgba(27, 60, 89, 0.08),
         -6px -6px 16px rgba(255, 255, 255, 0.9),
-        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-        inset -1.5px -1.5px 3px rgba(150, 185, 215, 0.2);
+        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9),
+        inset -1.5px -1.5px 3px rgba(141, 170, 194, 0.2);
     }
 
     /* Interactive Role Selection Cushion */
@@ -127,47 +142,48 @@
     }
 
     .clay-role-card.is-selected {
-      border: 3px solid #F6A3CA;
+      border: 3px solid #9E0B0F;
       transform: scale(0.99);
       box-shadow: 
-        inset 3px 3px 6px rgba(190, 95, 140, 0.25),
+        inset 3px 3px 6px rgba(158, 11, 15, 0.25),
         inset -2px -2px 5px rgba(255, 255, 255, 0.9),
-        0 6px 18px rgba(246, 163, 202, 0.45);
+        0 6px 18px rgba(158, 11, 15, 0.35);
     }
 
     /* Debossed Form Inputs: Full Pill Shape */
     .clay-input-pill {
-      background: #FFFDF7;
+      background: #FFFFFF;
       border-radius: 9999px;
       padding: 12px 22px;
       font-size: 14px;
       font-weight: 500;
-      color: #383139;
+      color: #414141;
       outline: none;
       width: 100%;
       user-select: text;
-      border: 1.5px solid transparent;
+      border: 1.5px solid #DBC8AA;
       box-shadow: 
-        inset 2px 3px 6px rgba(160, 168, 195, 0.32),
+        inset 2px 3px 6px rgba(65, 65, 65, 0.08),
         inset -2px -2px 5px rgba(255, 255, 255, 0.95);
       transition: all 0.2s ease;
     }
 
     .clay-input-pill:focus {
       background: #FFFFFF;
-      border-color: #F6A3CA;
+      border-color: #9E0B0F;
       box-shadow: 
-        inset 1.5px 2px 4px rgba(246, 163, 202, 0.2),
+        inset 1.5px 2px 4px rgba(158, 11, 15, 0.15),
         inset -2px -2px 4px rgba(255, 255, 255, 0.9),
-        0 0 0 3.5px rgba(246, 163, 202, 0.28);
+        0 0 0 3.5px rgba(158, 11, 15, 0.2);
     }
 
-    /* Primary Pill Button (Pink Cushion Accent) */
+    /* Primary Pill Button (Deep Crimson Red with Dark Maroon and Ochre Trim) */
     .clay-btn-pill-primary {
-      background: linear-gradient(135deg, #FFCBE1 0%, #F6A3CA 65%, #EA8CB8 100%);
-      color: #383139;
+      background: linear-gradient(135deg, #B51217 0%, #9E0B0F 55%, #660508 100%);
+      color: #FDFBFA;
       border-radius: 9999px;
-      font-weight: 700;
+      border: 1.2px solid #C6A75E;
+      font-weight: 800;
       font-size: 14px;
       padding: 12px 28px;
       transition: all 0.18s ease;
@@ -177,35 +193,34 @@
       justify-content: center;
       gap: 8px;
       box-shadow: 
-        6px 8px 18px rgba(246, 163, 202, 0.55),
+        6px 8px 18px rgba(158, 11, 15, 0.45),
         -4px -4px 12px rgba(255, 255, 255, 0.85),
-        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9),
-        inset -1.5px -1.5px 3px rgba(190, 95, 140, 0.25);
+        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.4),
+        inset -1.5px -1.5px 3px rgba(102, 5, 8, 0.3);
     }
 
     .clay-btn-pill-primary:hover {
-      background: linear-gradient(135deg, #FFD6E8 0%, #F8B0D2 65%, #EE94BD 100%);
+      background: linear-gradient(135deg, #C9161B 0%, #B51217 65%, #7D090D 100%);
       transform: translateY(-2px);
       box-shadow: 
-        8px 12px 22px rgba(246, 163, 202, 0.7),
-        -5px -5px 14px rgba(255, 255, 255, 0.95),
-        inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.95),
-        inset -1.5px -1.5px 3px rgba(190, 95, 140, 0.25);
+        8px 12px 22px rgba(158, 11, 15, 0.6),
+        -5px -5px 14px rgba(255, 255, 255, 0.95);
     }
 
     .clay-btn-pill-primary:active {
       transform: scale(0.97);
       box-shadow: 
-        inset 3px 3px 6px rgba(190, 95, 140, 0.35),
+        inset 3px 3px 6px rgba(102, 5, 8, 0.4),
         inset -2px -2px 5px rgba(255, 255, 255, 0.8),
-        2px 4px 8px rgba(246, 163, 202, 0.3);
+        2px 4px 8px rgba(158, 11, 15, 0.3);
     }
 
-    /* Secondary Pill Button (Ivory / Butter Yellow Pill) */
+    /* Secondary Pill Button (Warm Sand Cream Pill) */
     .clay-btn-pill-secondary {
-      background: linear-gradient(145deg, #FFFFFF 0%, #FFFDF7 65%, #F4EEDF 100%);
-      color: #383139;
+      background: linear-gradient(145deg, #FFFFFF 0%, #FDFBFA 65%, #EFE2CA 100%);
+      color: #414141;
       border-radius: 9999px;
+      border: 1.5px solid #C6A75E;
       font-weight: 700;
       font-size: 14px;
       padding: 12px 24px;
@@ -216,21 +231,22 @@
       justify-content: center;
       gap: 6px;
       box-shadow: 
-        5px 6px 14px rgba(160, 168, 195, 0.3),
+        5px 6px 14px rgba(65, 65, 65, 0.08),
         -4px -4px 10px rgba(255, 255, 255, 0.9),
         inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.8),
-        inset -1.5px -1.5px 3px rgba(160, 168, 195, 0.1);
+        inset -1.5px -1.5px 3px rgba(198, 167, 94, 0.15);
     }
 
     .clay-btn-pill-secondary:hover {
-      background: linear-gradient(145deg, #FFFFFF 0%, #FFF9EB 65%, #EFE8D6 100%);
+      background: #C6A75E;
+      color: #FDFBFA;
       transform: translateY(-1.5px);
     }
 
     .clay-btn-pill-secondary:active {
       transform: scale(0.97);
       box-shadow: 
-        inset 2.5px 2.5px 5px rgba(160, 168, 195, 0.35),
+        inset 2.5px 2.5px 5px rgba(198, 167, 94, 0.35),
         inset -2px -2px 4px rgba(255, 255, 255, 0.9);
     }
 
@@ -240,25 +256,25 @@
       height: 58px;
       text-align: center;
       font-size: 24px;
-      font-weight: 800;
-      color: #383139;
-      background: #FFFDF7;
+      font-weight: 900;
+      color: #9E0B0F;
+      background: #FFFFFF;
       border-radius: 20px;
-      border: 1.5px solid transparent;
+      border: 1.5px solid #DBC8AA;
       outline: none;
       transition: all 0.18s ease;
       user-select: text;
       box-shadow: 
-        inset 3px 3px 6px rgba(160, 168, 195, 0.38),
+        inset 3px 3px 6px rgba(65, 65, 65, 0.08),
         inset -2.5px -2.5px 5px rgba(255, 255, 255, 0.95);
     }
 
     .clay-otp-pill:focus {
       background: #FFFFFF;
-      border-color: #F6A3CA;
+      border-color: #9E0B0F;
       transform: translateY(-2px);
       box-shadow: 
-        4px 6px 14px rgba(246, 163, 202, 0.35),
+        4px 6px 14px rgba(158, 11, 15, 0.25),
         inset 1.5px 1.5px 3px rgba(255, 255, 255, 0.9);
     }
 
@@ -272,26 +288,30 @@
     }
 
     .clay-step-pill-active {
-      background: linear-gradient(135deg, #FFCBE1 0%, #F6A3CA 65%, #EA8CB8 100%);
-      color: #383139;
+      background: linear-gradient(135deg, #B51217 0%, #9E0B0F 65%, #660508 100%);
+      color: #FDFBFA;
+      border: 1px solid #C6A75E;
       box-shadow: 
-        3px 4px 10px rgba(246, 163, 202, 0.5),
-        inset 1px 1px 2px rgba(255, 255, 255, 0.7);
+        3px 4px 10px rgba(158, 11, 15, 0.4),
+        inset 1px 1px 2px rgba(255, 255, 255, 0.5);
     }
 
     .clay-step-pill-done {
-      background: linear-gradient(145deg, #D4F7E8 0%, #C0EFDC 100%);
-      color: #245842;
+      background: #EFE2CA;
+      color: #660508;
+      border: 1px solid #C6A75E;
+      font-weight: 800;
       box-shadow: 
-        2px 3px 8px rgba(170, 215, 195, 0.4),
+        2px 3px 8px rgba(198, 167, 94, 0.3),
         inset 1px 1px 2px rgba(255, 255, 255, 0.7);
     }
 
     .clay-step-pill-inactive {
-      background: #E8EDF5;
-      color: #7A727D;
+      background: #FAF4EE;
+      color: #6E6862;
+      border: 1px solid #E5D5BF;
       box-shadow: 
-        inset 1.5px 1.5px 3px rgba(160, 168, 195, 0.3),
+        inset 1.5px 1.5px 3px rgba(65, 65, 65, 0.05),
         inset -1.5px -1.5px 3px rgba(255, 255, 255, 0.9);
     }
   </style>
@@ -304,7 +324,7 @@
     x-data="{
       view: 1, // 1: Role Selection, 2: Account Form
       step: 1, // 1: Account, 2: Affiliation, 3: Verify, 4: Ready
-      role: 'student', // student, instructor, employer, admin
+      role: 'student', // student, instructor, employer
       username: '',
       email: '',
       firstName: '',
@@ -364,7 +384,7 @@
           desc: 'Build your verified portfolio, showcase capstones, and get discovered by employers.',
           badge: 'Future Talent',
           cushionClass: 'clay-cushion-mint',
-          badgeClass: 'bg-emerald-100 text-emerald-900 border border-emerald-300',
+          badgeClass: 'bg-[#EAF4EC] text-[#1A5336] border border-[#C6A75E]/60 shadow-sm',
           emailLabel: 'University Academic Email',
           emailPlaceholder: 'alex.reyes@university.edu',
           orgLabel: 'Degree Program / Course',
@@ -377,7 +397,7 @@
           desc: 'Evaluate technical skills, assess capstone contributions, and guide student growth.',
           badge: 'Academic Faculty',
           cushionClass: 'clay-cushion-lavender',
-          badgeClass: 'bg-purple-100 text-purple-900 border border-purple-300',
+          badgeClass: 'bg-[#F4EEF7] text-[#4E235E] border border-[#C6A75E]/60 shadow-sm',
           emailLabel: 'Faculty Institutional Email',
           emailPlaceholder: 'dr.garcia@university.edu',
           orgLabel: 'Academic Department',
@@ -390,42 +410,21 @@
           desc: 'Post internships, search verified talent repositories, and recruit on campus.',
           badge: 'Industry Partner',
           cushionClass: 'clay-cushion-yellow',
-          badgeClass: 'bg-amber-100 text-amber-900 border border-amber-300',
+          badgeClass: 'bg-[#FAF2DB] text-[#6B4B0B] border border-[#C6A75E] shadow-sm',
           emailLabel: 'Corporate Work Email',
           emailPlaceholder: 'john.delacruz@techcorp.com',
           orgLabel: 'Company Name',
           orgPlaceholder: 'TechCorp Solutions Inc.',
           detailLabel: 'Company Size & Industry',
           detailPlaceholder: '50-200 Employees • Enterprise Tech'
-        },
-        admin: {
-          title: 'Administrator',
-          desc: 'Manage campus departments, verify domains, and oversee institutional access.',
-          badge: 'System Admin',
-          cushionClass: 'clay-cushion-blue',
-          badgeClass: 'bg-blue-100 text-blue-900 border border-blue-300',
-          emailLabel: 'Administrator Email',
-          emailPlaceholder: 'admin@nextit.edu',
-          orgLabel: 'Institutional System',
-          orgPlaceholder: 'Campus Central IT Services',
-          detailLabel: 'Security Clearance Code',
-          detailPlaceholder: 'ADM-SEC-2026'
         }
       },
 
       selectRole(r) {
-        if (r === 'admin') {
-          alert('Administrator accounts are strictly provisioned by authorized campus administrators and cannot be self-registered publicly. Please contact IT Security for clearance.');
-          return;
-        }
         this.role = r;
       },
 
       continueToForm() {
-        if (this.role === 'admin') {
-          alert('Public administrator registration is disabled.');
-          return;
-        }
         this.view = 2;
         this.step = 1;
         this.formError = '';
@@ -827,9 +826,9 @@
     <div class="flex items-center justify-between mb-6 px-2">
       <div class="flex items-center gap-3">
         <!-- NextIT Oval Pill Logo Badge -->
-        <div class="clay-cushion-pink px-4 py-1.5 rounded-full font-black text-sm text-nextit-ink shadow-sm tracking-wide flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-white shadow-inner"></span>
-          <span>NextIT</span>
+        <div class="px-4 py-1.5 rounded-full font-black text-sm text-[#FDFBFA] bg-gradient-to-r from-[#9E0B0F] to-[#660508] border border-[#C6A75E] shadow-sm tracking-wide flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-[#C6A75E] shadow-sm"></span>
+          <span class="text-white font-black tracking-wider">NextIT</span>
         </div>
         <span class="text-xs font-semibold text-nextit-ink-muted hidden sm:inline">Track Your Progress, Build Your Future</span>
       </div>
@@ -855,46 +854,46 @@
 
         <div>
           <!-- Subtitle Tag -->
-          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/40 text-xs font-bold text-nextit-ink mb-6 shadow-sm">
+          <div class="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-white/15 border border-white/30 text-xs font-extrabold text-[#FDFBFA] mb-6 shadow-sm backdrop-blur-sm">
             <span>✨ Tactile Experience</span>
           </div>
 
-          <!-- Hero Headline in NextIT Ink -->
-          <h1 class="text-3xl md:text-4xl font-extrabold leading-tight tracking-tight mb-4 text-nextit-ink">
+          <!-- Hero Headline in Crisp White -->
+          <h1 class="text-3xl md:text-4xl font-black leading-tight tracking-tight mb-4 text-[#FFFFFF] drop-shadow-sm">
             Track Your Progress, Build Your Future.
           </h1>
-          <p class="text-nextit-ink-secondary text-sm md:text-base leading-relaxed mb-8 font-medium">
+          <p class="text-[#F7EFE6] text-sm md:text-base leading-relaxed mb-8 font-medium">
             NextIT seamlessly connects students, academic faculty, and industry employers in one tactile, verified talent network.
           </p>
 
           <!-- Puffy Milestone Cushion Pill -->
-          <div class="p-5 rounded-3xl bg-white/45 shadow-inner border border-white/60 space-y-3 mb-8">
-            <div class="text-[11px] font-bold uppercase tracking-wider text-nextit-ink">Milestones</div>
-            <div class="flex items-center justify-between text-xs font-bold text-nextit-ink">
-              <span class="flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-sm animate-pulse"></span> Learn
+          <div class="p-5 rounded-3xl bg-black/20 backdrop-blur-md border border-white/25 shadow-inner space-y-3 mb-8">
+            <div class="text-[11px] font-extrabold uppercase tracking-wider text-[#C6A75E]">Milestones</div>
+            <div class="flex items-center justify-between text-xs font-bold text-[#FFFFFF]">
+              <span class="flex items-center gap-1.5 text-white">
+                <span class="w-2.5 h-2.5 rounded-full bg-[#C6A75E] shadow-sm animate-pulse"></span> Learn
               </span>
-              <span class="text-nextit-ink-muted">➔</span>
-              <span>Collaborate</span>
-              <span class="text-nextit-ink-muted">➔</span>
-              <span>Verify</span>
-              <span class="text-nextit-ink-muted">➔</span>
-              <span>Launch</span>
+              <span class="text-[#C6A75E]/80">➔</span>
+              <span class="text-white">Collaborate</span>
+              <span class="text-[#C6A75E]/80">➔</span>
+              <span class="text-white">Verify</span>
+              <span class="text-[#C6A75E]/80">➔</span>
+              <span class="text-white">Launch</span>
             </div>
           </div>
         </div>
 
         <!-- Inset Trust Metrics Badge -->
-        <div class="p-4 rounded-3xl bg-white/40 border border-white/50 flex items-center gap-3.5">
-          <div class="w-11 h-11 rounded-2xl bg-white/80 shadow-sm flex items-center justify-center">
-            <svg class="w-6 h-6 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <div class="p-4 rounded-3xl bg-black/20 backdrop-blur-md border border-white/25 flex items-center gap-3.5 shadow-sm">
+          <div class="w-11 h-11 rounded-2xl bg-[#FDFBFA] border border-[#C6A75E] shadow-sm flex items-center justify-center flex-shrink-0">
+            <svg class="w-6 h-6 text-[#9E0B0F]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
               <path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/>
             </svg>
           </div>
           <div>
-            <div class="text-xs font-bold text-nextit-ink">Cryptographically Verified Proofs</div>
-            <div class="text-[11px] text-nextit-ink-secondary">Direct institutional registrar sync & corporate scorecards.</div>
+            <div class="text-xs font-extrabold text-[#FFFFFF]">Cryptographically Verified Proofs</div>
+            <div class="text-[11px] text-[#F7EFE6] font-medium">Direct institutional registrar sync & corporate scorecards.</div>
           </div>
         </div>
       </div>
@@ -903,7 +902,7 @@
       <div class="lg:col-span-7 clay-tray p-8 md:p-10 flex flex-col justify-between">
         <div>
           <div class="flex items-center justify-between mb-3">
-            <span class="text-xs font-bold uppercase tracking-wider text-nextit-ink bg-purple-100/70 border border-purple-200 px-3.5 py-1 rounded-full">
+            <span class="text-xs font-bold uppercase tracking-wider text-[#9E0B0F] bg-[#FAF4EE] border border-[#C6A75E] px-3.5 py-1 rounded-full shadow-sm">
               Step 1 of 2
             </span>
             <span class="text-xs font-medium text-nextit-ink-muted">
@@ -919,8 +918,8 @@
             Choose your role to load your personalized workspace and authentication pipeline.
           </p>
 
-          <!-- 4 Pastel Clay Selection Cards Grid -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <!-- 3 Pastel Clay Selection Cards Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             
             <!-- 1. Student Card (Mint Cushion) -->
             <div 
@@ -930,7 +929,7 @@
             >
               <div class="flex items-start justify-between mb-3">
                 <div class="w-8 h-8 flex items-center justify-center">
-                  <svg class="w-7 h-7 text-emerald-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg class="w-7 h-7 text-[#1A5336]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M7 20h10"/>
                     <path d="M10 20c5.5-2.5.8-6.4 3-13"/>
                     <path d="M9.5 9.4c1.1.8 1.8 2.2 2.3 3.7-2 .4-3.5.4-4.8-.3-1.2-.6-2.3-1.9-3-4.2 2.8-.5 4.4 0 5.5.8z"/>
@@ -957,7 +956,7 @@
             >
               <div class="flex items-start justify-between mb-3">
                 <div class="w-8 h-8 flex items-center justify-center">
-                  <svg class="w-7 h-7 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg class="w-7 h-7 text-[#4E235E]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1-2.5-2.5Z"/>
                     <path d="M6 6h10"/>
                     <path d="M6 10h10"/>
@@ -984,7 +983,7 @@
             >
               <div class="flex items-start justify-between mb-3">
                 <div class="w-8 h-8 flex items-center justify-center">
-                  <svg class="w-7 h-7 text-amber-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <svg class="w-7 h-7 text-[#6B4B0B]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <rect width="20" height="14" x="2" y="7" rx="2" ry="2"/>
                     <path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>
                   </svg>
@@ -1001,38 +1000,11 @@
               </div>
             </div>
 
-            <!-- 4. Admin Card (Restricted - Provisioned Only) -->
-            <div 
-              @click="selectRole('admin')" 
-              class="clay-role-card flex flex-col justify-between opacity-85 border-2 border-dashed border-sky-300/80 cursor-pointer hover:border-sky-500"
-            >
-              <div class="flex items-start justify-between mb-3">
-                <div class="w-8 h-8 flex items-center justify-center">
-                  <svg class="w-7 h-7 text-sky-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                </div>
-                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-900 border border-sky-300">
-                  🔒 Restricted
-                </span>
-              </div>
-              <div>
-                <h3 class="text-base font-extrabold text-nextit-ink mb-1 flex items-center gap-1.5">
-                  <span>Administrator</span>
-                  <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-sky-100 text-sky-800">IT Provisioned</span>
-                </h3>
-                <p class="text-xs text-nextit-ink-secondary leading-relaxed font-medium">
-                  Public registration is disabled. Administrator accounts are provisioned exclusively by authorized system administrators.
-                </p>
-              </div>
-            </div>
-
           </div>
         </div>
 
         <!-- Bottom Action CTA -->
-        <div class="pt-4 border-t border-purple-100/80 flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="pt-4 border-t border-[#DBC8AA] flex flex-col sm:flex-row items-center justify-between gap-4">
           <div class="text-xs font-semibold text-nextit-ink-secondary">
             Configuring: <span class="font-bold text-nextit-ink capitalize" x-text="roles[role].title"></span>
           </div>
@@ -1076,15 +1048,15 @@
           <div class="clay-step-pill" :class="step === 1 ? 'clay-step-pill-active' : (step > 1 ? 'clay-step-pill-done' : 'clay-step-pill-inactive')">
             1. Account
           </div>
-          <div class="h-0.5 w-6 bg-purple-200"></div>
+          <div class="h-0.5 w-6 bg-[#DBC8AA]"></div>
           <div class="clay-step-pill" :class="step === 2 ? 'clay-step-pill-active' : (step > 2 ? 'clay-step-pill-done' : 'clay-step-pill-inactive')">
             2. Affiliation
           </div>
-          <div class="h-0.5 w-6 bg-purple-200"></div>
+          <div class="h-0.5 w-6 bg-[#DBC8AA]"></div>
           <div class="clay-step-pill" :class="step === 3 ? 'clay-step-pill-active' : (step > 3 ? 'clay-step-pill-done' : 'clay-step-pill-inactive')">
             3. Verify
           </div>
-          <div class="h-0.5 w-6 bg-purple-200"></div>
+          <div class="h-0.5 w-6 bg-[#DBC8AA]"></div>
           <div class="clay-step-pill" :class="step === 4 ? 'clay-step-pill-active' : 'clay-step-pill-inactive'">
             4. Ready
           </div>
@@ -1208,7 +1180,7 @@
                   x-transition:leave="transition ease-in duration-100"
                   x-transition:leave-start="opacity-100 translate-y-0 scale-100"
                   x-transition:leave-end="opacity-0 -translate-y-2 scale-95"
-                  class="absolute left-0 right-0 top-full mt-2 z-50 bg-[#FFFDF7] rounded-2xl shadow-2xl border border-stone-200/90 p-2 max-h-56 overflow-y-auto"
+                  class="absolute left-0 right-0 top-full mt-2 z-50 bg-[#FDFBFA] rounded-2xl shadow-2xl border border-[#C6A75E] p-2 max-h-56 overflow-y-auto"
                   style="display: none;"
                 >
                   <div class="px-3 py-1.5 text-[10px] font-extrabold text-nextit-ink-muted uppercase tracking-wider border-b border-stone-100 flex items-center justify-between">
@@ -1220,7 +1192,7 @@
                       <div 
                         @click="selectDomainSuggestion(inst)"
                         @mouseenter="emailValidation.focusedIndex = idx"
-                        :class="emailValidation.focusedIndex === idx ? 'bg-purple-100/70 text-purple-950 font-bold' : 'hover:bg-stone-100 text-stone-800'"
+                        :class="emailValidation.focusedIndex === idx ? 'bg-[#EFE2CA] text-[#414141] font-bold' : 'hover:bg-[#FAF4EE] text-[#414141]'"
                         class="px-3 py-2 rounded-xl text-xs cursor-pointer flex items-center justify-between transition-colors duration-100"
                       >
                         <div class="flex items-center gap-2.5">
@@ -1230,7 +1202,7 @@
                             <span class="text-[11px] text-nextit-ink-muted ml-1" x-text="'(' + inst.country + ')'"></span>
                           </div>
                         </div>
-                        <span class="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-white/80 border border-stone-200 text-purple-700" x-text="'@' + inst.domain"></span>
+                        <span class="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-[#FAF4EE] border border-[#C6A75E] text-[#9E0B0F]" x-text="'@' + inst.domain"></span>
                       </div>
                     </template>
                   </div>
@@ -1294,7 +1266,6 @@
                 <span x-show="role === 'student'">Student ID Number</span>
                 <span x-show="role === 'instructor'">Faculty Employee ID</span>
                 <span x-show="role === 'employer'">Corporate Contact / Title</span>
-                <span x-show="role === 'admin'">Campus Master Authorization ID</span>
               </label>
               <input type="text" x-model="idNumber" placeholder="e.g. 2026-0091" class="clay-input-pill" />
             </div>
@@ -1390,7 +1361,7 @@
               <span x-show="resendCountdown === 0">Resend code</span>
             </button>
             <span class="text-stone-300">•</span>
-            <button @click="openSmtpModal()" class="font-bold text-purple-700 hover:underline flex items-center gap-1">
+            <button @click="openSmtpModal()" class="font-bold text-[#9E0B0F] hover:underline flex items-center gap-1">
               <span>⚙️</span> Gmail SMTP Settings
             </button>
           </div>
@@ -1424,13 +1395,13 @@
           <!-- Profile Badge Card in Pink Cushion -->
           <div class="clay-cushion-pink p-6 max-w-sm mx-auto mb-8 text-left">
             <div class="flex items-center gap-4">
-              <div class="w-14 h-14 rounded-full bg-white/70 shadow-sm flex items-center justify-center font-black text-xl text-nextit-ink">
+              <div class="w-14 h-14 rounded-full bg-[#FDFBFA] border border-[#C6A75E] shadow-sm flex items-center justify-center font-black text-xl text-[#9E0B0F]">
                 <span x-text="(firstName ? firstName[0] : 'A') + (lastName ? lastName[0] : 'R')"></span>
               </div>
               <div>
-                <div class="font-extrabold text-base text-nextit-ink" x-text="(firstName || 'Alex') + ' ' + (lastName || 'Reyes')"></div>
-                <div class="text-xs text-nextit-ink-secondary font-semibold" x-text="email || 'student@university.edu'"></div>
-                <span class="inline-block mt-1 px-3 py-0.5 rounded-full text-[10px] font-bold bg-white/60 text-nextit-ink shadow-sm">
+                <div class="font-extrabold text-base text-[#FFFFFF]" x-text="(firstName || 'Alex') + ' ' + (lastName || 'Reyes')"></div>
+                <div class="text-xs text-[#F7EFE6] font-semibold" x-text="email || 'student@university.edu'"></div>
+                <span class="inline-block mt-1 px-3 py-0.5 rounded-full text-[10px] font-bold bg-[#FAF4EE] border border-[#C6A75E] text-[#9E0B0F] shadow-sm">
                   ● Verified Identity
                 </span>
               </div>
@@ -1454,8 +1425,8 @@
         
         <!-- "Why We Verify" Card in Warm Ivory Tray -->
         <div class="clay-tray p-6">
-          <div class="w-10 h-10 rounded-2xl bg-purple-100 text-purple-800 flex items-center justify-center mb-4 shadow-sm">
-            <svg class="w-5 h-5 text-purple-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <div class="w-10 h-10 rounded-2xl bg-[#FAF4EE] border border-[#C6A75E]/60 text-[#9E0B0F] flex items-center justify-center mb-4 shadow-sm">
+            <svg class="w-5 h-5 text-[#9E0B0F]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
@@ -1464,7 +1435,7 @@
           <p class="text-xs text-nextit-ink-secondary leading-relaxed mb-4 font-medium">
             NextIT maintains an authentic academic and talent network. Verified institutional domains ensure student projects, grades, and corporate evaluations reflect authentic accomplishments.
           </p>
-          <div class="space-y-2.5 pt-3 border-t border-purple-100 text-xs text-nextit-ink-secondary font-medium">
+          <div class="space-y-2.5 pt-3 border-t border-[#DBC8AA] text-xs text-nextit-ink-secondary font-medium">
             <div class="flex items-center gap-2">
               <span class="text-emerald-600 font-bold">✓</span> Anti-spoofing domain checks
             </div>
@@ -1490,7 +1461,7 @@
                 <div class="text-[11px] text-nextit-ink-secondary font-medium" x-text="roles[role].badge"></div>
               </div>
             </div>
-            <button @click="view = 1" class="text-xs font-bold text-rose-600 hover:underline">Edit</button>
+            <button @click="view = 1" class="text-xs font-bold text-[#9E0B0F] hover:underline">Edit</button>
           </div>
         </div>
 
@@ -1512,7 +1483,7 @@
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm"
     style="display: none;"
   >
-    <div @click.away="closeSmtpModal()" class="w-full max-w-md clay-card p-6 md:p-8 bg-[#FFFDF7] rounded-[32px] shadow-2xl space-y-4">
+    <div @click.away="closeSmtpModal()" class="w-full max-w-md clay-card p-6 md:p-8 bg-[#FDFBFA] rounded-[32px] shadow-2xl border border-[#C6A75E] space-y-4">
       <div class="flex items-center justify-between pb-2 border-b border-stone-200/60">
         <div class="flex items-center gap-2">
           <svg class="w-6 h-6 text-stone-700" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">

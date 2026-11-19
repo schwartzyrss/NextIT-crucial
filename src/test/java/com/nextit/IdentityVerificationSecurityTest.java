@@ -80,7 +80,7 @@ class IdentityVerificationSecurityTest {
         Session.login(user);
 
         AppException ex = assertThrows(AppException.class, Session::requireVerified);
-        assertTrue(ex.getMessage().contains("pending administrator review"));
+        assertTrue(ex.getMessage().contains("pending review"));
     }
 
     @Test
@@ -118,7 +118,7 @@ class IdentityVerificationSecurityTest {
 
         // Role authorization check
         assertDoesNotThrow(() -> Session.requireRole(Role.STUDENT));
-        assertThrows(AppException.class, () -> Session.requireRole(Role.ADMIN, Role.INSTRUCTOR));
+        assertThrows(AppException.class, () -> Session.requireRole(Role.EMPLOYER, Role.INSTRUCTOR));
     }
 
     // ==========================================
@@ -209,25 +209,25 @@ class IdentityVerificationSecurityTest {
     }
 
     @Test
-    @DisplayName("Administrator login triggers mandatory MFA exception")
-    void adminLoginRequiresMfa() {
-        String uniqueAdmin = "admtest_" + UUID.randomUUID().toString().substring(0, 8);
-        String email = uniqueAdmin + "@nextit.ph";
+    @DisplayName("User with MFA enabled triggers mandatory MFA verification exception")
+    void mfaEnabledLoginRequiresMfaVerification() {
+        String uniqueUser = "mfatest_" + UUID.randomUUID().toString().substring(0, 8);
+        String email = uniqueUser + "@nextit.ph";
 
-        User admin = new User();
-        admin.setUsername(uniqueAdmin);
-        admin.setEmail(email);
-        admin.setPasswordHash(AuthenticationService.hashPassword("SuperSecretAdmin123!"));
-        admin.setRole(Role.ADMIN);
-        admin.setFirstName("Sys");
-        admin.setLastName("Admin");
-        admin.setVerificationStatus(VerificationStatus.VERIFIED);
-        admin.setMfaEnabled(true);
-        userRepo.save(admin);
+        User user = new User();
+        user.setUsername(uniqueUser);
+        user.setEmail(email);
+        user.setPasswordHash(AuthenticationService.hashPassword("SuperSecretUser123!"));
+        user.setRole(Role.INSTRUCTOR);
+        user.setFirstName("Maria");
+        user.setLastName("Instructor");
+        user.setVerificationStatus(VerificationStatus.VERIFIED);
+        user.setMfaEnabled(true);
+        userRepo.save(user);
 
         AuthenticationService.MfaRequiredException mfaEx =
                 assertThrows(AuthenticationService.MfaRequiredException.class,
-                        () -> authService.login(email, "SuperSecretAdmin123!"));
+                        () -> authService.login(email, "SuperSecretUser123!"));
 
         assertNotNull(mfaEx.getUser());
         assertEquals(email, mfaEx.getUser().getEmail());
@@ -327,23 +327,5 @@ class IdentityVerificationSecurityTest {
 
         adminService.reinstateUser(savedUser.getUserId());
         assertEquals(VerificationStatus.VERIFIED, userRepo.findById(savedUser.getUserId()).orElseThrow().getVerificationStatus());
-    }
-
-    @Test
-    @DisplayName("Authorized administrator can provision new administrator accounts with mandatory MFA")
-    void provisionAdministratorAccount() {
-        String uniqueAdmin = "newadm_" + UUID.randomUUID().toString().substring(0, 8);
-        User adminUser = new User();
-        adminUser.setUsername(uniqueAdmin);
-        adminUser.setEmail(uniqueAdmin + "@nextit.ph");
-        adminUser.setFirstName("Chief");
-        adminUser.setLastName("Security");
-
-        adminService.provisionAdmin(adminUser, "SecurePass999!");
-
-        User createdAdmin = userRepo.findByUsername(uniqueAdmin).orElseThrow();
-        assertEquals(Role.ADMIN, createdAdmin.getRole());
-        assertEquals(VerificationStatus.VERIFIED, createdAdmin.getVerificationStatus());
-        assertTrue(createdAdmin.isMfaEnabled());
     }
 }

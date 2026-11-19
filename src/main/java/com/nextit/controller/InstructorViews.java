@@ -17,6 +17,7 @@ import javafx.scene.layout.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Locale;
+import javafx.application.Platform;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -30,6 +31,8 @@ public final class InstructorViews {
     private static final StudentSkillService skills = new StudentSkillService();
     private static final DirectoryService directory = new DirectoryService();
     private static final ProfileService profiles = new ProfileService();
+    private static final RecommendationLetterService recLetters = new RecommendationLetterService();
+    private static final CareerService career = new CareerService();
 
     private static final List<String> ACTIVITY_TYPES =
             List.of("Quiz", "Examination", "Laboratory", "Project", "Assignment", "Recitation", "Other");
@@ -133,7 +136,7 @@ public final class InstructorViews {
         noticeText.getStyleClass().add("profile-notice-text");
         notice.getChildren().addAll(noticeIcon, noticeText);
 
-        return Ui.page("My Profile", "Your account and instructor profile information. Contact an administrator if any details need correction.",
+        return Ui.page("My Profile", "Your account and instructor profile information. Contact the department registrar if any details need correction.",
                 hero, traysRow, notice);
     }
 
@@ -162,12 +165,21 @@ public final class InstructorViews {
         search.textProperty().addListener((obs, old, value) -> filter.run());
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
+        Button recommendBtn = Ui.button("✍ Recommend Student", "primary-button");
+        recommendBtn.setOnAction(e -> {
+            Student sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) {
+                Alerts.error("Select a student to compose a recommendation letter.");
+                return;
+            }
+            showComposeRecommendationModal(null, null, sel.getStudentId(), filter);
+        });
         Button exportCsv = Ui.button("📥 Export CSV", "clay-btn-secondary");
         exportCsv.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToCsv(table, "students_roster.csv", "Enrolled Students Roster", exportCsv.getScene().getWindow()));
         Button exportReport = Ui.button("📄 Print / PDF", "clay-btn-secondary");
         exportReport.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToHtmlReport(table, "students_roster_report.html", "Enrolled Students Roster", exportReport.getScene().getWindow()));
         return Ui.page("Students", "Browse the students enrolled in the program and their academic profile details.",
-                Ui.toolbar(new Label("Search:"), search, refresh, exportCsv, exportReport), table);
+                Ui.toolbar(new Label("Search:"), search, recommendBtn, refresh, exportCsv, exportReport), table);
     }
 
     public static Node portfolios() {
@@ -234,16 +246,405 @@ public final class InstructorViews {
         return SkillCatalogView.view();
     }
 
+    public static Node achievementsAndCertifications() {
+        return DevelopmentManagementViews.achievementsAndCertifications();
+    }
+
     public static Node achievements() {
-        return DevelopmentManagementViews.achievements();
+        return achievementsAndCertifications();
     }
 
     public static Node certifications() {
-        return DevelopmentManagementViews.certifications();
+        return achievementsAndCertifications();
     }
 
     public static Node opportunities() {
-        return DevelopmentManagementViews.opportunities(false);
+        Map<Integer, String> employers = directory.employerNames();
+        TableView<JobOpportunity> table = Ui.table("No opportunities found.");
+        Ui.addColumn(table, "Title", JobOpportunity::getTitle);
+        Ui.addColumn(table, "Employer", o -> employers.getOrDefault(o.getEmployerId(), "Employer #" + o.getEmployerId()));
+        Ui.addColumn(table, "Type", JobOpportunity::getOpportunityType);
+        Ui.addColumn(table, "Location", o -> value(o.getLocation()));
+        Ui.addColumn(table, "Required Skills", o -> value(o.getRequiredSkills()));
+        Ui.addColumn(table, "Deadline", o -> Ui.formatDate(o.getDeadline()));
+        Ui.addColumn(table, "Posted", o -> Ui.formatDate(o.getCreatedAt() == null ? null : o.getCreatedAt().toLocalDate()));
+        Ui.addColumn(table, "Status", JobOpportunity::getStatus);
+
+        TextField search = Ui.field("Search by title, employer, skills or location...");
+        ComboBox<String> statusFilter = Ui.combo(List.of("All statuses", "Open", "Closed", "Archived"), s -> s);
+        statusFilter.getSelectionModel().selectFirst();
+        Runnable refresh = () -> {
+            employers.clear();
+            employers.putAll(directory.employerNames());
+            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
+            String status = statusFilter.getValue();
+            table.setItems(FXCollections.observableArrayList(career.allOpportunities().stream()
+                    .filter(o -> "All statuses".equals(status) || status.equalsIgnoreCase(o.getStatus()))
+                    .filter(o -> q.isBlank()
+                            || value(o.getTitle()).toLowerCase(Locale.ROOT).contains(q)
+                            || value(o.getLocation()).toLowerCase(Locale.ROOT).contains(q)
+                            || value(o.getRequiredSkills()).toLowerCase(Locale.ROOT).contains(q)
+                            || employers.getOrDefault(o.getEmployerId(), "").toLowerCase(Locale.ROOT).contains(q))
+                    .toList()));
+        };
+        search.textProperty().addListener((obs, old, value) -> refresh.run());
+        statusFilter.valueProperty().addListener((obs, old, value) -> refresh.run());
+
+        Button details = new Button("View Details");
+        details.setOnAction(e -> {
+            JobOpportunity selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select an opportunity to view."); return; }
+            DevelopmentManagementViews.showOpportunity(selected, employers);
+        });
+
+        Button recommendBtn = Ui.button("✍ Recommend Student", "primary-button");
+        recommendBtn.setOnAction(e -> {
+            JobOpportunity selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select an opportunity to recommend a student for."); return; }
+            showComposeRecommendationModal(null, selected.getOpportunityId(), null, refresh);
+        });
+
+        Button refreshButton = new Button("Refresh");
+        refreshButton.setOnAction(e -> refresh.run());
+        refresh.run();
+
+        return Ui.page("Career Opportunities",
+                "Browse internship and employment listings from industry partners and recommend qualified students.",
+                Ui.toolbar(new Label("Search:"), search, statusFilter, details, recommendBtn, refreshButton), table);
+    }
+
+    public static Node recommendationLetters() {
+        int iid = instructorId();
+        Map<Integer, String> studentNames = new java.util.HashMap<>();
+        Map<Integer, JobOpportunity> opportunities = new java.util.HashMap<>();
+
+        TableView<RecommendationLetter> table = Ui.table("No recommendation letters found.");
+        Ui.addColumn(table, "Student", l -> studentNames.getOrDefault(l.getStudentId(), "Student #" + l.getStudentId()));
+        Ui.addColumn(table, "Target Opportunity", l -> {
+            if (l.getOpportunityId() == null) return "General Endorsement (All Opportunities)";
+            JobOpportunity o = opportunities.get(l.getOpportunityId());
+            return o == null ? "Opportunity #" + l.getOpportunityId() : o.getTitle();
+        });
+        Ui.addColumn(table, "Opportunity Type", l -> {
+            if (l.getOpportunityId() == null) return "General";
+            JobOpportunity o = opportunities.get(l.getOpportunityId());
+            return o == null ? "-" : o.getOpportunityType();
+        });
+        Ui.addColumn(table, "Letter Title", RecommendationLetter::getLetterTitle);
+        Ui.addColumn(table, "Status", l -> l.getStatus() == null ? "REQUESTED" : l.getStatus());
+        Ui.addColumn(table, "Date", l -> {
+            if (l.getIssuedAt() != null) return Ui.formatDate(l.getIssuedAt().toLocalDate());
+            return Ui.formatDate(l.getCreatedAt() != null ? l.getCreatedAt().toLocalDate() : null);
+        });
+
+        TextField search = Ui.field("Search by student, opportunity or title...");
+        ComboBox<String> statusFilter = Ui.combo(
+                List.of("All statuses", "REQUESTED", "ISSUED", "ATTACHED"), s -> s);
+        statusFilter.getSelectionModel().selectFirst();
+
+        Runnable refresh = () -> {
+            studentNames.clear();
+            studentNames.putAll(directory.studentNames());
+            opportunities.clear();
+            career.allOpportunities().forEach(o -> opportunities.put(o.getOpportunityId(), o));
+
+            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
+            String st = statusFilter.getValue();
+
+            recLetters.getLettersForInstructorAsync(iid).thenAccept(list -> Platform.runLater(() -> {
+                List<RecommendationLetter> filtered = list.stream()
+                        .filter(l -> "All statuses".equals(st) || st.equalsIgnoreCase(l.getStatus()))
+                        .filter(l -> {
+                            if (q.isBlank()) return true;
+                            String sName = studentNames.getOrDefault(l.getStudentId(), "").toLowerCase(Locale.ROOT);
+                            String opp = l.getOpportunityId() == null ? "general endorsement"
+                                    : (opportunities.containsKey(l.getOpportunityId()) ? opportunities.get(l.getOpportunityId()).getTitle().toLowerCase(Locale.ROOT) : "");
+                            String title = l.getLetterTitle() == null ? "" : l.getLetterTitle().toLowerCase(Locale.ROOT);
+                            String highlights = l.getEndorsementHighlights() == null ? "" : l.getEndorsementHighlights().toLowerCase(Locale.ROOT);
+                            return sName.contains(q) || opp.contains(q) || title.contains(q) || highlights.contains(q);
+                        })
+                        .toList();
+                table.setItems(FXCollections.observableArrayList(filtered));
+            }));
+        };
+
+        search.textProperty().addListener((obs, old, val) -> refresh.run());
+        statusFilter.valueProperty().addListener((obs, old, val) -> refresh.run());
+
+        Button composeBtn = Ui.button("✍ Write Recommendation", "primary-button");
+        composeBtn.setOnAction(e -> showComposeRecommendationModal(null, null, null, refresh));
+
+        Button fulfillOrView = new Button("Open Letter / Request");
+        fulfillOrView.setOnAction(e -> {
+            RecommendationLetter sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) {
+                Alerts.error("Select a recommendation letter or request from the list.");
+                return;
+            }
+            if ("REQUESTED".equalsIgnoreCase(sel.getStatus())) {
+                showComposeRecommendationModal(sel, sel.getOpportunityId(), sel.getStudentId(), refresh);
+            } else {
+                showViewLetterModal(sel);
+            }
+        });
+
+        Button refreshBtn = new Button("Refresh");
+        refreshBtn.setOnAction(e -> refresh.run());
+
+        refresh.run();
+
+        return Ui.page("Faculty Recommendation Letters",
+                "Review student recommendation requests, compose formal academic endorsements, and issue signed letters for internships and employment opportunities.",
+                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), statusFilter, composeBtn, fulfillOrView, refreshBtn),
+                table);
+    }
+
+    public static void showComposeRecommendationModal(
+            RecommendationLetter existingRequest,
+            Integer preselectedOppId,
+            Integer preselectedStudentId,
+            Runnable onComplete) {
+        int iid = instructorId();
+        Instructor instructor = directory.instructors().stream()
+                .filter(i -> i.getInstructorId() == iid)
+                .findFirst()
+                .orElse(null);
+        User instructorUser = Session.currentUser();
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(existingRequest != null ? "Fulfill Recommendation Request" : "Compose Faculty Recommendation Letter");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        VBox form = new VBox(14);
+        form.setPrefWidth(580);
+        form.setPadding(new Insets(10));
+
+        // Faculty credentials banner
+        VBox facultyCard = new VBox(4);
+        facultyCard.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 12;");
+        Label facName = new Label("Endorsing Faculty: " + (instructorUser != null ? instructorUser.getFullName() : "Faculty Member") +
+                (instructor != null ? " (" + instructor.getDepartment() + " • " + instructor.getEmployeeNumber() + ")" : ""));
+        facName.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 13px;");
+        Label facStatus = new Label("✔ Institutional Verified Faculty Credential • College of Computer Studies");
+        facStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
+        facultyCard.getChildren().addAll(facName, facStatus);
+        form.getChildren().add(facultyCard);
+
+        // Student selection
+        List<Student> studentList = directory.students();
+        Map<Integer, String> studentNames = directory.studentNames();
+        ComboBox<Student> studentPicker = Ui.combo(studentList, s -> studentNames.getOrDefault(s.getStudentId(), s.getStudentNumber()));
+        if (existingRequest != null) {
+            studentList.stream().filter(s -> s.getStudentId() == existingRequest.getStudentId()).findFirst().ifPresent(studentPicker.getSelectionModel()::select);
+            studentPicker.setDisable(true);
+        } else if (preselectedStudentId != null) {
+            studentList.stream().filter(s -> s.getStudentId() == preselectedStudentId).findFirst().ifPresent(studentPicker.getSelectionModel()::select);
+        } else {
+            studentPicker.getSelectionModel().selectFirst();
+        }
+
+        // Opportunity selection
+        List<JobOpportunity> oppList = career.allOpportunities();
+        ComboBox<String> oppPicker = new ComboBox<>();
+        oppPicker.getItems().add("General Endorsement (All Internship & Employment Listings)");
+        Map<String, Integer> oppMap = new java.util.HashMap<>();
+        for (JobOpportunity o : oppList) {
+            String label = String.format("[%s] %s (%s)", o.getOpportunityType(), o.getTitle(), o.getLocation() == null ? "Remote" : o.getLocation());
+            oppPicker.getItems().add(label);
+            oppMap.put(label, o.getOpportunityId());
+        }
+        oppPicker.getSelectionModel().selectFirst();
+
+        Integer targetOppId = existingRequest != null ? existingRequest.getOpportunityId() : preselectedOppId;
+        if (targetOppId != null) {
+            oppList.stream().filter(o -> o.getOpportunityId() == targetOppId).findFirst().ifPresent(o -> {
+                String label = String.format("[%s] %s (%s)", o.getOpportunityType(), o.getTitle(), o.getLocation() == null ? "Remote" : o.getLocation());
+                oppPicker.getSelectionModel().select(label);
+            });
+            if (existingRequest != null) {
+                oppPicker.setDisable(true);
+            }
+        }
+
+        // Letter Title
+        TextField titleField = Ui.field("Letter Title (e.g. Official Faculty Recommendation for Software Internship)");
+        if (existingRequest != null && existingRequest.getLetterTitle() != null) {
+            titleField.setText(existingRequest.getLetterTitle());
+        } else {
+            titleField.setText("Official Faculty Academic & Technical Recommendation");
+        }
+
+        // Endorsement highlights
+        TextField highlightsField = Ui.field("Key Technical & Capstone Highlights (e.g. Java concurrency, Cloud capstone leader, top 5% GPA)");
+        if (existingRequest != null && existingRequest.getEndorsementHighlights() != null) {
+            highlightsField.setText(existingRequest.getEndorsementHighlights());
+        }
+
+        // Recommendation Body Area
+        TextArea bodyArea = Ui.area("Write structured recommendation letter endorsement...");
+        bodyArea.setPrefRowCount(8);
+        if (existingRequest != null && existingRequest.isIssued() && existingRequest.getRecommendationBody() != null) {
+            bodyArea.setText(existingRequest.getRecommendationBody());
+        } else {
+            String studentNameStr = studentPicker.getValue() == null ? "the student" : studentNames.getOrDefault(studentPicker.getValue().getStudentId(), "the student");
+            bodyArea.setText(String.format(
+                    "To the Hiring and Selection Committee:\n\n" +
+                    "It is my great pleasure to formally recommend %s for this opportunity. " +
+                    "Throughout their coursework in our department, they have demonstrated exceptional diligence, technical problem-solving ability, and collaborative initiative.\n\n" +
+                    "Their practical project contributions and grasp of software engineering principles make them an outstanding candidate who will deliver immediate value to your organization.\n\n" +
+                    "Sincerely,\n%s\n%s\nNextIT Partner Institution",
+                    studentNameStr,
+                    instructorUser != null ? instructorUser.getFullName() : "Faculty Member",
+                    instructor != null ? instructor.getDepartment() : "Department of Computer Science"
+            ));
+        }
+
+        studentPicker.valueProperty().addListener((obs, old, val) -> {
+            if (val != null && (bodyArea.getText().contains("the student") || (old != null && bodyArea.getText().contains(studentNames.getOrDefault(old.getStudentId(), ""))))) {
+                String chosenName = studentNames.getOrDefault(val.getStudentId(), "the student");
+                String oldName = old == null ? "the student" : studentNames.getOrDefault(old.getStudentId(), "the student");
+                bodyArea.setText(bodyArea.getText().replace(oldName, chosenName));
+            }
+        });
+
+        if (existingRequest != null && existingRequest.isPendingRequest() && existingRequest.getRecommendationBody() != null && !existingRequest.getRecommendationBody().isBlank()) {
+            VBox requestNoteBox = new VBox(4);
+            requestNoteBox.setStyle("-fx-background-color: #FEF9E7; -fx-border-color: #C6A75E; -fx-border-radius: 6; -fx-padding: 8;");
+            Label noteHeader = new Label("Student Request Note:");
+            noteHeader.setStyle("-fx-font-weight: bold; -fx-text-fill: #7D6608; -fx-font-size: 11px;");
+            Label noteBody = new Label(existingRequest.getRecommendationBody());
+            noteBody.setWrapText(true);
+            noteBody.setStyle("-fx-font-size: 11px; -fx-text-fill: #414141;");
+            requestNoteBox.getChildren().addAll(noteHeader, noteBody);
+            form.getChildren().add(requestNoteBox);
+        }
+
+        form.getChildren().addAll(
+                new Label("Selected Student Candidate:"), studentPicker,
+                new Label("Target Opportunity:"), oppPicker,
+                new Label("Recommendation Title:"), titleField,
+                new Label("Verified Endorsement Highlights:"), highlightsField,
+                new Label("Recommendation Letter Body:"), bodyArea
+        );
+
+        dialog.getDialogPane().setContent(form);
+
+        Button okBtn = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okBtn.setText("✍ Sign & Issue Letter");
+        okBtn.getStyleClass().add("primary-button");
+
+        okBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            Student selStudent = studentPicker.getValue();
+            if (selStudent == null) {
+                Alerts.error("Please select a student.");
+                event.consume();
+                return;
+            }
+            String title = titleField.getText();
+            String body = bodyArea.getText();
+            String highlights = highlightsField.getText();
+            if (title == null || title.isBlank() || body == null || body.isBlank()) {
+                Alerts.error("Please provide both a title and letter body.");
+                event.consume();
+                return;
+            }
+
+            Integer chosenOpp = oppMap.get(oppPicker.getValue());
+
+            try {
+                if (existingRequest != null) {
+                    recLetters.issueRecommendation(existingRequest.getLetterId(), iid, title, body, highlights);
+                } else {
+                    recLetters.createProactiveRecommendation(iid, selStudent.getStudentId(), chosenOpp, title, body, highlights);
+                }
+                Alerts.info("Faculty recommendation letter successfully signed and issued.");
+                if (onComplete != null) onComplete.run();
+            } catch (Exception ex) {
+                Alerts.error("Failed to issue recommendation letter: " + ex.getMessage());
+                event.consume();
+            }
+        });
+
+        dialog.showAndWait();
+    }
+
+    public static void showViewLetterModal(RecommendationLetter letter) {
+        Instructor inst = directory.instructors().stream()
+                .filter(i -> i.getInstructorId() == letter.getInstructorId())
+                .findFirst().orElse(null);
+        User instUser = inst != null ? directory.users().stream().filter(u -> u.getUserId() == inst.getUserId()).findFirst().orElse(null) : null;
+        String instName = instUser != null ? instUser.getFullName() : "Faculty Member #" + letter.getInstructorId();
+
+        Student stud = directory.students().stream()
+                .filter(s -> s.getStudentId() == letter.getStudentId())
+                .findFirst().orElse(null);
+        String studentName = directory.studentName(letter.getStudentId());
+
+        JobOpportunity opp = letter.getOpportunityId() == null ? null : career.allOpportunities().stream()
+                .filter(o -> o.getOpportunityId() == letter.getOpportunityId())
+                .findFirst().orElse(null);
+
+        VBox content = new VBox(16);
+        content.setPrefWidth(550);
+        content.setPadding(new Insets(10));
+
+        // Academic Header Card
+        VBox cardHeader = new VBox(6);
+        cardHeader.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 10; -fx-padding: 16;");
+        HBox topRow = new HBox(8);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+        Label seal = Ui.badge("Verified Faculty Recommendation", "badge-pill-mint");
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+        Label dateLbl = new Label(letter.getIssuedAt() != null ? "Issued: " + Ui.formatDate(letter.getIssuedAt().toLocalDate()) : "");
+        dateLbl.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
+        topRow.getChildren().addAll(seal, sp, dateLbl);
+
+        Label letterTitleLbl = new Label(letter.getLetterTitle());
+        letterTitleLbl.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
+        Label recFor = new Label("Candidate: " + studentName + (stud != null ? " (" + stud.getProgram() + " • Year " + stud.getYearLevel() + ")" : ""));
+        recFor.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 600; -fx-text-fill: #414141;");
+
+        Label oppLabel = new Label("Opportunity: " + (opp != null ? "[" + opp.getOpportunityType() + "] " + opp.getTitle() : "General Industry Endorsement"));
+        oppLabel.setStyle("-fx-font-size: 12px; -fx-text-fill: #6E6862;");
+
+        cardHeader.getChildren().addAll(topRow, letterTitleLbl, recFor, oppLabel);
+        content.getChildren().add(cardHeader);
+
+        // Highlights Card
+        if (letter.getEndorsementHighlights() != null && !letter.getEndorsementHighlights().isBlank()) {
+            VBox highBox = new VBox(4);
+            highBox.setStyle("-fx-background-color: #FEF9E7; -fx-border-color: #C6A75E; -fx-border-radius: 8; -fx-padding: 10;");
+            Label hTitle = new Label("⭐ Key Competencies & Highlights");
+            hTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #7D6608; -fx-font-size: 11.5px;");
+            Label hText = new Label(letter.getEndorsementHighlights());
+            hText.setWrapText(true);
+            hText.setStyle("-fx-font-size: 12px; -fx-text-fill: #414141;");
+            highBox.getChildren().addAll(hTitle, hText);
+            content.getChildren().add(highBox);
+        }
+
+        // Formal Letter Body
+        VBox bodyCard = new VBox(8);
+        bodyCard.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-padding: 16;");
+        Label bodyLbl = new Label(letter.getRecommendationBody());
+        bodyLbl.setWrapText(true);
+        bodyLbl.setStyle("-fx-font-size: 12.5px; -fx-line-spacing: 3px; -fx-text-fill: #2C2C2C; -fx-font-family: 'Georgia', serif;");
+        bodyCard.getChildren().add(bodyLbl);
+        content.getChildren().add(bodyCard);
+
+        // Faculty Signature Block
+        VBox sigBox = new VBox(3);
+        sigBox.setStyle("-fx-padding: 8 0 0 8;");
+        Label sigName = new Label("Digitally Endorsed by: Prof. " + instName);
+        sigName.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
+        Label sigDept = new Label((inst != null ? inst.getDepartment() + " • " : "") + "NextIT Institutional Faculty");
+        sigDept.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
+        sigBox.getChildren().addAll(sigName, sigDept);
+        content.getChildren().add(sigBox);
+
+        Ui.viewDialog("Faculty Recommendation Letter", content);
     }
 
     public static Node projects() {
@@ -362,7 +763,7 @@ public final class InstructorViews {
         statusPillBox.setAlignment(Pos.CENTER_RIGHT);
         StackPane statusDot = Ui.statusDot(true);
         Label statusText = new Label("Faculty Portal Active");
-        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d6a4f; -fx-font-size: 12px;");
+        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
         HBox liveChip = new HBox(8, statusDot, statusText);
         liveChip.setAlignment(Pos.CENTER);
         liveChip.getStyleClass().addAll("badge-pill", "badge-pill-mint");
@@ -374,7 +775,7 @@ public final class InstructorViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #f1f2fa;");
+        headerContainer.setStyle("-fx-background-color: #FDFBFA;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards (Row 1 & Row 2)
@@ -542,7 +943,7 @@ public final class InstructorViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #f1f2fa;");
+        scrollContent.setStyle("-fx-background-color: #FDFBFA;");
         scrollContent.setPadding(new Insets(10, 24, 24, 24));
         scrollContent.getChildren().addAll(cards1, cards2, dashboardBody);
 
@@ -561,7 +962,7 @@ public final class InstructorViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #f1f2fa;");
+        dashboardRoot.setStyle("-fx-background-color: #FDFBFA;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
         return dashboardRoot;
@@ -614,14 +1015,14 @@ public final class InstructorViews {
 
         VBox queueBox = new VBox(8);
         Label queueHeader = new Label("CLASSROOM METRICS");
-        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
+        queueHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F; -fx-letter-spacing: 0.8px;");
 
         long presentCount = allAttendance.stream().filter(a -> "Present".equalsIgnoreCase(a.getStatus())).count();
 
         HBox attRow = new HBox(8);
         attRow.setAlignment(Pos.CENTER_LEFT);
         Label aLabel = new Label("Attendance Logged:");
-        aLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        aLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Region aSp = new Region();
         HBox.setHgrow(aSp, Priority.ALWAYS);
         Node aBadge = Ui.badge(allAttendance.size() + " (" + presentCount + " Present)", "badge-pill-mint");
@@ -630,7 +1031,7 @@ public final class InstructorViews {
         HBox gradeRow = new HBox(8);
         gradeRow.setAlignment(Pos.CENTER_LEFT);
         Label gLabel = new Label("Graded Activities:");
-        gLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        gLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Region gSp = new Region();
         HBox.setHgrow(gSp, Priority.ALWAYS);
         Node gBadge = Ui.badge(allGrades.size() + " Submissions", "badge-pill-blue");
@@ -639,7 +1040,7 @@ public final class InstructorViews {
         HBox supRow = new HBox(8);
         supRow.setAlignment(Pos.CENTER_LEFT);
         Label sLabel = new Label("Support Requests:");
-        sLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        sLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Region sSp = new Region();
         HBox.setHgrow(sSp, Priority.ALWAYS);
         Node sBadge = Ui.badge(support.all().size() + " Active", "badge-pill-lavender");
@@ -652,11 +1053,11 @@ public final class InstructorViews {
         // Faculty clearance
         VBox facultyBox = new VBox(6);
         Label fHeader = new Label("FACULTY CLEARANCE");
-        fHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: bold; -fx-text-fill: #8e8394; -fx-letter-spacing: 0.5px;");
+        fHeader.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F; -fx-letter-spacing: 0.8px;");
         Label fName = new Label(Session.currentUser().getFullName());
-        fName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+        fName.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
         Label fRole = new Label("Instructor / Faculty Evaluator");
-        fRole.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
+        fRole.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
         facultyBox.getChildren().addAll(fHeader, fName, fRole);
 
         engagementCard.getChildren().addAll(new VBox(3, engTitle, engSub), queueBox, sep, facultyBox);
@@ -677,7 +1078,7 @@ public final class InstructorViews {
 
         if (latestGrades.isEmpty()) {
             Label empty = new Label("No graded submissions yet.");
-            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #8e8394;");
+            empty.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
             recentGradesCard.getChildren().add(empty);
         } else {
             for (Grade g : latestGrades) {
@@ -692,9 +1093,9 @@ public final class InstructorViews {
 
                 VBox info = new VBox(2);
                 Label name = new Label(stName);
-                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #383139;");
+                name.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #414141;");
                 Label act = new Label(Ui.value(g.getActivityName()));
-                act.setStyle("-fx-font-size: 10px; -fx-text-fill: #8e8394;");
+                act.setStyle("-fx-font-size: 10px; -fx-text-fill: #6E6862;");
                 info.getChildren().addAll(name, act);
                 HBox.setHgrow(info, Priority.ALWAYS);
 
@@ -1012,7 +1413,7 @@ public final class InstructorViews {
         });
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> applyFilter.run());
-        return Ui.page("Technical Skill Evaluation", "Assess student proficiency against the technical skill catalogue maintained by instructors and administrators.",
+        return Ui.page("Technical Skill Evaluation", "Assess student proficiency against the technical skill catalogue maintained by faculty instructors.",
                 Ui.toolbar(new Label("Search:"), search, evaluate, delete, refresh), table);
     }
 

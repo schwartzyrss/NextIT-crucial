@@ -30,16 +30,16 @@ public class IconGenerator {
         // 1. Soft ambient shadow under orb
         if (size >= 32) {
             float shadowOffset = size * 0.04f;
-            g2.setColor(new Color(99, 102, 241, 45));
+            g2.setColor(new Color(102, 5, 8, 55));
             g2.fill(new Ellipse2D.Float(pad, pad + shadowOffset, diameter, diameter));
         }
 
-        // 2. Base lavender-periwinkle gradient orb
+        // 2. Base Ochre Gold to Deep Crimson gradient orb
         Point2D start = new Point2D.Float(pad, pad);
         Point2D end = new Point2D.Float(pad + diameter, pad + diameter);
-        Color lavender = new Color(0xC4, 0xB5, 0xFD); // #C4B5FD
-        Color periwinkle = new Color(0x81, 0x8C, 0xF8); // #818CF8
-        GradientPaint gradient = new GradientPaint(start, lavender, end, periwinkle);
+        Color ochreGold = new Color(0xC6, 0xA7, 0x5E); // #C6A75E
+        Color deepCrimson = new Color(0x9E, 0x0B, 0x0F); // #9E0B0F
+        GradientPaint gradient = new GradientPaint(start, ochreGold, end, deepCrimson);
         g2.setPaint(gradient);
         Ellipse2D.Float orb = new Ellipse2D.Float(pad, pad, diameter, diameter);
         g2.fill(orb);
