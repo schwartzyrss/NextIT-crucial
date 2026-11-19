@@ -186,6 +186,7 @@ public class AppController {
                 sidebar.getChildren().add(categoryHeader("Support & Growth"));
                 sidebar.getChildren().add(navButton("💡 Academic Support", () -> setView(InstructorViews.support())));
                 sidebar.getChildren().add(navButton("🌟 Opportunities", () -> setView(InstructorViews.opportunities())));
+                sidebar.getChildren().add(navButton("✍ Recommendation Letters", () -> setView(InstructorViews.recommendationLetters())));
 
                 sidebar.getChildren().add(categoryHeader("Account"));
                 sidebar.getChildren().add(navButton("👤 My Profile", () -> setView(InstructorViews.profile())));
@@ -195,6 +196,8 @@ public class AppController {
                 sidebar.getChildren().add(navButton("🏢 Company Profile", () -> setView(EmployerViews.profile())));
                 sidebar.getChildren().add(navButton("🌟 Opportunities", () -> setView(EmployerViews.opportunities())));
                 sidebar.getChildren().add(navButton("📝 Applications", () -> setView(EmployerViews.applications())));
+                sidebar.getChildren().add(categoryHeader("Talent Discovery"));
+                sidebar.getChildren().add(navButton("✨ Recommended Students", () -> setView(EmployerViews.recommendedStudents())));
                 sidebar.getChildren().add(navButton("🔍 Portfolio Search", () -> setView(EmployerViews.portfolioSearch())));
             }
         }

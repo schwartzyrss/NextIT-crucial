@@ -312,3 +312,26 @@ CREATE TABLE IF NOT EXISTS security_audit_logs (
     INDEX idx_security_audit_logs_action (action),
     INDEX idx_security_audit_logs_created (created_at)
 );
+
+CREATE TABLE IF NOT EXISTS recommendation_letters (
+    letter_id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    instructor_id INT NOT NULL,
+    opportunity_id INT NULL,
+    application_id INT NULL,
+    letter_title VARCHAR(200) NOT NULL,
+    recommendation_body TEXT NOT NULL,
+    endorsement_highlights TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    issued_at DATETIME NULL,
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (instructor_id) REFERENCES instructors(instructor_id) ON DELETE CASCADE,
+    FOREIGN KEY (opportunity_id) REFERENCES job_opportunities(opportunity_id) ON DELETE SET NULL,
+    FOREIGN KEY (application_id) REFERENCES applications(application_id) ON DELETE SET NULL,
+    INDEX idx_rec_student (student_id),
+    INDEX idx_rec_instructor (instructor_id),
+    INDEX idx_rec_opportunity (opportunity_id),
+    INDEX idx_rec_application (application_id),
+    INDEX idx_rec_status (status)
+);

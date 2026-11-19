@@ -341,6 +341,25 @@ CREATE TABLE security_audit_logs (
 CREATE INDEX idx_security_audit_logs_action ON security_audit_logs(action);
 CREATE INDEX idx_security_audit_logs_created ON security_audit_logs(created_at);
 
+CREATE TABLE recommendation_letters (
+    letter_id SERIAL PRIMARY KEY,
+    student_id INT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    instructor_id INT NOT NULL REFERENCES instructors(instructor_id) ON DELETE CASCADE,
+    opportunity_id INT NULL REFERENCES job_opportunities(opportunity_id) ON DELETE SET NULL,
+    application_id INT NULL REFERENCES applications(application_id) ON DELETE SET NULL,
+    letter_title VARCHAR(200) NOT NULL,
+    recommendation_body TEXT NOT NULL,
+    endorsement_highlights TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'REQUESTED' CHECK (status IN ('REQUESTED', 'ISSUED', 'ATTACHED')),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    issued_at TIMESTAMPTZ NULL
+);
+CREATE INDEX idx_rec_student ON recommendation_letters(student_id);
+CREATE INDEX idx_rec_instructor ON recommendation_letters(instructor_id);
+CREATE INDEX idx_rec_opportunity ON recommendation_letters(opportunity_id);
+CREATE INDEX idx_rec_application ON recommendation_letters(application_id);
+CREATE INDEX idx_rec_status ON recommendation_letters(status);
+
 -- ------------------------------------------------------------------------------
 -- 3. SEED INITIAL DEMO DATA
 -- ------------------------------------------------------------------------------

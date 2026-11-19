@@ -55,15 +55,6 @@ final class DevelopmentManagementViews {
 
     static Node achievementsAndCertifications() {
         Map<Integer, String> studentNames = directory.studentNames();
-<<<<<<< HEAD
-        TableView<Certification> table = Ui.table();
-        Ui.addColumn(table, "Student", c -> studentNames.getOrDefault(c.getStudentId(), "Student #" + c.getStudentId()));
-        Ui.addColumn(table, "Certification", Certification::getCertificationName);
-        Ui.addColumn(table, "Issuer", Certification::getIssuingOrganization);
-        Ui.addColumn(table, "Issued", c -> Ui.formatDate(c.getIssueDate()));
-        Ui.addColumn(table, "Expires", c -> c.getExpirationDate() == null ? "Does not expire" : Ui.formatDate(c.getExpirationDate()));
-        Ui.addColumn(table, "Credential", Certification::getCredentialUrl);
-=======
         TableView<AcademicCredential> table = Ui.table("No student achievements or certifications found.");
 
         Ui.addColumn(table, "Student", cred -> studentNames.getOrDefault(cred.getStudentId(), "Student #" + cred.getStudentId()));
@@ -101,7 +92,6 @@ final class DevelopmentManagementViews {
             active.setStyle("-fx-background-color: #9E0B0F; -fx-text-fill: #FDFBFA; -fx-border-color: #9E0B0F; " +
                     "-fx-border-radius: 999; -fx-background-radius: 999; -fx-padding: 4 12; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand;");
         };
->>>>>>> cb78a81 (feat: lock dashboard headers, add real-time DB status, and configure Windows desktop build)
 
         Runnable refresh = () -> {
             studentNames.clear();
@@ -178,22 +168,6 @@ final class DevelopmentManagementViews {
                     .findFirst().ifPresent(owner.getSelectionModel()::select);
             owner.setDisable(true);
         }
-<<<<<<< HEAD
-        Certification c = existing == null ? new Certification() : existing;
-        TextField name = Ui.field("Certification name");
-        name.setText(c.getCertificationName());
-        TextField issuer = Ui.field("Issuing organization");
-        issuer.setText(c.getIssuingOrganization());
-        DatePicker issued = Ui.date(c.getIssueDate());
-        DatePicker expires = Ui.date(c.getExpirationDate());
-        expires.setPromptText("Optional (e.g. Does not expire)");
-        TextField url = Ui.field("https://...");
-        url.setText(c.getCredentialUrl());
-        Node form = Ui.form(new String[]{"Student", "Certification", "Issuing organization", "Issue date", "Expiration date (Optional)", "Credential URL"},
-                new Node[]{owner, name, issuer, issued, expires, url});
-        Ui.dialog(existing == null ? "Add Certification" : "Edit Certification", form).ifPresent(button -> {
-=======
-
         ComboBox<AcademicCredential.Type> typeCombo = Ui.combo(
                 List.of(AcademicCredential.Type.ACHIEVEMENT, AcademicCredential.Type.CERTIFICATION),
                 AcademicCredential.Type::getDisplay);
@@ -246,7 +220,6 @@ final class DevelopmentManagementViews {
                 (existing.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Edit Achievement" : "Edit Certification");
 
         Ui.dialog(dialogTitle, form).ifPresent(button -> {
->>>>>>> cb78a81 (feat: lock dashboard headers, add real-time DB status, and configure Windows desktop build)
             if (button != ButtonType.OK) return;
             guard(() -> {
                 if (existing == null && owner.getValue() == null) {
@@ -255,32 +228,23 @@ final class DevelopmentManagementViews {
                 AcademicCredential target = new AcademicCredential();
                 target.setType(typeCombo.getValue());
                 target.setStudentId(existing == null ? owner.getValue().getStudentId() : existing.getStudentId());
-<<<<<<< HEAD
-                target.setCertificationName(name.getText());
-                target.setIssuingOrganization(issuer.getText());
-                LocalDate issuedVal = (issued.getEditor().getText() == null || issued.getEditor().getText().trim().isEmpty())
-                        ? null
-                        : issued.getValue();
-                LocalDate expiryVal = (expires.getEditor().getText() == null || expires.getEditor().getText().trim().isEmpty())
-                        ? null
-                        : expires.getValue();
-                target.setIssueDate(issuedVal);
-                target.setExpirationDate(expiryVal);
-                target.setCredentialUrl(url.getText());
-                students.saveCertification(target);
-=======
                 if (existing != null) {
                     target.setId(existing.getId());
                 }
                 target.setTitle(title.getText());
                 target.setOrganization(organization.getText());
-                target.setDate(date.getValue());
-                target.setExpirationDate(expires.getValue());
+                LocalDate dateVal = (date.getEditor().getText() == null || date.getEditor().getText().trim().isEmpty())
+                        ? null
+                        : date.getValue();
+                LocalDate expiryVal = (expires.getEditor().getText() == null || expires.getEditor().getText().trim().isEmpty())
+                        ? null
+                        : expires.getValue();
+                target.setDate(dateVal);
+                target.setExpirationDate(expiryVal);
                 target.setDescription(description.getText());
                 target.setVerificationUrl(url.getText());
 
                 students.saveCredential(target);
->>>>>>> cb78a81 (feat: lock dashboard headers, add real-time DB status, and configure Windows desktop build)
                 refresh.run();
                 Alerts.info((target.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Achievement" : "Certification") + " saved.");
             });
@@ -658,7 +622,7 @@ final class DevelopmentManagementViews {
         });
     }
 
-    private static void showOpportunity(JobOpportunity o, Map<Integer, String> employers) {
+    static void showOpportunity(JobOpportunity o, Map<Integer, String> employers) {
         Label description = new Label(value(o.getDescription()));
         description.setWrapText(true);
         Label skills = new Label(value(o.getRequiredSkills()));

@@ -78,6 +78,16 @@
             <groupId>ch.vorburger.mariaDB4j</groupId>
             <artifactId>mariaDB4j</artifactId>
             <version>3.2.0</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>ch.vorburger.mariaDB4j</groupId>
+                    <artifactId>mariaDB4j-db-linux64</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>ch.vorburger.mariaDB4j</groupId>
+                    <artifactId>mariaDB4j-db-macos-arm64</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>org.eclipse.angus</groupId>
@@ -131,6 +141,12 @@
                                     <mainClass>com.nextit.AppLauncher</mainClass>
                                 </transformer>
                             </transformers>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>ch.vorburger.mariaDB4j:mariaDB4j-db-linux64</exclude>
+                                    <exclude>ch.vorburger.mariaDB4j:mariaDB4j-db-macos-arm64</exclude>
+                                </excludes>
+                            </artifactSet>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
