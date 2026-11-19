@@ -8,6 +8,8 @@
 <?import javafx.scene.control.ScrollPane?>
 <?import javafx.scene.control.TextField?>
 <?import javafx.scene.control.Tooltip?>
+<?import javafx.scene.image.Image?>
+<?import javafx.scene.image.ImageView?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
 <?import javafx.scene.layout.StackPane?>
@@ -27,8 +29,12 @@
             <VBox styleClass="login-hero-pane" prefWidth="440" maxWidth="460" spacing="20" HBox.hgrow="NEVER" alignment="TOP_LEFT">
                 <!-- Top Emblem and Title -->
                 <HBox alignment="CENTER_LEFT" spacing="12">
-                    <StackPane style="-fx-background-color: #FDFBFA; -fx-background-radius: 18; -fx-padding: 8; -fx-border-color: #C6A75E; -fx-border-radius: 18; -fx-border-width: 1.2; -fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.35), 8, 0.1, 0, 3);">
-                        <Label text="⚡" style="-fx-font-size: 20px;"/>
+                    <StackPane style="-fx-background-color: #FDFBFA; -fx-background-radius: 18; -fx-padding: 4; -fx-border-color: #C6A75E; -fx-border-radius: 18; -fx-border-width: 1.2; -fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.35), 8, 0.1, 0, 3);">
+                        <ImageView fitWidth="36" fitHeight="36" preserveRatio="true" smooth="true">
+                            <image>
+                                <Image url="@/images/nextit-logo.png"/>
+                            </image>
+                        </ImageView>
                     </StackPane>
                     <VBox spacing="1">
                         <Label text="NextIT" styleClass="login-hero-title"/>
@@ -80,10 +86,17 @@
 
             <!-- Right Sign-In Form Pane -->
             <VBox styleClass="login-form-pane" prefWidth="540" maxWidth="560" spacing="14" HBox.hgrow="ALWAYS" alignment="CENTER_LEFT">
-                <VBox spacing="3">
-                    <Label text="Welcome Back" styleClass="login-form-title"/>
-                    <Label text="Sign in with your academic credentials." styleClass="login-form-subtitle"/>
-                </VBox>
+                <HBox alignment="CENTER_LEFT" spacing="12">
+                    <ImageView fitWidth="42" fitHeight="42" preserveRatio="true" smooth="true" style="-fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.25), 8, 0.12, 0, 2);">
+                        <image>
+                            <Image url="@/images/nextit-logo.png"/>
+                        </image>
+                    </ImageView>
+                    <VBox spacing="2">
+                        <Label text="Welcome Back" styleClass="login-form-title"/>
+                        <Label text="Sign in with your academic credentials." styleClass="login-form-subtitle"/>
+                    </VBox>
+                </HBox>
 
                 <VBox spacing="4">
                     <Label text="USERNAME OR EMAIL" styleClass="login-field-label"/>

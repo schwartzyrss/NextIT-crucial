@@ -62,17 +62,24 @@ public final class WindowBoundsManager {
      * so Windows can pick the ideal DPI icon for Title Bar, Taskbar, and Alt+Tab switcher.
      */
     public static void loadStageIcons(Stage stage) {
+        if (stage == null) return;
+        stage.getIcons().clear();
         int[] sizes = {16, 32, 48, 64, 128, 256};
         for (int size : sizes) {
             String path = "/com/nextit/icons/nextit-" + size + ".png";
             try (InputStream is = WindowBoundsManager.class.getResourceAsStream(path)) {
                 if (is != null) {
-                    stage.getIcons().add(new Image(is));
+                    stage.getIcons().add(new Image(is, size, size, true, true));
                 }
             } catch (Exception e) {
                 log.debug("Could not load icon {}: {}", path, e.getMessage());
             }
         }
+        try (InputStream is = WindowBoundsManager.class.getResourceAsStream("/images/nextit-logo.png")) {
+            if (is != null) {
+                stage.getIcons().add(new Image(is));
+            }
+        } catch (Exception ignored) {}
     }
 
     /**

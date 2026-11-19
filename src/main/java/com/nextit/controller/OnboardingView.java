@@ -59,6 +59,7 @@ public class OnboardingView {
 
             Scene scene = new Scene(root, 1150, 750);
             stage.setTitle("NextIT: Account Onboarding & Role Selection");
+            com.nextit.util.WindowBoundsManager.loadStageIcons(stage);
             stage.setScene(scene);
             stage.centerOnScreen();
         } catch (Exception e) {

@@ -170,6 +170,7 @@
                     <appVersion>1.0.0</appVersion>
                     <mainJar>nextit-1.0.0-all.jar</mainJar>
                     <mainClass>com.nextit.AppLauncher</mainClass>
+                    <icon>src/main/resources/com/nextit/icons/nextit.ico</icon>
                     <runtimeName>NextIT-Runtime</runtimeName>
                     <destination>target/package</destination>
                     <type>installer</type>

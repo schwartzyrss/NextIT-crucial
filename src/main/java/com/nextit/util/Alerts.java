@@ -16,6 +16,18 @@ public final class Alerts {
         DialogPane pane = dialog.getDialogPane();
         pane.getStylesheets().add(Alerts.class.getResource("/com/nextit/css/application.css").toExternalForm());
         pane.getStyleClass().add("clay-dialog-pane");
+        try {
+            javafx.stage.Window window = pane.getScene() != null ? pane.getScene().getWindow() : null;
+            if (window instanceof javafx.stage.Stage stage) {
+                WindowBoundsManager.loadStageIcons(stage);
+            } else {
+                dialog.setOnShowing(ev -> {
+                    if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof javafx.stage.Stage stage) {
+                        WindowBoundsManager.loadStageIcons(stage);
+                    }
+                });
+            }
+        } catch (Exception ignored) {}
     }
 
     public static void error(String message) {

@@ -2,85 +2,155 @@ package com.nextit.util;
 
 import javax.imageio.ImageIO;
 import java.awt.*;
-import java.awt.geom.*;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Queue;
 
+/**
+ * Generates transparent-background NextIT emblem logos and multi-resolution
+ * desktop icons (16, 32, 48, 64, 128, 256, and .ico) from the official emblem master.
+ */
 public class IconGenerator {
 
-    public static BufferedImage generateIcon(int size) {
-        BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
-        Graphics2D g2 = image.createGraphics();
+    /**
+     * Extracts the NextIT circular emblem from the source image, removes the external
+     * white/dark margins with alpha feathering, and centers it on a square transparent canvas.
+     */
+    public static BufferedImage extractTransparentEmblem(BufferedImage src) {
+        int w = src.getWidth();
+        int h = src.getHeight();
 
-        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
-        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
-        g2.setRenderingHint(RenderingHints.KEY_TEXT_ANTIALIASING, RenderingHints.VALUE_TEXT_ANTIALIAS_ON);
+        // 1. Flood-fill background detection
+        boolean[][] isBg = new boolean[w][h];
+        Queue<int[]> q = new ArrayDeque<>();
 
-        float pad = size * 0.06f;
-        float diameter = size - (pad * 2f);
-
-        // 1. Soft ambient shadow under orb
-        if (size >= 32) {
-            float shadowOffset = size * 0.04f;
-            g2.setColor(new Color(102, 5, 8, 55));
-            g2.fill(new Ellipse2D.Float(pad, pad + shadowOffset, diameter, diameter));
+        for (int x = 0; x < w; x++) {
+            q.add(new int[]{x, 0});
+            q.add(new int[]{x, h - 1});
+        }
+        for (int y = 0; y < h; y++) {
+            q.add(new int[]{0, y});
+            q.add(new int[]{w - 1, y});
         }
 
-        // 2. Base Ochre Gold to Deep Crimson gradient orb
-        Point2D start = new Point2D.Float(pad, pad);
-        Point2D end = new Point2D.Float(pad + diameter, pad + diameter);
-        Color ochreGold = new Color(0xC6, 0xA7, 0x5E); // #C6A75E
-        Color deepCrimson = new Color(0x9E, 0x0B, 0x0F); // #9E0B0F
-        GradientPaint gradient = new GradientPaint(start, ochreGold, end, deepCrimson);
-        g2.setPaint(gradient);
-        Ellipse2D.Float orb = new Ellipse2D.Float(pad, pad, diameter, diameter);
-        g2.fill(orb);
+        while (!q.isEmpty()) {
+            int[] p = q.poll();
+            int x = p[0], y = p[1];
+            if (x < 0 || x >= w || y < 0 || y >= h || isBg[x][y]) continue;
 
-        // 3. Soft claymorphic top highlight
-        float hlPad = pad + diameter * 0.08f;
-        float hlWidth = diameter * 0.84f;
-        float hlHeight = diameter * 0.44f;
-        GradientPaint hlGrad = new GradientPaint(
-                new Point2D.Float(hlPad, hlPad),
-                new Color(255, 255, 255, 120),
-                new Point2D.Float(hlPad, hlPad + hlHeight),
-                new Color(255, 255, 255, 0)
-        );
-        g2.setPaint(hlGrad);
-        g2.fill(new Ellipse2D.Float(hlPad, hlPad, hlWidth, hlHeight));
+            int rgb = src.getRGB(x, y);
+            int r = (rgb >> 16) & 0xFF;
+            int g = (rgb >> 8) & 0xFF;
+            int b = rgb & 0xFF;
 
-        // 4. Stylized "N" brand monogram in crisp white
-        float cx = size / 2f;
-        float cy = size / 2f;
-        float nWidth = diameter * 0.46f;
-        float nHeight = diameter * 0.50f;
-        float left = cx - (nWidth / 2f);
-        float top = cy - (nHeight / 2f);
-        float strokeW = Math.max(1.8f, size * 0.085f);
+            // Background conditions:
+            // - Dark margin strip on right edge (x >= 838)
+            // - Shadow gradient below bottom gold rim (y >= 780)
+            // - Light/white background outside the circular emblem & banner
+            boolean isArtifactStrip = (x >= 838);
+            boolean isBottomShadow = (y >= 780);
+            boolean isWhiteBg = (r >= 235 && g >= 235 && b >= 230);
+            boolean isVeryLight = (r >= 215 && g >= 212 && b >= 208 && Math.abs(r - g) < 26 && Math.abs(g - b) < 26);
 
-        Path2D.Float nPath = new Path2D.Float();
-        // Left vertical stem
-        nPath.moveTo(left, top + nHeight);
-        nPath.lineTo(left, top);
-        // Diagonal bridge
-        nPath.lineTo(left + nWidth, top + nHeight);
-        // Right vertical stem
-        nPath.lineTo(left + nWidth, top);
+            if (isArtifactStrip || isBottomShadow || isWhiteBg || isVeryLight) {
+                isBg[x][y] = true;
+                q.add(new int[]{x + 1, y});
+                q.add(new int[]{x - 1, y});
+                q.add(new int[]{x, y + 1});
+                q.add(new int[]{x, y - 1});
+            }
+        }
 
-        g2.setColor(new Color(255, 255, 255, 240));
-        g2.setStroke(new BasicStroke(strokeW, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
-        g2.draw(nPath);
+        // 2. Measure foreground bounding box
+        int minX = w, maxX = 0, minY = h, maxY = 0;
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                if (!isBg[x][y]) {
+                    if (x < minX) minX = x;
+                    if (x > maxX) maxX = x;
+                    if (y < minY) minY = y;
+                    if (y > maxY) maxY = y;
+                }
+            }
+        }
 
+        int fgWidth = maxX - minX + 1;
+        int fgHeight = maxY - minY + 1;
+        int canvasSize = Math.max(fgWidth, fgHeight) + 16; // 8px breathing padding on each side
+        int offsetX = (canvasSize - fgWidth) / 2 - minX;
+        int offsetY = (canvasSize - fgHeight) / 2 - minY;
+
+        // 3. Compute distance to background for 2px soft anti-aliased alpha feathering
+        float[][] alpha = new float[w][h];
+        for (int x = 0; x < w; x++) {
+            for (int y = 0; y < h; y++) {
+                if (isBg[x][y]) {
+                    alpha[x][y] = 0f;
+                } else {
+                    // Check neighbors within 2 pixels
+                    float minBgDist = 999f;
+                    for (int dx = -2; dx <= 2; dx++) {
+                        for (int dy = -2; dy <= 2; dy++) {
+                            int nx = x + dx, ny = y + dy;
+                            if (nx < 0 || nx >= w || ny < 0 || ny >= h || isBg[nx][ny]) {
+                                float dist = (float) Math.sqrt(dx * dx + dy * dy);
+                                if (dist < minBgDist) minBgDist = dist;
+                            }
+                        }
+                    }
+                    if (minBgDist <= 1.0f) {
+                        alpha[x][y] = 0.45f * minBgDist;
+                    } else if (minBgDist <= 2.0f) {
+                        alpha[x][y] = 0.45f + 0.55f * (minBgDist - 1.0f);
+                    } else {
+                        alpha[x][y] = 1.0f;
+                    }
+                }
+            }
+        }
+
+        // 4. Render onto high-res square transparent ARGB canvas
+        BufferedImage transparentEmblem = new BufferedImage(canvasSize, canvasSize, BufferedImage.TYPE_INT_ARGB);
+        for (int x = minX; x <= maxX; x++) {
+            for (int y = minY; y <= maxY; y++) {
+                float a = alpha[x][y];
+                if (a > 0.02f) {
+                    int rgb = src.getRGB(x, y);
+                    int r = (rgb >> 16) & 0xFF;
+                    int g = (rgb >> 8) & 0xFF;
+                    int b = rgb & 0xFF;
+                    int aInt = Math.min(255, Math.round(a * 255f));
+                    int destRgb = (aInt << 24) | (r << 16) | (g << 8) | b;
+                    transparentEmblem.setRGB(x + offsetX, y + offsetY, destRgb);
+                }
+            }
+        }
+
+        return transparentEmblem;
+    }
+
+    /**
+     * High-quality bicubic downsampler for icons.
+     */
+    public static BufferedImage scaleImage(BufferedImage src, int targetSize) {
+        BufferedImage scaled = new BufferedImage(targetSize, targetSize, BufferedImage.TYPE_INT_ARGB);
+        Graphics2D g2 = scaled.createGraphics();
+
+        g2.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BICUBIC);
+        g2.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
+        g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+        g2.setRenderingHint(RenderingHints.KEY_ALPHA_INTERPOLATION, RenderingHints.VALUE_ALPHA_INTERPOLATION_QUALITY);
+
+        g2.drawImage(src, 0, 0, targetSize, targetSize, null);
         g2.dispose();
-        return image;
+        return scaled;
     }
 
     public static byte[] createIco(List<BufferedImage> images) throws IOException {
@@ -133,26 +203,59 @@ public class IconGenerator {
         return baos.toByteArray();
     }
 
-    public static void main(String[] args) throws Exception {
+    public static void generateAllAssets(File masterSource) throws Exception {
+        BufferedImage src = ImageIO.read(masterSource);
+        if (src == null) {
+            throw new IllegalArgumentException("Could not read image from " + masterSource);
+        }
+
+        System.out.println("Processing master emblem from: " + masterSource.getAbsolutePath() + " (" + src.getWidth() + "x" + src.getHeight() + ")");
+        BufferedImage transparentEmblem = extractTransparentEmblem(src);
+        System.out.println("Transparent emblem extracted: " + transparentEmblem.getWidth() + "x" + transparentEmblem.getHeight());
+
+        // Save high-resolution transparent master logo
+        Path resImagesDir = Path.of("src/main/resources/images");
+        Path resIconsDir = Path.of("src/main/resources/com/nextit/icons");
+        Files.createDirectories(resImagesDir);
+        Files.createDirectories(resIconsDir);
+
+        File logoPng1 = resImagesDir.resolve("nextit-logo.png").toFile();
+        File logoPng2 = resIconsDir.resolve("nextit-logo.png").toFile();
+        ImageIO.write(transparentEmblem, "png", logoPng1);
+        ImageIO.write(transparentEmblem, "png", logoPng2);
+        System.out.println("Saved master transparent logo to: " + logoPng1.getPath() + " and " + logoPng2.getPath());
+
         int[] sizes = {16, 32, 48, 64, 128, 256};
         List<BufferedImage> icoImages = new ArrayList<>();
 
-        Path resIconsDir = Path.of("src/main/resources/com/nextit/icons");
-        Files.createDirectories(resIconsDir);
-
         for (int size : sizes) {
-            BufferedImage img = generateIcon(size);
-            ImageIO.write(img, "png", resIconsDir.resolve("nextit-" + size + ".png").toFile());
-            if (size == 16 || size == 32 || size == 48 || size == 256) {
-                icoImages.add(img);
-            }
+            BufferedImage scaled = scaleImage(transparentEmblem, size);
+            File iconFile = resIconsDir.resolve("nextit-" + size + ".png").toFile();
+            ImageIO.write(scaled, "png", iconFile);
+            System.out.println("Saved " + size + "x" + size + " icon to: " + iconFile.getPath());
+            icoImages.add(scaled);
         }
 
         byte[] icoData = createIco(icoImages);
+        Path resIcoPath = resIconsDir.resolve("nextit.ico");
+        Path rootIcoPath = Path.of("nextit.ico");
+        Files.write(resIcoPath, icoData);
+        Files.write(rootIcoPath, icoData);
+        System.out.println("Saved Windows ICO with all resolutions to " + resIcoPath + " and " + rootIcoPath);
+    }
 
-        Files.write(resIconsDir.resolve("nextit.ico"), icoData);
-        Files.write(Path.of("nextit.ico"), icoData);
+    public static void main(String[] args) throws Exception {
+        File masterSource = null;
+        if (args != null && args.length > 0) {
+            masterSource = new File(args[0]);
+        }
+        if (masterSource == null || !masterSource.exists()) {
+            masterSource = new File("src/main/resources/images/nextit-emblem-source.jpg");
+        }
+        if (!masterSource.exists()) {
+            masterSource = new File("src/main/resources/images/nextit-logo.png");
+        }
 
-        System.out.println("Generated all icons and nextit.ico successfully!");
+        generateAllAssets(masterSource);
     }
 }

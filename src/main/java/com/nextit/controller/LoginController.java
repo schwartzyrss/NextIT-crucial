@@ -6,6 +6,7 @@ import com.nextit.service.AuthenticationService;
 import com.nextit.service.OtpService;
 import com.nextit.util.Alerts;
 import com.nextit.util.Ui;
+import com.nextit.util.WindowBoundsManager;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
@@ -14,6 +15,8 @@ import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
@@ -25,6 +28,7 @@ import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.util.concurrent.CompletableFuture;
 
 public class LoginController {
@@ -131,6 +135,12 @@ public class LoginController {
         dialog.getDialogPane().getStylesheets().add(getClass().getResource("/com/nextit/css/application.css").toExternalForm());
         dialog.getDialogPane().setStyle("-fx-background-color: #FDFBFA;");
 
+        dialog.setOnShowing(ev -> {
+            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
+                WindowBoundsManager.loadStageIcons(stage);
+            }
+        });
+
         if (errorLabel.getScene() != null && errorLabel.getScene().getWindow() instanceof Stage ownerStage) {
             dialog.initOwner(ownerStage);
         }
@@ -151,17 +161,23 @@ public class LoginController {
         VBox topBanner = new VBox(10);
         topBanner.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-radius: 12; -fx-background-radius: 12; -fx-padding: 14; -fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.15), 6, 0.05, 0, 2);");
 
-        HBox bannerHeader = new HBox(10);
+        HBox bannerHeader = new HBox(12);
         bannerHeader.setAlignment(Pos.CENTER_LEFT);
-        Label icon = new Label("🔐");
-        icon.setStyle("-fx-font-size: 20px;");
+        ImageView modalLogo = new ImageView();
+        modalLogo.setFitWidth(32);
+        modalLogo.setFitHeight(32);
+        modalLogo.setPreserveRatio(true);
+        modalLogo.setSmooth(true);
+        try (InputStream is = getClass().getResourceAsStream("/images/nextit-logo.png")) {
+            if (is != null) modalLogo.setImage(new Image(is));
+        } catch (Exception ignored) {}
         VBox bannerTitles = new VBox(2);
         Label title = new Label("Account Password Recovery");
         title.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F;");
         Label subtitle = new Label("Follow the 3 steps to verify your identity and set a new password.");
         subtitle.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
         bannerTitles.getChildren().addAll(title, subtitle);
-        bannerHeader.getChildren().addAll(icon, bannerTitles);
+        bannerHeader.getChildren().addAll(modalLogo, bannerTitles);
 
         HBox stepPills = new HBox(8);
         stepPills.setAlignment(Pos.CENTER_LEFT);
