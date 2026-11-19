@@ -153,7 +153,7 @@ public final class StudentViews {
         statusPillBox.setAlignment(Pos.CENTER_RIGHT);
         StackPane statusDot = Ui.statusDot(true);
         Label statusText = new Label("Active Student");
-        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #2d6a4f; -fx-font-size: 12px;");
+        statusText.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
         HBox liveChip = new HBox(8, statusDot, statusText);
         liveChip.setAlignment(Pos.CENTER);
         liveChip.getStyleClass().addAll("badge-pill", "badge-pill-mint");
@@ -166,7 +166,7 @@ public final class StudentViews {
 
         // Fixed sticky header container
         VBox headerContainer = new VBox(hero);
-        headerContainer.setStyle("-fx-background-color: #f1f2fa;");
+        headerContainer.setStyle("-fx-background-color: #FDFBFA;");
         headerContainer.setPadding(new Insets(24, 24, 10, 24));
 
         // 2. Full-Width 4-Column Stat Cards (Row 1 & Row 2)
@@ -336,7 +336,7 @@ public final class StudentViews {
 
         VBox scrollContent = new VBox(20);
         scrollContent.setFillWidth(true);
-        scrollContent.setStyle("-fx-background-color: #f1f2fa;");
+        scrollContent.setStyle("-fx-background-color: #FDFBFA;");
         scrollContent.setPadding(new Insets(10, 24, 32, 24));
         scrollContent.getChildren().addAll(cards1, cards2, middleRow, lowerRow);
 
@@ -355,7 +355,7 @@ public final class StudentViews {
 
         BorderPane dashboardRoot = new BorderPane();
         dashboardRoot.getProperties().put("self-scrolling", Boolean.TRUE);
-        dashboardRoot.setStyle("-fx-background-color: #f1f2fa;");
+        dashboardRoot.setStyle("-fx-background-color: #FDFBFA;");
         dashboardRoot.setTop(headerContainer);
         dashboardRoot.setCenter(scrollPane);
 

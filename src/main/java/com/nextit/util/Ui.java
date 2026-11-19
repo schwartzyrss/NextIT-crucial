@@ -135,8 +135,8 @@ public final class Ui {
         Circle halo = (Circle) dotBox.getProperties().get("halo");
         Circle core = (Circle) dotBox.getProperties().get("core");
         if (halo != null && core != null) {
-            Color primaryColor = active ? Color.web("#10B981") : Color.web("#EF4444");
-            Color haloColor = active ? Color.web("#10B981", 0.28) : Color.web("#EF4444", 0.28);
+            Color primaryColor = active ? Color.web("#9E0B0F") : Color.web("#660508");
+            Color haloColor = active ? Color.web("#9E0B0F", 0.28) : Color.web("#660508", 0.28);
             core.setFill(primaryColor);
             halo.setFill(haloColor);
         }
@@ -149,7 +149,7 @@ public final class Ui {
         SVGPath svg = new SVGPath();
         svg.setContent(SYNC_ICON_PATH);
         svg.setFill(Color.TRANSPARENT);
-        svg.setStroke(Color.web("#1E293B"));
+        svg.setStroke(Color.web("#414141"));
         svg.setStrokeWidth(1.8);
         svg.setStrokeLineCap(StrokeLineCap.ROUND);
         svg.setStrokeLineJoin(StrokeLineJoin.ROUND);
@@ -187,7 +187,7 @@ public final class Ui {
         private void setupInteractions() {
             button.hoverProperty().addListener((obs, old, hovered) -> {
                 if (svg != null) {
-                    svg.setStroke(hovered ? Color.web("#4F46E5") : Color.web("#1E293B"));
+                    svg.setStroke(hovered ? Color.web("#9E0B0F") : Color.web("#414141"));
                 }
                 if (!fetching.get()) {
                     RotateTransition hoverTrans = new RotateTransition(Duration.millis(hovered ? 280 : 200), iconBox);

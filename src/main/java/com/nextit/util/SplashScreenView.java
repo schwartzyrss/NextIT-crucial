@@ -10,6 +10,7 @@ import javafx.animation.FadeTransition;
 import javafx.application.Platform;
 import javafx.concurrent.Task;
 import javafx.fxml.FXMLLoader;
+import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Parent;
 import javafx.scene.Scene;
@@ -39,63 +40,133 @@ public final class SplashScreenView {
     public static void showAndInitialize(Stage stage) {
         WindowBoundsManager.configureStage(stage);
 
-        // Build Claymorphic Splash Card
-        VBox card = new VBox(18);
+        // Build Defense-Themed Splash Card (Widescreen Desktop Showcase Container)
+        VBox card = new VBox(22);
         card.setAlignment(Pos.CENTER);
-        card.setMaxWidth(460);
+        card.setMinWidth(640);
+        card.setPrefWidth(980);
+        card.setMaxWidth(1040);
+        card.setMinHeight(520);
+        card.setPrefHeight(620);
+        card.setMaxHeight(620);
         card.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #FFFFFF 0%, #FDFBF7 60%, #F6F1E7 100%);"
+                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #FFFFFF 0%, #FDFBFA 55%, #EFE2CA 100%);"
                         + "-fx-background-radius: 28;"
-                        + "-fx-padding: 44 36;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(56, 49, 57, 0.12), 24, 0.15, 0, 8);"
+                        + "-fx-border-color: #C6A75E;"
+                        + "-fx-border-radius: 28;"
+                        + "-fx-border-width: 1.5;"
+                        + "-fx-padding: 48 64;"
+                        + "-fx-effect: dropshadow(gaussian, rgba(65, 65, 65, 0.12), 32, 0.14, 0, 10);"
         );
 
-        // Pastel lavender-periwinkle gradient logo orb
-        Region logoOrb = new Region();
-        logoOrb.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #C4B5FD 0%, #818CF8 100%);"
-                        + "-fx-background-radius: 999;"
-                        + "-fx-min-width: 64; -fx-min-height: 64; -fx-max-width: 64; -fx-max-height: 64;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(129, 140, 248, 0.45), 16, 0.2, 0, 4);"
+        // NEXTIT DEFENSE emblem with gold accent ring and crisp monogram
+        StackPane emblemContainer = new StackPane();
+        emblemContainer.setAlignment(Pos.CENTER);
+
+        Region goldRing = new Region();
+        goldRing.setStyle(
+                "-fx-background-color: transparent;"
+                        + "-fx-border-color: #C6A75E;"
+                        + "-fx-border-radius: 999;"
+                        + "-fx-border-width: 2.2;"
+                        + "-fx-min-width: 86; -fx-min-height: 86; -fx-max-width: 86; -fx-max-height: 86;"
+                        + "-fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.45), 14, 0.2, 0, 2);"
         );
+
+        Region crimsonOrb = new Region();
+        crimsonOrb.setStyle(
+                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #B51217 0%, #9E0B0F 55%, #660508 100%);"
+                        + "-fx-background-radius: 999;"
+                        + "-fx-min-width: 72; -fx-min-height: 72; -fx-max-width: 72; -fx-max-height: 72;"
+                        + "-fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.45), 16, 0.25, 0, 4);"
+        );
+
+        Label emblemMonogram = new Label("N");
+        emblemMonogram.setStyle(
+                "-fx-font-size: 32px;"
+                        + "-fx-font-weight: 900;"
+                        + "-fx-text-fill: #FFFFFF;"
+                        + "-fx-font-family: 'Segoe UI', -apple-system, sans-serif;"
+                        + "-fx-effect: dropshadow(gaussian, rgba(102, 5, 8, 0.4), 4, 0.1, 0, 1);"
+        );
+
+        emblemContainer.getChildren().addAll(goldRing, crimsonOrb, emblemMonogram);
 
         Label titleLabel = new Label("NextIT");
-        titleLabel.setStyle("-fx-font-size: 32px; -fx-font-weight: 900; -fx-text-fill: #1E293B;");
+        titleLabel.setStyle(
+                "-fx-font-size: 38px;"
+                        + "-fx-font-weight: 900;"
+                        + "-fx-text-fill: #414141;"
+                        + "-fx-letter-spacing: -0.5px;"
+                        + "-fx-font-family: 'Segoe UI', -apple-system, sans-serif;"
+        );
 
         Label subtitleLabel = new Label("Track Your Progress, Build Your Future");
-        subtitleLabel.setStyle("-fx-font-size: 13px; -fx-font-weight: 600; -fx-text-fill: #64748B;");
+        subtitleLabel.setStyle(
+                "-fx-font-size: 14px;"
+                        + "-fx-font-weight: 800;"
+                        + "-fx-text-fill: #9E0B0F;"
+                        + "-fx-letter-spacing: 0.5px;"
+                        + "-fx-font-family: 'Segoe UI', -apple-system, sans-serif;"
+        );
 
-        VBox brandBox = new VBox(6, logoOrb, titleLabel, subtitleLabel);
+        VBox brandBox = new VBox(6, emblemContainer, titleLabel, subtitleLabel);
         brandBox.setAlignment(Pos.CENTER);
 
-        // Status Message & Progress Indicator
-        Label statusLabel = new Label("Initializing desktop application environment...");
-        statusLabel.setStyle("-fx-font-size: 12px; -fx-font-weight: bold; -fx-text-fill: #475569;");
+        // Full-width scaled horizontal progress bar
+        ProgressBar progressBar = new ProgressBar(0.0);
+        progressBar.setPrefWidth(540);
+        progressBar.setMaxWidth(620);
+        progressBar.setPrefHeight(8);
+        progressBar.setStyle("-fx-accent: #9E0B0F;");
 
-        ProgressBar progressBar = new ProgressBar(ProgressBar.INDETERMINATE_PROGRESS);
-        progressBar.setPrefWidth(320);
-        progressBar.setPrefHeight(6);
-        progressBar.setStyle("-fx-accent: #F472B6;");
+        // Live status line
+        Label statusLabel = new Label("Connecting to database and validating schema...");
+        statusLabel.setStyle(
+                "-fx-font-size: 13px;"
+                        + "-fx-font-weight: 700;"
+                        + "-fx-text-fill: #414141;"
+                        + "-fx-font-family: 'Segoe UI', -apple-system, sans-serif;"
+        );
 
-        // Trust chip
+        // Trust chip pill badge with crimson status indicator
         HBox trustChip = new HBox(8);
         trustChip.setAlignment(Pos.CENTER);
         trustChip.setStyle(
-                "-fx-background-color: rgba(16, 185, 129, 0.10);"
+                "-fx-background-color: #FAF4EE;"
                         + "-fx-background-radius: 999;"
-                        + "-fx-padding: 4 14;"
+                        + "-fx-border-color: #C6A75E;"
+                        + "-fx-border-radius: 999;"
+                        + "-fx-border-width: 1.2;"
+                        + "-fx-padding: 6 18;"
+                        + "-fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.20), 8, 0.08, 0, 2);"
         );
         Region trustDot = new Region();
-        trustDot.setStyle("-fx-background-color: #10B981; -fx-background-radius: 999; -fx-min-width: 7; -fx-min-height: 7; -fx-max-width: 7; -fx-max-height: 7;");
+        trustDot.setStyle(
+                "-fx-background-color: #9E0B0F;"
+                        + "-fx-background-radius: 999;"
+                        + "-fx-min-width: 8; -fx-min-height: 8; -fx-max-width: 8; -fx-max-height: 8;"
+                        + "-fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.6), 4, 0.25, 0, 0);"
+        );
         Label trustText = new Label("Desktop Client • Standalone Edition");
-        trustText.setStyle("-fx-font-size: 11px; -fx-font-weight: bold; -fx-text-fill: #065F46;");
+        trustText.setStyle(
+                "-fx-font-size: 11.5px;"
+                        + "-fx-font-weight: 800;"
+                        + "-fx-text-fill: #414141;"
+                        + "-fx-font-family: 'Segoe UI', -apple-system, sans-serif;"
+        );
         trustChip.getChildren().addAll(trustDot, trustText);
 
-        card.getChildren().addAll(brandBox, progressBar, statusLabel, trustChip);
+        VBox loadingStack = new VBox(18);
+        loadingStack.setAlignment(Pos.CENTER);
+        loadingStack.getChildren().addAll(brandBox, progressBar, statusLabel, trustChip);
+
+        card.getChildren().add(loadingStack);
 
         StackPane root = new StackPane(card);
         root.setAlignment(Pos.CENTER);
-        root.setStyle("-fx-background-color: #F3F5FA;");
+        root.setPadding(new Insets(28, 28, 28, 28));
+        root.setStyle("-fx-background-color: #FDFBFA;");
 
         Scene splashScene = new Scene(root, stage.getWidth(), stage.getHeight());
         splashScene.getStylesheets().add(SplashScreenView.class.getResource("/com/nextit/css/application.css").toExternalForm());
@@ -110,14 +181,16 @@ public final class SplashScreenView {
             shutdownApplication(stage);
         });
 
-        // Run background initialization
+        // Run background initialization with smooth telemetry
         Task<Boolean> initTask = new Task<>() {
             @Override
             protected Boolean call() {
                 try {
+                    updateProgress(0.15, 1.0);
                     updateMessage("Loading application settings and environment...");
                     Thread.sleep(400);
 
+                    updateProgress(0.50, 1.0);
                     updateMessage("Connecting to database and validating schema...");
                     boolean dbOk = false;
                     try (Connection conn = DatabaseConfig.getConnection()) {
@@ -134,8 +207,12 @@ public final class SplashScreenView {
                         }
                     }
 
+                    updateProgress(0.85, 1.0);
                     updateMessage(dbOk ? "Database connected! Launching NextIT..." : "Offline mode ready. Launching NextIT...");
                     Thread.sleep(350);
+
+                    updateProgress(1.0, 1.0);
+                    Thread.sleep(150);
                     return dbOk;
                 } catch (Exception e) {
                     log.error("Error during splash initialization", e);
@@ -145,10 +222,11 @@ public final class SplashScreenView {
         };
 
         statusLabel.textProperty().bind(initTask.messageProperty());
+        progressBar.progressProperty().bind(initTask.progressProperty());
 
         initTask.setOnSucceeded(e -> {
             Platform.runLater(() -> {
-                FadeTransition fade = new FadeTransition(Duration.millis(300), card);
+                FadeTransition fade = new FadeTransition(Duration.millis(350), card);
                 fade.setFromValue(1.0);
                 fade.setToValue(0.0);
                 fade.setOnFinished(ev -> transitionToLogin(stage));
@@ -176,7 +254,14 @@ public final class SplashScreenView {
             loginScene.getStylesheets().add(SplashScreenView.class.getResource("/com/nextit/css/application.css").toExternalForm());
             WindowBoundsManager.installDesktopEventFilters(loginScene);
 
+            loginRoot.setOpacity(0.0);
             stage.setScene(loginScene);
+
+            FadeTransition fadeIn = new FadeTransition(Duration.millis(350), loginRoot);
+            fadeIn.setFromValue(0.0);
+            fadeIn.setToValue(1.0);
+            fadeIn.play();
+
             log.info("Transitioned from splash screen to main Login scene.");
         } catch (Exception e) {
             log.error("Failed to load Login scene", e);
