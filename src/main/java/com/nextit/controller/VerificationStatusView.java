@@ -131,7 +131,7 @@ public final class VerificationStatusView {
                 infoBox.getChildren().add(reasonTray);
             } else if (st == VerificationStatus.SUSPENDED) {
                 titleLabel.setText("Account Suspended");
-                descLabel.setText("This account has been temporarily restricted due to security flags or duplicate identity detection. Access to all NextIT services is suspended pending an administrative inquiry.");
+                descLabel.setText("This account has been temporarily restricted due to security flags or duplicate identity detection. Access to all NextIT services is suspended pending an official inquiry.");
                 Label contactNote = new Label("To resolve this restriction, please contact campus IT Security at security@nextit.edu with proof of identity.");
                 contactNote.setWrapText(true);
                 contactNote.setStyle("-fx-font-size: 12px; -fx-text-fill: #9E0B0F; -fx-font-weight: bold;");
@@ -209,7 +209,7 @@ public final class VerificationStatusView {
         VBox box = new VBox(12);
         box.setPrefWidth(420);
 
-        Label lbl = new Label("Please update your identification details and proof notes for administrative re-examination:");
+        Label lbl = new Label("Please update your identification details and proof notes for reviewer re-examination:");
         lbl.setWrapText(true);
         lbl.setStyle("-fx-font-size: 12px; -fx-text-fill: #414141;");
 

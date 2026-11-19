@@ -324,7 +324,7 @@
     x-data="{
       view: 1, // 1: Role Selection, 2: Account Form
       step: 1, // 1: Account, 2: Affiliation, 3: Verify, 4: Ready
-      role: 'student', // student, instructor, employer, admin
+      role: 'student', // student, instructor, employer
       username: '',
       email: '',
       firstName: '',
@@ -417,35 +417,14 @@
           orgPlaceholder: 'TechCorp Solutions Inc.',
           detailLabel: 'Company Size & Industry',
           detailPlaceholder: '50-200 Employees • Enterprise Tech'
-        },
-        admin: {
-          title: 'Administrator',
-          desc: 'Manage campus departments, verify domains, and oversee institutional access.',
-          badge: 'System Admin',
-          cushionClass: 'clay-cushion-blue',
-          badgeClass: 'bg-[#EBF2F7] text-[#1B3C59] border border-[#C6A75E]/60 shadow-sm',
-          emailLabel: 'Administrator Email',
-          emailPlaceholder: 'admin@nextit.edu',
-          orgLabel: 'Institutional System',
-          orgPlaceholder: 'Campus Central IT Services',
-          detailLabel: 'Security Clearance Code',
-          detailPlaceholder: 'ADM-SEC-2026'
         }
       },
 
       selectRole(r) {
-        if (r === 'admin') {
-          alert('Administrator accounts are strictly provisioned by authorized campus administrators and cannot be self-registered publicly. Please contact IT Security for clearance.');
-          return;
-        }
         this.role = r;
       },
 
       continueToForm() {
-        if (this.role === 'admin') {
-          alert('Public administrator registration is disabled.');
-          return;
-        }
         this.view = 2;
         this.step = 1;
         this.formError = '';
@@ -939,8 +918,8 @@
             Choose your role to load your personalized workspace and authentication pipeline.
           </p>
 
-          <!-- 4 Pastel Clay Selection Cards Grid -->
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+          <!-- 3 Pastel Clay Selection Cards Grid -->
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
             
             <!-- 1. Student Card (Mint Cushion) -->
             <div 
@@ -1017,33 +996,6 @@
                 <h3 class="text-base font-extrabold text-nextit-ink mb-1">Employer</h3>
                 <p class="text-xs text-nextit-ink-secondary leading-relaxed font-medium">
                   Post internships, search verified talent repositories, and recruit on campus.
-                </p>
-              </div>
-            </div>
-
-            <!-- 4. Admin Card (Restricted - Provisioned Only) -->
-            <div 
-              @click="selectRole('admin')" 
-              class="clay-role-card flex flex-col justify-between opacity-85 border-2 border-dashed border-[#8DAAC2] cursor-pointer hover:border-[#1B3C59]"
-            >
-              <div class="flex items-start justify-between mb-3">
-                <div class="w-8 h-8 flex items-center justify-center">
-                  <svg class="w-7 h-7 text-[#1B3C59]" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <rect width="18" height="11" x="3" y="11" rx="2" ry="2"/>
-                    <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                  </svg>
-                </div>
-                <span class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-[#EBF2F7] text-[#1B3C59] border border-[#C6A75E]/60 shadow-sm">
-                  🔒 Restricted
-                </span>
-              </div>
-              <div>
-                <h3 class="text-base font-extrabold text-nextit-ink mb-1 flex items-center gap-1.5">
-                  <span>Administrator</span>
-                  <span class="text-[9px] font-bold px-1.5 py-0.5 rounded bg-[#E1ECF4] text-[#1B3C59] border border-[#8DAAC2]/60">IT Provisioned</span>
-                </h3>
-                <p class="text-xs text-nextit-ink-secondary leading-relaxed font-medium">
-                  Public registration is disabled. Administrator accounts are provisioned exclusively by authorized system administrators.
                 </p>
               </div>
             </div>
@@ -1314,7 +1266,6 @@
                 <span x-show="role === 'student'">Student ID Number</span>
                 <span x-show="role === 'instructor'">Faculty Employee ID</span>
                 <span x-show="role === 'employer'">Corporate Contact / Title</span>
-                <span x-show="role === 'admin'">Campus Master Authorization ID</span>
               </label>
               <input type="text" x-model="idNumber" placeholder="e.g. 2026-0091" class="clay-input-pill" />
             </div>

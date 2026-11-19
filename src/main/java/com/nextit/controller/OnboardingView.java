@@ -127,11 +127,11 @@ public class OnboardingView {
                                       String email, String password, String detail1, String detail2, String detail3) {
             CompletableFuture.runAsync(() -> {
                 try {
-                    Role role = Role.valueOf(roleStr.trim().toUpperCase());
-
-                    // Requirement 2: Disable public administrator registration!
-                    if (role == Role.ADMIN) {
-                        throw new AppException("Public administrator registration is disabled. Administrator accounts can only be provisioned by existing authorized administrators.");
+                    Role role;
+                    try {
+                        role = Role.valueOf(roleStr.trim().toUpperCase());
+                    } catch (Exception ex) {
+                        throw new AppException("Invalid registration role. Supported roles are Student, Instructor, and Employer.");
                     }
 
                     if (email == null || email.isBlank() || !email.contains("@")) {

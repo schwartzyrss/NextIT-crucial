@@ -1,6 +1,7 @@
 package com.nextit.service;
 
 import com.nextit.exception.AppException;
+import com.nextit.model.AcademicCredential;
 import com.nextit.model.Achievement;
 import com.nextit.model.Certification;
 import com.nextit.repository.JdbcAchievementRepository;
@@ -8,6 +9,8 @@ import com.nextit.repository.JdbcCertificationRepository;
 import com.nextit.repository.JdbcStudentRepository;
 import com.nextit.util.Validator;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 public class StudentService {
@@ -20,6 +23,82 @@ public class StudentService {
     public List<Certification> certificationsFor(int studentId) { return certificationRepo.findByStudentId(studentId); }
     public List<Achievement> allAchievements() { return achievementRepo.findAll(); }
     public List<Certification> allCertifications() { return certificationRepo.findAll(); }
+
+    public List<AcademicCredential> credentialsFor(int studentId) {
+        List<AcademicCredential> list = new ArrayList<>();
+        for (Achievement a : achievementsFor(studentId)) {
+            list.add(AcademicCredential.fromAchievement(a));
+        }
+        for (Certification c : certificationsFor(studentId)) {
+            list.add(AcademicCredential.fromCertification(c));
+        }
+        list.sort((a, b) -> {
+            LocalDate d1 = a.getDate();
+            LocalDate d2 = b.getDate();
+            if (d1 == null && d2 == null) return 0;
+            if (d1 == null) return 1;
+            if (d2 == null) return -1;
+            return d2.compareTo(d1);
+        });
+        return list;
+    }
+
+    public List<AcademicCredential> allCredentials() {
+        List<AcademicCredential> list = new ArrayList<>();
+        for (Achievement a : allAchievements()) {
+            list.add(AcademicCredential.fromAchievement(a));
+        }
+        for (Certification c : allCertifications()) {
+            list.add(AcademicCredential.fromCertification(c));
+        }
+        list.sort((a, b) -> {
+            LocalDate d1 = a.getDate();
+            LocalDate d2 = b.getDate();
+            if (d1 == null && d2 == null) return 0;
+            if (d1 == null) return 1;
+            if (d2 == null) return -1;
+            return d2.compareTo(d1);
+        });
+        return list;
+    }
+
+    public void saveCredential(AcademicCredential cred) {
+        if (cred == null || cred.getType() == null) {
+            throw new AppException("Credential type is required.");
+        }
+        if (cred.getType() == AcademicCredential.Type.ACHIEVEMENT) {
+            Achievement a = new Achievement();
+            if (cred.getId() > 0) a.setAchievementId(cred.getId());
+            a.setStudentId(cred.getStudentId());
+            a.setTitle(cred.getTitle());
+            a.setOrganization(cred.getOrganization());
+            a.setAchievementDate(cred.getDate());
+            a.setDescription(cred.getDescription());
+            a.setVerificationUrl(cred.getVerificationUrl());
+            saveAchievement(a);
+            cred.setId(a.getAchievementId());
+        } else {
+            Certification c = new Certification();
+            if (cred.getId() > 0) c.setCertificationId(cred.getId());
+            c.setStudentId(cred.getStudentId());
+            c.setCertificationName(cred.getTitle());
+            c.setIssuingOrganization(cred.getOrganization());
+            c.setIssueDate(cred.getDate());
+            c.setExpirationDate(cred.getExpirationDate());
+            c.setCredentialUrl(cred.getVerificationUrl());
+            saveCertification(c);
+            cred.setId(c.getCertificationId());
+        }
+    }
+
+    public void deleteCredential(AcademicCredential cred) {
+        if (cred == null || cred.getType() == null) return;
+        if (cred.getType() == AcademicCredential.Type.ACHIEVEMENT) {
+            deleteAchievement(cred.getId(), cred.getStudentId());
+        } else {
+            deleteCertification(cred.getId(), cred.getStudentId());
+        }
+    }
 
     public void saveAchievement(Achievement a) {
         Validator.notBlank(a.getTitle(), "Achievement title");

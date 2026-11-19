@@ -161,8 +161,7 @@ public class AppController {
                 sidebar.getChildren().add(navButton("📚 Academic", () -> setView(StudentViews.academic())));
                 sidebar.getChildren().add(navButton("💻 Skills", () -> setView(StudentViews.skills())));
                 sidebar.getChildren().add(navButton("🚀 Projects", () -> setView(StudentViews.projects())));
-                sidebar.getChildren().add(navButton("🏆 Achievements", () -> setView(StudentViews.achievements())));
-                sidebar.getChildren().add(navButton("🎓 Certifications", () -> setView(StudentViews.certifications())));
+                sidebar.getChildren().add(navButton("🏆 Achievements & Certifications", () -> setView(StudentViews.achievementsAndCertifications())));
                 sidebar.getChildren().add(navButton("📁 Portfolio", () -> setView(StudentViews.portfolio())));
                 sidebar.getChildren().add(navButton("🌟 Opportunities", () -> setView(StudentViews.opportunities())));
                 sidebar.getChildren().add(navButton("📝 Applications", () -> setView(StudentViews.applications())));
@@ -182,8 +181,7 @@ public class AppController {
                 sidebar.getChildren().add(categoryHeader("Student Showcase & Career"));
                 sidebar.getChildren().add(navButton("📁 Portfolios", () -> setView(InstructorViews.portfolios())));
                 sidebar.getChildren().add(navButton("🚀 Projects", () -> setView(InstructorViews.projects())));
-                sidebar.getChildren().add(navButton("🏆 Achievements", () -> setView(InstructorViews.achievements())));
-                sidebar.getChildren().add(navButton("🎓 Certifications", () -> setView(InstructorViews.certifications())));
+                sidebar.getChildren().add(navButton("🏆 Achievements & Certifications", () -> setView(InstructorViews.achievementsAndCertifications())));
 
                 sidebar.getChildren().add(categoryHeader("Support & Growth"));
                 sidebar.getChildren().add(navButton("💡 Academic Support", () -> setView(InstructorViews.support())));
@@ -198,42 +196,6 @@ public class AppController {
                 sidebar.getChildren().add(navButton("🌟 Opportunities", () -> setView(EmployerViews.opportunities())));
                 sidebar.getChildren().add(navButton("📝 Applications", () -> setView(EmployerViews.applications())));
                 sidebar.getChildren().add(navButton("🔍 Portfolio Search", () -> setView(EmployerViews.portfolioSearch())));
-            }
-            case ADMIN -> {
-                sidebar.getChildren().add(categoryHeader("Security & Verification"));
-                sidebar.getChildren().add(navButton("🛡️ Verification Hub", () -> setView(AdminViews.verificationHub())));
-
-                sidebar.getChildren().add(categoryHeader("System & Academics"));
-                sidebar.getChildren().add(navButton("👥 Users", () -> setView(AdminViews.users())));
-                sidebar.getChildren().add(navButton("📖 Subjects", () -> setView(AdminViews.subjects())));
-                sidebar.getChildren().add(navButton("➕ Enrollments", () -> setView(AdminViews.enrollments())));
-
-                sidebar.getChildren().add(categoryHeader("Records & Tracking"));
-                sidebar.getChildren().add(navButton("📅 Attendance", () -> setView(AdminViews.attendance())));
-                sidebar.getChildren().add(navButton("📊 Grades", () -> setView(AdminViews.grades())));
-
-                sidebar.getChildren().add(categoryHeader("Skills & Evaluations"));
-                sidebar.getChildren().add(navButton("💻 Technical Skills", () -> setView(AdminViews.skills())));
-                sidebar.getChildren().add(navButton("📋 Technical Evaluations", () -> setView(AdminViews.technicalEvaluations())));
-                sidebar.getChildren().add(navButton("📁 Projects", () -> setView(AdminViews.projects())));
-                sidebar.getChildren().add(navButton("📑 Project Evaluations", () -> setView(AdminViews.projectEvaluations())));
-
-                sidebar.getChildren().add(categoryHeader("Achievements & Support"));
-                sidebar.getChildren().add(navButton("🏆 Achievements", () -> setView(AdminViews.achievements())));
-                sidebar.getChildren().add(navButton("🎓 Certifications", () -> setView(AdminViews.certifications())));
-                sidebar.getChildren().add(navButton("💡 Academic Support", () -> setView(AdminViews.academicSupport())));
-
-                sidebar.getChildren().add(categoryHeader("Directory & Partners"));
-                sidebar.getChildren().add(navButton("🧑‍🎓 Students", () -> setView(AdminViews.students())));
-                sidebar.getChildren().add(navButton("👩‍🏫 Instructors", () -> setView(AdminViews.instructors())));
-                sidebar.getChildren().add(navButton("🏢 Employers", () -> setView(AdminViews.employers())));
-                sidebar.getChildren().add(navButton("🌟 Opportunities", () -> setView(AdminViews.opportunities())));
-                sidebar.getChildren().add(navButton("📝 Applications", () -> setView(AdminViews.applications())));
-                sidebar.getChildren().add(navButton("📁 Portfolios", () -> setView(AdminViews.portfolios())));
-                sidebar.getChildren().add(navButton("⚙ System Config", () -> setView(AdminViews.system())));
-
-                sidebar.getChildren().add(categoryHeader("User Settings"));
-                sidebar.getChildren().add(navButton("👤 Profile", () -> setView(AdminViews.profile())));
             }
         }
 
@@ -293,7 +255,6 @@ public class AppController {
             case STUDENT -> setView(StudentViews.dashboard());
             case INSTRUCTOR -> setView(InstructorViews.dashboard());
             case EMPLOYER -> setView(EmployerViews.dashboard());
-            case ADMIN -> setView(AdminViews.dashboard());
         }
     }
 

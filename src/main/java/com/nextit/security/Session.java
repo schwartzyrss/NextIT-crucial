@@ -26,7 +26,7 @@ public final class Session {
         if (currentUser.getVerificationStatus() != VerificationStatus.VERIFIED) {
             VerificationStatus status = currentUser.getVerificationStatus();
             if (status == VerificationStatus.PENDING) {
-                throw new AppException("Access restricted: Your identity verification is pending administrator review.");
+                throw new AppException("Access restricted: Your identity verification is pending review.");
             } else if (status == VerificationStatus.SUSPENDED) {
                 throw new AppException("Access restricted: Your account is suspended due to security or policy concerns.");
             } else if (status == VerificationStatus.REJECTED) {

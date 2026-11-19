@@ -121,12 +121,12 @@ public final class StudentViews {
         notice.getStyleClass().add("profile-notice-cushion");
         Label noticeIcon = new Label("ℹ");
         noticeIcon.getStyleClass().add("profile-notice-icon");
-        Label noticeText = new Label("Student records and credentials are synchronized with the registrar. Contact an administrator if any details need correction.");
+        Label noticeText = new Label("Student records and credentials are synchronized with the registrar. Contact the department registrar if any details need correction.");
         noticeText.getStyleClass().add("profile-notice-text");
         noticeText.setWrapText(true);
         notice.getChildren().addAll(noticeIcon, noticeText);
 
-        return Ui.page("My Profile", "Your account and student profile information. Contact an administrator if any details need correction.",
+        return Ui.page("My Profile", "Your account and student profile information. Contact the department registrar if any details need correction.",
                 hero, traysRow, notice);
     }
 
@@ -803,78 +803,16 @@ public final class StudentViews {
     }
 
     public static Node achievements() {
-        int sid = studentId();
-        TableView<Achievement> table = Ui.table();
-        Ui.addColumn(table, "Title", Achievement::getTitle);
-        Ui.addColumn(table, "Organization", Achievement::getOrganization);
-        Ui.addColumn(table, "Date", a -> Ui.formatDate(a.getAchievementDate()));
-        Ui.addColumn(table, "Description", Achievement::getDescription);
-        Ui.addColumn(table, "Verification", Achievement::getVerificationUrl);
-        TextField search = Ui.field("Search by title, organization or description...");
-        Runnable refresh = () -> {
-            String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(studentService.achievementsFor(sid).stream().filter(a ->
-                    String.valueOf(a.getTitle()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(a.getOrganization()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(a.getDescription()).toLowerCase(Locale.ROOT).contains(q)).toList()));
-        };
-        search.textProperty().addListener((obs, old, value) -> refresh.run());
-        refresh.run();
-
-        Button add = new Button("Add Achievement");
-        add.getStyleClass().add("primary-button");
-        add.setOnAction(e -> editAchievement(sid, null, refresh));
-        Button edit = new Button("Edit");
-        edit.setOnAction(e -> {
-            Achievement selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select an achievement to edit."); return; }
-            editAchievement(sid, selected, refresh);
-        });
-        Button delete = new Button("Delete");
-        delete.setOnAction(e -> {
-            Achievement selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select an achievement to delete."); return; }
-            if (Ui.confirmed("Delete achievement \"" + selected.getTitle() + "\"?")) {
-                guard(() -> { studentService.deleteAchievement(selected.getAchievementId(), sid); refresh.run(); });
-            }
-        });
-        return Ui.page("Achievements", "Record awards, recognitions and other milestones that strengthen your portfolio.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, delete, refreshButton(refresh)), table);
-    }
-
-    private static void editAchievement(int studentId, Achievement existing, Runnable refresh) {
-        Achievement a = existing == null ? new Achievement() : existing;
-        TextField title = Ui.field("Title");
-        title.setText(a.getTitle());
-        TextArea description = Ui.area("Description");
-        description.setText(a.getDescription());
-        TextField organization = Ui.field("Organization");
-        organization.setText(a.getOrganization());
-        DatePicker date = Ui.date(a.getAchievementDate());
-        TextField url = Ui.field("https://...");
-        url.setText(a.getVerificationUrl());
-        Node form = Ui.form(new String[]{"Title", "Description", "Organization", "Date", "Verification URL"},
-                new Node[]{title, description, organization, date, url});
-        Ui.dialog(existing == null ? "Add Achievement" : "Edit Achievement", form).ifPresent(button -> {
-            if (button != ButtonType.OK) return;
-            guard(() -> {
-                Achievement target = new Achievement();
-                if (existing != null) target.setAchievementId(existing.getAchievementId());
-                target.setStudentId(studentId);
-                target.setTitle(title.getText());
-                target.setDescription(description.getText());
-                target.setOrganization(organization.getText());
-                target.setAchievementDate(date.getValue());
-                target.setVerificationUrl(url.getText());
-                studentService.saveAchievement(target);
-                refresh.run();
-                Alerts.info("Achievement saved.");
-            });
-        });
+        return achievementsAndCertifications();
     }
 
     public static Node certifications() {
+        return achievementsAndCertifications();
+    }
+
+    public static Node achievementsAndCertifications() {
         int sid = studentId();
+<<<<<<< HEAD
         TableView<Certification> table = Ui.table();
         Ui.addColumn(table, "Certification", Certification::getCertificationName);
         Ui.addColumn(table, "Issuer", Certification::getIssuingOrganization);
@@ -887,31 +825,106 @@ public final class StudentViews {
             table.setItems(FXCollections.observableArrayList(studentService.certificationsFor(sid).stream().filter(c ->
                     String.valueOf(c.getCertificationName()).toLowerCase(Locale.ROOT).contains(q)
                             || String.valueOf(c.getIssuingOrganization()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+=======
+        TableView<AcademicCredential> table = Ui.table("No achievements or certifications recorded yet.");
+
+        TableColumn<AcademicCredential, AcademicCredential> typeCol = Ui.actionColumn("Type", cred ->
+                Ui.badge(cred.getType().getDisplay(), cred.getType().getBadgeStyle()));
+        typeCol.setPrefWidth(130);
+        typeCol.setMinWidth(110);
+        table.getColumns().add(typeCol);
+
+        Ui.addColumn(table, "Title / Credential", AcademicCredential::getTitle);
+        Ui.addColumn(table, "Organization / Issuer", AcademicCredential::getOrganization);
+        Ui.addColumn(table, "Date / Timeline", AcademicCredential::getDateDisplay);
+        Ui.addColumn(table, "Description / Notes", AcademicCredential::getDescription);
+        Ui.addColumn(table, "Verification / Credential URL", AcademicCredential::getVerificationUrl);
+
+        TextField search = Ui.field("Search by title, organization, issuer, description...");
+        search.setPrefWidth(280);
+
+        final String[] activeFilter = {"ALL"};
+
+        Button filterAll = new Button("All");
+        Button filterAchievements = new Button("Achievements");
+        Button filterCertifications = new Button("Certifications");
+
+        HBox filterBox = new HBox(6, filterAll, filterAchievements, filterCertifications);
+        filterBox.setAlignment(Pos.CENTER_LEFT);
+
+        Runnable updateFilterPillStyles = () -> {
+            for (Button btn : List.of(filterAll, filterAchievements, filterCertifications)) {
+                btn.setStyle("-fx-background-color: #EFE2CA; -fx-text-fill: #414141; -fx-border-color: #C6A75E; " +
+                        "-fx-border-radius: 999; -fx-background-radius: 999; -fx-padding: 4 12; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand;");
+            }
+            Button active = "ACHIEVEMENT".equals(activeFilter[0]) ? filterAchievements :
+                    "CERTIFICATION".equals(activeFilter[0]) ? filterCertifications : filterAll;
+            active.setStyle("-fx-background-color: #9E0B0F; -fx-text-fill: #FDFBFA; -fx-border-color: #9E0B0F; " +
+                    "-fx-border-radius: 999; -fx-background-radius: 999; -fx-padding: 4 12; -fx-font-size: 11px; -fx-font-weight: bold; -fx-cursor: hand;");
+>>>>>>> cb78a81 (feat: lock dashboard headers, add real-time DB status, and configure Windows desktop build)
         };
+
+        Runnable refresh = () -> {
+            String q = search.getText() == null ? "" : search.getText().trim().toLowerCase(Locale.ROOT);
+            List<AcademicCredential> all = studentService.credentialsFor(sid);
+            List<AcademicCredential> filtered = all.stream().filter(cred -> {
+                if ("ACHIEVEMENT".equals(activeFilter[0]) && cred.getType() != AcademicCredential.Type.ACHIEVEMENT) return false;
+                if ("CERTIFICATION".equals(activeFilter[0]) && cred.getType() != AcademicCredential.Type.CERTIFICATION) return false;
+                if (q.isEmpty()) return true;
+                return (cred.getTitle() != null && cred.getTitle().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getOrganization() != null && cred.getOrganization().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getDescription() != null && cred.getDescription().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getVerificationUrl() != null && cred.getVerificationUrl().toLowerCase(Locale.ROOT).contains(q))
+                        || (cred.getDateDisplay() != null && cred.getDateDisplay().toLowerCase(Locale.ROOT).contains(q));
+            }).toList();
+            table.setItems(FXCollections.observableArrayList(filtered));
+        };
+
+        filterAll.setOnAction(e -> { activeFilter[0] = "ALL"; updateFilterPillStyles.run(); refresh.run(); });
+        filterAchievements.setOnAction(e -> { activeFilter[0] = "ACHIEVEMENT"; updateFilterPillStyles.run(); refresh.run(); });
+        filterCertifications.setOnAction(e -> { activeFilter[0] = "CERTIFICATION"; updateFilterPillStyles.run(); refresh.run(); });
+
+        updateFilterPillStyles.run();
         search.textProperty().addListener((obs, old, value) -> refresh.run());
         refresh.run();
 
-        Button add = new Button("Add Certification");
+        Button add = new Button("Add Credential");
         add.getStyleClass().add("primary-button");
-        add.setOnAction(e -> editCertification(sid, null, refresh));
+        add.setOnAction(e -> editCredential(sid, null, refresh));
+
         Button edit = new Button("Edit");
         edit.setOnAction(e -> {
-            Certification selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select a certification to edit."); return; }
-            editCertification(sid, selected, refresh);
+            AcademicCredential selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                Alerts.error("Select an achievement or certification to edit.");
+                return;
+            }
+            editCredential(sid, selected, refresh);
         });
+
         Button delete = new Button("Delete");
         delete.setOnAction(e -> {
-            Certification selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) { Alerts.error("Select a certification to delete."); return; }
-            if (Ui.confirmed("Delete certification \"" + selected.getCertificationName() + "\"?")) {
-                guard(() -> { studentService.deleteCertification(selected.getCertificationId(), sid); refresh.run(); });
+            AcademicCredential selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) {
+                Alerts.error("Select an achievement or certification to delete.");
+                return;
+            }
+            String typeName = selected.getType() == AcademicCredential.Type.ACHIEVEMENT ? "achievement" : "certification";
+            if (Ui.confirmed("Delete " + typeName + " \"" + selected.getTitle() + "\"?")) {
+                guard(() -> {
+                    studentService.deleteCredential(selected);
+                    refresh.run();
+                });
             }
         });
-        return Ui.page("Certifications", "Track professional certifications, issue dates and expiry information.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, delete, refreshButton(refresh)), table);
+
+        return Ui.page("Achievements & Certifications",
+                "Record awards, recognitions, milestones, and professional certifications that strengthen your portfolio.",
+                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), filterBox, add, edit, delete, refreshButton(refresh)),
+                table);
     }
 
+<<<<<<< HEAD
     private static void editCertification(int studentId, Certification existing, Runnable refresh) {
         Certification c = existing == null ? new Certification() : existing;
         TextField name = Ui.field("Certification name");
@@ -926,11 +939,66 @@ public final class StudentViews {
         Node form = Ui.form(new String[]{"Certification", "Issuing organization", "Issue date", "Expiration date (Optional)", "Credential URL"},
                 new Node[]{name, issuer, issued, expires, url});
         Ui.dialog(existing == null ? "Add Certification" : "Edit Certification", form).ifPresent(button -> {
+=======
+    private static void editCredential(int studentId, AcademicCredential existing, Runnable refresh) {
+        ComboBox<AcademicCredential.Type> typeCombo = Ui.combo(
+                List.of(AcademicCredential.Type.ACHIEVEMENT, AcademicCredential.Type.CERTIFICATION),
+                AcademicCredential.Type::getDisplay);
+        if (existing != null) {
+            typeCombo.setValue(existing.getType());
+            typeCombo.setDisable(true);
+        } else {
+            typeCombo.setValue(AcademicCredential.Type.ACHIEVEMENT);
+        }
+
+        TextField title = Ui.field("Title / Certification Name");
+        if (existing != null) title.setText(existing.getTitle());
+
+        TextField organization = Ui.field("Issuing Organization / Issuer");
+        if (existing != null) organization.setText(existing.getOrganization());
+
+        DatePicker date = Ui.date(existing != null ? existing.getDate() : LocalDate.now());
+
+        DatePicker expires = Ui.date(existing != null ? existing.getExpirationDate() : null);
+        expires.setPromptText("Optional (leave empty if non-expiring)");
+
+        TextArea description = Ui.area("Description, honors, or notes");
+        if (existing != null) description.setText(existing.getDescription());
+
+        TextField url = Ui.field("https://... (verification or credential link)");
+        if (existing != null) url.setText(existing.getVerificationUrl());
+
+        Runnable syncFieldsForType = () -> {
+            boolean isCert = typeCombo.getValue() == AcademicCredential.Type.CERTIFICATION;
+            expires.setDisable(!isCert);
+            if (!isCert) {
+                expires.setValue(null);
+            }
+        };
+        typeCombo.valueProperty().addListener((obs, old, val) -> syncFieldsForType.run());
+        syncFieldsForType.run();
+
+        Node form = Ui.form(new String[]{
+                "Credential Type",
+                "Title / Name",
+                "Organization / Issuer",
+                "Date / Issue Date",
+                "Expiration Date (Certifications)",
+                "Description / Notes",
+                "Verification / Credential URL"
+        }, new Node[]{typeCombo, title, organization, date, expires, description, url});
+
+        String dialogTitle = existing == null ? "Add Achievement or Certification" :
+                (existing.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Edit Achievement" : "Edit Certification");
+
+        Ui.dialog(dialogTitle, form).ifPresent(button -> {
+>>>>>>> cb78a81 (feat: lock dashboard headers, add real-time DB status, and configure Windows desktop build)
             if (button != ButtonType.OK) return;
             guard(() -> {
-                Certification target = new Certification();
-                if (existing != null) target.setCertificationId(existing.getCertificationId());
+                AcademicCredential target = new AcademicCredential();
+                target.setType(typeCombo.getValue());
                 target.setStudentId(studentId);
+<<<<<<< HEAD
                 target.setCertificationName(name.getText());
                 target.setIssuingOrganization(issuer.getText());
                 LocalDate issuedVal = (issued.getEditor().getText() == null || issued.getEditor().getText().trim().isEmpty())
@@ -943,8 +1011,21 @@ public final class StudentViews {
                 target.setExpirationDate(expiryVal);
                 target.setCredentialUrl(url.getText());
                 studentService.saveCertification(target);
+=======
+                if (existing != null) {
+                    target.setId(existing.getId());
+                }
+                target.setTitle(title.getText());
+                target.setOrganization(organization.getText());
+                target.setDate(date.getValue());
+                target.setExpirationDate(expires.getValue());
+                target.setDescription(description.getText());
+                target.setVerificationUrl(url.getText());
+
+                studentService.saveCredential(target);
+>>>>>>> cb78a81 (feat: lock dashboard headers, add real-time DB status, and configure Windows desktop build)
                 refresh.run();
-                Alerts.info("Certification saved.");
+                Alerts.info((target.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Achievement" : "Certification") + " saved.");
             });
         });
     }
@@ -996,7 +1077,7 @@ public final class StudentViews {
             previewTab.setContent(portfolioPreview(sid, loaded));
             accessTab.setContent(portfolioAccess(loaded));
             String message = "Pending".equals(loaded.getVisibility())
-                    ? "It is now awaiting administrator approval."
+                    ? "It is now awaiting instructor approval."
                     : "Public".equals(loaded.getVisibility())
                             ? "It is now visible to every employer."
                             : "Current visibility: " + loaded.getVisibility() + ".";
@@ -1004,7 +1085,7 @@ public final class StudentViews {
         }));
 
         VBox editor = new VBox(12,
-                Ui.subtitle("Private keeps the portfolio hidden, Public shares it with every employer, and Submit for approval asks an administrator to approve it for granted employer access."),
+                Ui.subtitle("Private keeps the portfolio hidden, Public shares it with every employer, and Submit for approval asks an instructor to approve it for granted employer access."),
                 Ui.form(new String[]{"Headline", "Biography", "Career goal", "Visibility"},
                         new Node[]{headline, bio, goal, visibility}),
                 new HBox(8, new Label("Sharing:"), sharing), save);

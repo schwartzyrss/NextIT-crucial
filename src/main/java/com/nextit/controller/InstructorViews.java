@@ -133,7 +133,7 @@ public final class InstructorViews {
         noticeText.getStyleClass().add("profile-notice-text");
         notice.getChildren().addAll(noticeIcon, noticeText);
 
-        return Ui.page("My Profile", "Your account and instructor profile information. Contact an administrator if any details need correction.",
+        return Ui.page("My Profile", "Your account and instructor profile information. Contact the department registrar if any details need correction.",
                 hero, traysRow, notice);
     }
 
@@ -234,12 +234,16 @@ public final class InstructorViews {
         return SkillCatalogView.view();
     }
 
+    public static Node achievementsAndCertifications() {
+        return DevelopmentManagementViews.achievementsAndCertifications();
+    }
+
     public static Node achievements() {
-        return DevelopmentManagementViews.achievements();
+        return achievementsAndCertifications();
     }
 
     public static Node certifications() {
-        return DevelopmentManagementViews.certifications();
+        return achievementsAndCertifications();
     }
 
     public static Node opportunities() {
@@ -1012,7 +1016,7 @@ public final class InstructorViews {
         });
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> applyFilter.run());
-        return Ui.page("Technical Skill Evaluation", "Assess student proficiency against the technical skill catalogue maintained by instructors and administrators.",
+        return Ui.page("Technical Skill Evaluation", "Assess student proficiency against the technical skill catalogue maintained by faculty instructors.",
                 Ui.toolbar(new Label("Search:"), search, evaluate, delete, refresh), table);
     }
 
