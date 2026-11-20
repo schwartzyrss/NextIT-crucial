@@ -45,6 +45,7 @@ public final class StudentViews {
         User account = profiles.account(Session.currentUser().getUserId());
         Student student = profiles.studentForUser(account.getUserId())
                 .orElseThrow(() -> new AppException("Student profile not found."));
+        Session.setCurrentStudent(student);
 
         // 1. Identity Hero Cushion
         HBox hero = new HBox(20);
@@ -76,7 +77,8 @@ public final class StudentViews {
                 : "Undeclared Program";
         Label programHighlight = new Label(heroProg);
         programHighlight.getStyleClass().add("profile-hero-highlight-title");
-        Label yearSectionHighlight = new Label("Year " + student.getYearLevel() + " • Section " + value(student.getSection()));
+        String currentSectionDisplay = formatSectionDisplay(student.getSection());
+        Label yearSectionHighlight = new Label("Year " + student.getYearLevel() + " • " + currentSectionDisplay);
         yearSectionHighlight.getStyleClass().add("profile-hero-highlight-subtitle");
         heroRight.getChildren().addAll(programHighlight, yearSectionHighlight);
 
@@ -112,7 +114,7 @@ public final class StudentViews {
                 : "Undeclared";
         academicGrid.add(Ui.propertyTile("Degree Program", degreeProg), 1, 0);
         academicGrid.add(Ui.propertyTile("Year Level", "Year " + student.getYearLevel()), 0, 1);
-        academicGrid.add(Ui.propertyTile("Class Section", "Section " + value(student.getSection())), 1, 1);
+        academicGrid.add(createEditableSectionTile(student, yearSectionHighlight), 1, 1);
         academicGrid.add(Ui.propertyTile("Enrollment Status", Ui.badge(value(student.getEnrollmentStatus()), "badge-pill-mint")), 0, 2);
 
         VBox academicTray = Ui.tray("Academic Standing", "Course program placement and enrollment registration", academicGrid);
@@ -132,6 +134,195 @@ public final class StudentViews {
 
         return Ui.page("My Profile", "Your account and student profile information. Contact the department registrar if any details need correction.",
                 hero, traysRow, notice);
+    }
+
+    private static String formatSectionDisplay(String section) {
+        if (section == null || section.isBlank()) return "Section Unassigned";
+        String s = section.trim();
+        if (s.toLowerCase(Locale.ROOT).startsWith("section")) {
+            return s;
+        }
+        return "Section " + s;
+    }
+
+    private static String cleanSectionCode(String input) {
+        if (input == null) return "";
+        String s = input.trim();
+        if (s.matches("(?i)^section\\s+.+$")) {
+            return s.replaceFirst("(?i)^section\\s+", "").trim();
+        }
+        return s;
+    }
+
+    private static VBox createEditableSectionTile(Student student, Label yearSectionHighlight) {
+        VBox tile = new VBox(6);
+        tile.getStyleClass().add("profile-prop-tile");
+
+        // Header Row: Label + Change Action Button
+        HBox headerRow = new HBox(8);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label label = new Label("CLASS SECTION");
+        label.getStyleClass().add("profile-prop-label");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button changeBtn = new Button("✏ Change");
+        changeBtn.getStyleClass().add("profile-prop-action-btn");
+        changeBtn.setFocusTraversable(false);
+
+        headerRow.getChildren().addAll(label, spacer, changeBtn);
+
+        // View Mode Pane: Current section label
+        VBox viewPane = new VBox(2);
+        Label valueLabel = new Label(formatSectionDisplay(student.getSection()));
+        valueLabel.getStyleClass().add("profile-prop-value");
+        viewPane.getChildren().add(valueLabel);
+
+        // Edit Mode Pane: Inline dropdown/text input + Save & Cancel buttons
+        VBox editPane = new VBox(8);
+        editPane.setVisible(false);
+        editPane.setManaged(false);
+
+        ComboBox<String> sectionCombo = new ComboBox<>();
+        sectionCombo.getItems().addAll("Section A", "Section B", "Section C", "Section D");
+        sectionCombo.setEditable(true);
+        sectionCombo.setMaxWidth(Double.MAX_VALUE);
+        sectionCombo.setPromptText("Select or enter section...");
+
+        HBox actionRow = new HBox(8);
+        actionRow.setAlignment(Pos.CENTER_LEFT);
+
+        Button saveBtn = new Button("Save");
+        saveBtn.getStyleClass().add("profile-prop-save-btn");
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.getStyleClass().add("profile-prop-cancel-btn");
+
+        ProgressIndicator spinner = new ProgressIndicator();
+        spinner.setPrefSize(16, 16);
+        spinner.setMinSize(16, 16);
+        spinner.setMaxSize(16, 16);
+        spinner.setVisible(false);
+        spinner.setManaged(false);
+
+        Label statusFeedback = new Label("Updating...");
+        statusFeedback.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A; -fx-font-weight: 600;");
+        statusFeedback.setVisible(false);
+        statusFeedback.setManaged(false);
+
+        actionRow.getChildren().addAll(saveBtn, cancelBtn, spinner, statusFeedback);
+
+        Label errorLbl = new Label();
+        errorLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F; -fx-font-weight: 700;");
+        errorLbl.setVisible(false);
+        errorLbl.setManaged(false);
+
+        editPane.getChildren().addAll(sectionCombo, actionRow, errorLbl);
+
+        Runnable showEditMode = () -> {
+            String curDisplay = formatSectionDisplay(student.getSection());
+            if (sectionCombo.getItems().contains(curDisplay)) {
+                sectionCombo.setValue(curDisplay);
+            } else {
+                sectionCombo.setValue(curDisplay);
+                sectionCombo.getEditor().setText(curDisplay);
+            }
+            errorLbl.setVisible(false);
+            errorLbl.setManaged(false);
+            viewPane.setVisible(false);
+            viewPane.setManaged(false);
+            changeBtn.setVisible(false);
+            changeBtn.setManaged(false);
+            editPane.setVisible(true);
+            editPane.setManaged(true);
+            sectionCombo.requestFocus();
+        };
+
+        Runnable showViewMode = () -> {
+            editPane.setVisible(false);
+            editPane.setManaged(false);
+            errorLbl.setVisible(false);
+            errorLbl.setManaged(false);
+            viewPane.setVisible(true);
+            viewPane.setManaged(true);
+            changeBtn.setVisible(true);
+            changeBtn.setManaged(true);
+        };
+
+        changeBtn.setOnAction(e -> showEditMode.run());
+        cancelBtn.setOnAction(e -> showViewMode.run());
+
+        saveBtn.setOnAction(e -> {
+            String rawVal = sectionCombo.getValue();
+            if (rawVal == null || rawVal.isBlank()) {
+                rawVal = sectionCombo.getEditor().getText();
+            }
+            if (rawVal == null || rawVal.trim().isBlank()) {
+                errorLbl.setText("Section cannot be empty. Please select or enter a section.");
+                errorLbl.setVisible(true);
+                errorLbl.setManaged(true);
+                return;
+            }
+
+            String cleanCode = cleanSectionCode(rawVal);
+            if (cleanCode.length() > 30) {
+                errorLbl.setText("Section name must be 30 characters or fewer.");
+                errorLbl.setVisible(true);
+                errorLbl.setManaged(true);
+                return;
+            }
+
+            saveBtn.setDisable(true);
+            cancelBtn.setDisable(true);
+            sectionCombo.setDisable(true);
+            spinner.setVisible(true);
+            spinner.setManaged(true);
+            statusFeedback.setVisible(true);
+            statusFeedback.setManaged(true);
+            errorLbl.setVisible(false);
+            errorLbl.setManaged(false);
+
+            profiles.updateStudentSectionAsync(student, cleanCode)
+                    .thenAccept(updatedStudent -> Platform.runLater(() -> {
+                        saveBtn.setDisable(false);
+                        cancelBtn.setDisable(false);
+                        sectionCombo.setDisable(false);
+                        spinner.setVisible(false);
+                        spinner.setManaged(false);
+                        statusFeedback.setVisible(false);
+                        statusFeedback.setManaged(false);
+
+                        String formatted = formatSectionDisplay(updatedStudent.getSection());
+                        valueLabel.setText(formatted);
+                        yearSectionHighlight.setText("Year " + updatedStudent.getYearLevel() + " • " + formatted);
+
+                        showViewMode.run();
+                        Alerts.info("Class section updated to " + formatted + " successfully.");
+                    }))
+                    .exceptionally(ex -> {
+                        Platform.runLater(() -> {
+                            saveBtn.setDisable(false);
+                            cancelBtn.setDisable(false);
+                            sectionCombo.setDisable(false);
+                            spinner.setVisible(false);
+                            spinner.setManaged(false);
+                            statusFeedback.setVisible(false);
+                            statusFeedback.setManaged(false);
+
+                            String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                            errorLbl.setText(msg != null ? msg : "Failed to update section.");
+                            errorLbl.setVisible(true);
+                            errorLbl.setManaged(true);
+                            Alerts.error("Could not update class section: " + (msg != null ? msg : "An error occurred."));
+                        });
+                        return null;
+                    });
+        });
+
+        tile.getChildren().addAll(headerRow, viewPane, editPane);
+        return tile;
     }
 
     public static Node dashboard() {
