@@ -186,8 +186,8 @@ public class AdminService {
         Validator.maxLength(student.getSection(), 30, "Section");
         Validator.notBlank(student.getEnrollmentStatus(), "Enrollment status");
         Validator.maxLength(student.getEnrollmentStatus(), 30, "Enrollment status");
-        if (student.getYearLevel() < 1 || student.getYearLevel() > 10) {
-            throw new AppException("Year level must be between 1 and 10.");
+        if (student.getYearLevel() < 1 || (student.getYearLevel() > 10 && (student.getYearLevel() < 2000 || student.getYearLevel() > 2100))) {
+            throw new AppException("Year level must be between 1 and 10, or a valid graduation year.");
         }
         studentRepo.findAll().stream()
                 .filter(other -> other.getStudentId() != student.getStudentId())

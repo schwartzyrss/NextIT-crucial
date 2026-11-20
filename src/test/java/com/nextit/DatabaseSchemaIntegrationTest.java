@@ -228,7 +228,8 @@ class DatabaseSchemaIntegrationTest {
                                 col("int", 10, 0, false), "project_id",
                                 col("int", 10, 0, false), "student_id",
                                 col("varchar", 100, 0, true), "role",
-                                col("text", 0, 0, true), "contribution"),
+                                col("text", 0, 0, true), "contribution",
+                                col("text", 0, 0, true), "contribution_notes"),
                         Set.of(Set.of("project_id", "student_id")))),
                 Map.entry("project_evaluations", schema("evaluation_id",
                         columns(col("int", 10, 0, false), "evaluation_id",
@@ -303,7 +304,8 @@ class DatabaseSchemaIntegrationTest {
                                 col("int", 10, 0, false), "student_id",
                                 col("datetime", 0, 0, false), "application_date",
                                 col("varchar", 30, 0, false), "status",
-                                col("text", 0, 0, true), "remarks"),
+                                col("text", 0, 0, true), "remarks",
+                                col("datetime", 0, 0, true), "reviewed_at"),
                         Set.of(Set.of("opportunity_id", "student_id")))));
 
         try (Connection connection = openTestConnection()) {

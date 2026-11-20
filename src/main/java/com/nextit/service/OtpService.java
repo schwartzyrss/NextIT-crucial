@@ -80,6 +80,39 @@ public final class OtpService {
         return verifyOtpInternal(cleanEmail, enteredCode);
     }
 
+    public static OtpResponse requestPasswordResetOtp(User user) {
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            return new OtpResponse(false, false, "", false, "No registered email address found for this account.");
+        }
+        String cleanKey = "reset:" + user.getUserId();
+        long now = System.currentTimeMillis();
+
+        OtpRecord existing = ACTIVE_OTPS.get(cleanKey);
+        if (existing != null && now < existing.resendAvailableAt()) {
+            long waitSec = (existing.resendAvailableAt() - now) / 1000;
+            return new OtpResponse(false, EmailService.isConfigured(), existing.code(), true,
+                    "Please wait " + waitSec + " seconds before requesting another reset code.");
+        }
+
+        String code = String.format("%06d", new SecureRandom().nextInt(1000000));
+        ACTIVE_OTPS.put(cleanKey, new OtpRecord(code, now + OTP_TTL_MS, now + COOLDOWN_MS));
+
+        EmailService.SmtpResult result = EmailService.sendPasswordResetOtpEmailWithStatus(user.getEmail().trim(), code, user.getUsername());
+        return new OtpResponse(result.isSuccess(), EmailService.isConfigured(), code, false, result.getMessage());
+    }
+
+    public static boolean verifyPasswordResetOtp(User user, String enteredCode) {
+        if (user == null || enteredCode == null) return false;
+        String cleanKey = "reset:" + user.getUserId();
+        return verifyOtpInternal(cleanKey, enteredCode);
+    }
+
+    public static void clearPasswordResetOtp(User user) {
+        if (user != null) {
+            ACTIVE_OTPS.remove("reset:" + user.getUserId());
+        }
+    }
+
     public static boolean verifyOtp(String email, String enteredCode) {
         if (email == null || enteredCode == null) return false;
         String cleanEmail = email.trim().toLowerCase();

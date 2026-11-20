@@ -7,7 +7,10 @@ import com.nextit.service.*;
 import com.nextit.util.Alerts;
 import com.nextit.util.Ui;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -16,9 +19,12 @@ import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class StudentViews {
 
@@ -43,6 +49,7 @@ public final class StudentViews {
         User account = profiles.account(Session.currentUser().getUserId());
         Student student = profiles.studentForUser(account.getUserId())
                 .orElseThrow(() -> new AppException("Student profile not found."));
+        Session.setCurrentStudent(student);
 
         // 1. Identity Hero Cushion
         HBox hero = new HBox(20);
@@ -74,7 +81,8 @@ public final class StudentViews {
                 : "Undeclared Program";
         Label programHighlight = new Label(heroProg);
         programHighlight.getStyleClass().add("profile-hero-highlight-title");
-        Label yearSectionHighlight = new Label("Year " + student.getYearLevel() + " • Section " + value(student.getSection()));
+        String currentSectionDisplay = formatSectionDisplay(student.getSection());
+        Label yearSectionHighlight = new Label(Ui.formatYearDisplay(student.getYearLevel()) + " • " + currentSectionDisplay);
         yearSectionHighlight.getStyleClass().add("profile-hero-highlight-subtitle");
         heroRight.getChildren().addAll(programHighlight, yearSectionHighlight);
 
@@ -109,8 +117,8 @@ public final class StudentViews {
                 ? student.getProgram().trim()
                 : "Undeclared";
         academicGrid.add(Ui.propertyTile("Degree Program", degreeProg), 1, 0);
-        academicGrid.add(Ui.propertyTile("Year Level", "Year " + student.getYearLevel()), 0, 1);
-        academicGrid.add(Ui.propertyTile("Class Section", "Section " + value(student.getSection())), 1, 1);
+        academicGrid.add(Ui.propertyTile("Year Level", Ui.formatYearDisplay(student.getYearLevel())), 0, 1);
+        academicGrid.add(createEditableSectionTile(student, yearSectionHighlight), 1, 1);
         academicGrid.add(Ui.propertyTile("Enrollment Status", Ui.badge(value(student.getEnrollmentStatus()), "badge-pill-mint")), 0, 2);
 
         VBox academicTray = Ui.tray("Academic Standing", "Course program placement and enrollment registration", academicGrid);
@@ -130,6 +138,195 @@ public final class StudentViews {
 
         return Ui.page("My Profile", "Your account and student profile information. Contact the department registrar if any details need correction.",
                 hero, traysRow, notice);
+    }
+
+    private static String formatSectionDisplay(String section) {
+        if (section == null || section.isBlank()) return "Section Unassigned";
+        String s = section.trim();
+        if (s.toLowerCase(Locale.ROOT).startsWith("section")) {
+            return s;
+        }
+        return "Section " + s;
+    }
+
+    private static String cleanSectionCode(String input) {
+        if (input == null) return "";
+        String s = input.trim();
+        if (s.matches("(?i)^section\\s+.+$")) {
+            return s.replaceFirst("(?i)^section\\s+", "").trim();
+        }
+        return s;
+    }
+
+    private static VBox createEditableSectionTile(Student student, Label yearSectionHighlight) {
+        VBox tile = new VBox(6);
+        tile.getStyleClass().add("profile-prop-tile");
+
+        // Header Row: Label + Change Action Button
+        HBox headerRow = new HBox(8);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label label = new Label("CLASS SECTION");
+        label.getStyleClass().add("profile-prop-label");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button changeBtn = new Button("✏ Change");
+        changeBtn.getStyleClass().add("profile-prop-action-btn");
+        changeBtn.setFocusTraversable(false);
+
+        headerRow.getChildren().addAll(label, spacer, changeBtn);
+
+        // View Mode Pane: Current section label
+        VBox viewPane = new VBox(2);
+        Label valueLabel = new Label(formatSectionDisplay(student.getSection()));
+        valueLabel.getStyleClass().add("profile-prop-value");
+        viewPane.getChildren().add(valueLabel);
+
+        // Edit Mode Pane: Inline dropdown/text input + Save & Cancel buttons
+        VBox editPane = new VBox(8);
+        editPane.setVisible(false);
+        editPane.setManaged(false);
+
+        ComboBox<String> sectionCombo = new ComboBox<>();
+        sectionCombo.getItems().addAll("Section A", "Section B", "Section C", "Section D");
+        sectionCombo.setEditable(true);
+        sectionCombo.setMaxWidth(Double.MAX_VALUE);
+        sectionCombo.setPromptText("Select or enter section...");
+
+        HBox actionRow = new HBox(8);
+        actionRow.setAlignment(Pos.CENTER_LEFT);
+
+        Button saveBtn = new Button("Save");
+        saveBtn.getStyleClass().add("profile-prop-save-btn");
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.getStyleClass().add("profile-prop-cancel-btn");
+
+        ProgressIndicator spinner = new ProgressIndicator();
+        spinner.setPrefSize(16, 16);
+        spinner.setMinSize(16, 16);
+        spinner.setMaxSize(16, 16);
+        spinner.setVisible(false);
+        spinner.setManaged(false);
+
+        Label statusFeedback = new Label("Updating...");
+        statusFeedback.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A; -fx-font-weight: 600;");
+        statusFeedback.setVisible(false);
+        statusFeedback.setManaged(false);
+
+        actionRow.getChildren().addAll(saveBtn, cancelBtn, spinner, statusFeedback);
+
+        Label errorLbl = new Label();
+        errorLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F; -fx-font-weight: 700;");
+        errorLbl.setVisible(false);
+        errorLbl.setManaged(false);
+
+        editPane.getChildren().addAll(sectionCombo, actionRow, errorLbl);
+
+        Runnable showEditMode = () -> {
+            String curDisplay = formatSectionDisplay(student.getSection());
+            if (sectionCombo.getItems().contains(curDisplay)) {
+                sectionCombo.setValue(curDisplay);
+            } else {
+                sectionCombo.setValue(curDisplay);
+                sectionCombo.getEditor().setText(curDisplay);
+            }
+            errorLbl.setVisible(false);
+            errorLbl.setManaged(false);
+            viewPane.setVisible(false);
+            viewPane.setManaged(false);
+            changeBtn.setVisible(false);
+            changeBtn.setManaged(false);
+            editPane.setVisible(true);
+            editPane.setManaged(true);
+            sectionCombo.requestFocus();
+        };
+
+        Runnable showViewMode = () -> {
+            editPane.setVisible(false);
+            editPane.setManaged(false);
+            errorLbl.setVisible(false);
+            errorLbl.setManaged(false);
+            viewPane.setVisible(true);
+            viewPane.setManaged(true);
+            changeBtn.setVisible(true);
+            changeBtn.setManaged(true);
+        };
+
+        changeBtn.setOnAction(e -> showEditMode.run());
+        cancelBtn.setOnAction(e -> showViewMode.run());
+
+        saveBtn.setOnAction(e -> {
+            String rawVal = sectionCombo.getValue();
+            if (rawVal == null || rawVal.isBlank()) {
+                rawVal = sectionCombo.getEditor().getText();
+            }
+            if (rawVal == null || rawVal.trim().isBlank()) {
+                errorLbl.setText("Section cannot be empty. Please select or enter a section.");
+                errorLbl.setVisible(true);
+                errorLbl.setManaged(true);
+                return;
+            }
+
+            String cleanCode = cleanSectionCode(rawVal);
+            if (cleanCode.length() > 30) {
+                errorLbl.setText("Section name must be 30 characters or fewer.");
+                errorLbl.setVisible(true);
+                errorLbl.setManaged(true);
+                return;
+            }
+
+            saveBtn.setDisable(true);
+            cancelBtn.setDisable(true);
+            sectionCombo.setDisable(true);
+            spinner.setVisible(true);
+            spinner.setManaged(true);
+            statusFeedback.setVisible(true);
+            statusFeedback.setManaged(true);
+            errorLbl.setVisible(false);
+            errorLbl.setManaged(false);
+
+            profiles.updateStudentSectionAsync(student, cleanCode)
+                    .thenAccept(updatedStudent -> Platform.runLater(() -> {
+                        saveBtn.setDisable(false);
+                        cancelBtn.setDisable(false);
+                        sectionCombo.setDisable(false);
+                        spinner.setVisible(false);
+                        spinner.setManaged(false);
+                        statusFeedback.setVisible(false);
+                        statusFeedback.setManaged(false);
+
+                        String formatted = formatSectionDisplay(updatedStudent.getSection());
+                        valueLabel.setText(formatted);
+                        yearSectionHighlight.setText(Ui.formatYearDisplay(updatedStudent.getYearLevel()) + " • " + formatted);
+
+                        showViewMode.run();
+                        Alerts.info("Class section updated to " + formatted + " successfully.");
+                    }))
+                    .exceptionally(ex -> {
+                        Platform.runLater(() -> {
+                            saveBtn.setDisable(false);
+                            cancelBtn.setDisable(false);
+                            sectionCombo.setDisable(false);
+                            spinner.setVisible(false);
+                            spinner.setManaged(false);
+                            statusFeedback.setVisible(false);
+                            statusFeedback.setManaged(false);
+
+                            String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                            errorLbl.setText(msg != null ? msg : "Failed to update section.");
+                            errorLbl.setVisible(true);
+                            errorLbl.setManaged(true);
+                            Alerts.error("Could not update class section: " + (msg != null ? msg : "An error occurred."));
+                        });
+                        return null;
+                    });
+        });
+
+        tile.getChildren().addAll(headerRow, viewPane, editPane);
+        return tile;
     }
 
     public static Node dashboard() {
@@ -376,7 +573,7 @@ public final class StudentViews {
 
         VBox standingItems = new VBox(8);
         String sNum = student != null && student.getStudentNumber() != null ? student.getStudentNumber() : "2023-0001";
-        String sYear = student != null ? "Year " + student.getYearLevel() + " • Section " + (student.getSection() != null ? student.getSection() : "A") : "Year 3 • Section A";
+        String sYear = student != null ? Ui.formatYearDisplay(student.getYearLevel()) + " • Section " + (student.getSection() != null ? student.getSection() : "A") : "Year 3 • Section A";
         String sStatus = student != null && student.getEnrollmentStatus() != null ? student.getEnrollmentStatus() : "Enrolled";
 
         standingItems.getChildren().addAll(
@@ -598,35 +795,94 @@ public final class StudentViews {
 
     public static Node projects() {
         int sid = studentId();
-        Map<Integer, String> subjects = directory.subjectNames();
+        Map<Integer, String> subjects = new ConcurrentHashMap<>();
+        Map<Integer, List<ProjectMember>> membersCache = new ConcurrentHashMap<>();
+        List<Project> allProjects = new ArrayList<>();
+
         TableView<Project> table = Ui.table();
         Ui.addColumn(table, "Title", Project::getProjectTitle);
         Ui.addColumn(table, "Type", Project::getProjectType);
         Ui.addColumn(table, "Subject", p -> p.getSubjectId() == null ? "" : subjects.getOrDefault(p.getSubjectId(), "Subject #" + p.getSubjectId()));
         Ui.addColumn(table, "Status", Project::getStatus);
-        Ui.addColumn(table, "Your role", p -> projects.isOwner(p, sid) ? "Owner" : "Group member");
+        Ui.addColumn(table, "Credit / Role", p -> {
+            if (projects.isOwner(p, sid)) {
+                List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+                return mems.isEmpty() ? "Owner (Solo)" : "Owner (Project Lead)";
+            }
+            List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+            String role = mems.stream()
+                    .filter(m -> m.getStudentId() == sid)
+                    .map(ProjectMember::getRole)
+                    .filter(r -> r != null && !r.isBlank())
+                    .findFirst()
+                    .orElse(null);
+            return role != null ? "Group Project - Credited (" + role + ")" : "Group Project - Credited";
+        });
+        Ui.addColumn(table, "Members", p -> {
+            List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+            if (mems.isEmpty()) {
+                return "1 (Solo)";
+            }
+            return (mems.size() + 1) + " members (" + mems.size() + " credited)";
+        });
         Ui.addColumn(table, "Technologies", Project::getTechnologiesUsed);
         Ui.addColumn(table, "Repository", Project::getRepositoryUrl);
         Ui.addColumn(table, "Demo", Project::getDemoUrl);
-        List<Project> all = projects.projectsForStudent(sid);
-        table.setItems(FXCollections.observableArrayList(all));
 
-        TextField search = Ui.field("Search by title, type, technology or status...");
+        TextField search = Ui.field("Search by title, type, technology, member or status...");
         Runnable applyFilter = () -> {
-            subjects.clear();
-            subjects.putAll(directory.subjectNames());
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(projects.projectsForStudent(sid).stream().filter(p ->
-                    String.valueOf(p.getProjectTitle()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(p.getProjectType()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(p.getTechnologiesUsed()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(p.getStatus()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+            List<Project> filtered = allProjects.stream().filter(p -> {
+                if (q.isBlank()) return true;
+                boolean matchMain = String.valueOf(p.getProjectTitle()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(p.getProjectType()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(p.getTechnologiesUsed()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(p.getStatus()).toLowerCase(Locale.ROOT).contains(q)
+                        || subjects.getOrDefault(p.getSubjectId(), "").toLowerCase(Locale.ROOT).contains(q);
+                if (matchMain) return true;
+                List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+                return mems.stream().anyMatch(m ->
+                        String.valueOf(m.getRole()).toLowerCase(Locale.ROOT).contains(q)
+                                || String.valueOf(m.getContributionNotes()).toLowerCase(Locale.ROOT).contains(q)
+                                || directory.studentName(m.getStudentId()).toLowerCase(Locale.ROOT).contains(q));
+            }).toList();
+            table.setItems(FXCollections.observableArrayList(filtered));
         };
         search.textProperty().addListener((obs, old, value) -> applyFilter.run());
 
+        Runnable loadDataAsync = () -> {
+            CompletableFuture.supplyAsync(() -> {
+                List<Project> list = projects.projectsForStudent(sid);
+                List<Integer> pids = list.stream().map(Project::getProjectId).toList();
+                Map<Integer, List<ProjectMember>> memMap = projects.membersForProjects(pids);
+                Map<Integer, String> subs = directory.subjectNames();
+                return new Object[]{list, memMap, subs};
+            }).thenAccept(arr -> Platform.runLater(() -> {
+                @SuppressWarnings("unchecked")
+                List<Project> list = (List<Project>) arr[0];
+                @SuppressWarnings("unchecked")
+                Map<Integer, List<ProjectMember>> memMap = (Map<Integer, List<ProjectMember>>) arr[1];
+                @SuppressWarnings("unchecked")
+                Map<Integer, String> subs = (Map<Integer, String>) arr[2];
+
+                allProjects.clear();
+                allProjects.addAll(list);
+                membersCache.clear();
+                membersCache.putAll(memMap);
+                subjects.clear();
+                subjects.putAll(subs);
+                applyFilter.run();
+            })).exceptionally(ex -> {
+                Platform.runLater(() -> Alerts.error("Failed to load projects: " + ex.getMessage()));
+                return null;
+            });
+        };
+
+        loadDataAsync.run();
+
         Button add = new Button("Add Project");
         add.getStyleClass().add("primary-button");
-        add.setOnAction(e -> editProject(sid, null, applyFilter));
+        add.setOnAction(e -> editProject(sid, null, loadDataAsync));
         Button edit = new Button("Edit");
         edit.setOnAction(e -> {
             Project selected = table.getSelectionModel().getSelectedItem();
@@ -635,7 +891,7 @@ public final class StudentViews {
                 Alerts.error("Only the project owner can edit this project.");
                 return;
             }
-            editProject(sid, selected, applyFilter);
+            editProject(sid, selected, loadDataAsync);
         });
         Button delete = new Button("Delete");
         delete.setOnAction(e -> {
@@ -648,7 +904,7 @@ public final class StudentViews {
             if (Ui.confirmed("Delete project \"" + selected.getProjectTitle() + "\"?")) {
                 guard(() -> {
                     projects.deleteProject(selected.getProjectId(), sid);
-                    applyFilter.run();
+                    loadDataAsync.run();
                 });
             }
         });
@@ -660,16 +916,17 @@ public final class StudentViews {
                 Alerts.error("Only the project owner can manage group members.");
                 return;
             }
-            guard(() -> manageMembers(selected, sid));
+            guard(() -> manageMembers(selected, sid, loadDataAsync));
         });
         Button details = new Button("View Details");
+        details.getStyleClass().add("secondary-button");
         details.setOnAction(e -> {
             Project selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select a project to view."); return; }
             guard(() -> showProject(selected));
         });
         Button refresh = new Button("Refresh");
-        refresh.setOnAction(e -> applyFilter.run());
+        refresh.setOnAction(e -> loadDataAsync.run());
 
         return Ui.page("My Projects", "Add projects, link repositories and demos, and record the contributions of group members.",
                 Ui.toolbar(new Label("Search:"), search, add, edit, delete, members, details, refresh), table);
@@ -679,21 +936,45 @@ public final class StudentViews {
         Map<Integer, String> subjects = directory.subjectNames();
         Label description = new Label(value(p.getDescription()));
         description.setWrapText(true);
+
+        String ownerName = p.getStudentId() == null ? "Unassigned" : directory.studentName(p.getStudentId());
+
+        List<ProjectMember> memberList = projects.membersForProject(p.getProjectId());
         StringBuilder memberText = new StringBuilder();
-        projects.membersForProject(p.getProjectId()).forEach(m -> memberText.append("• ")
-                .append(directory.studentName(m.getStudentId()))
-                .append(m.getRole() == null ? "" : " — " + m.getRole())
-                .append(m.getContribution() == null ? "" : ": " + m.getContribution())
-                .append('\n'));
-        Label members = new Label(memberText.isEmpty() ? "No group members recorded." : memberText.toString());
-        members.setWrapText(true);
+        if (memberList.isEmpty()) {
+            memberText.append("Individual Solo Project (No group members tagged)");
+        } else {
+            for (ProjectMember m : memberList) {
+                String sName = directory.studentName(m.getStudentId());
+                memberText.append("• ").append(sName);
+                if (m.getRole() != null && !m.getRole().isBlank()) {
+                    memberText.append(" — ").append(m.getRole());
+                }
+                String notes = m.getContributionNotes();
+                if (notes != null && !notes.isBlank()) {
+                    memberText.append("\n  Contribution: ").append(notes);
+                }
+                memberText.append('\n');
+            }
+        }
+        Label membersLabel = new Label(memberText.toString().trim());
+        membersLabel.setWrapText(true);
+
         Node form = Ui.form(
-                new String[]{"Title", "Type", "Subject", "Status", "Technologies", "Repository", "Demo", "Date", "Description", "Group members"},
-                new Node[]{new Label(value(p.getProjectTitle())), new Label(value(p.getProjectType())),
+                new String[]{"Title", "Type", "Project Owner", "Subject", "Status", "Technologies", "Repository", "Demo", "Date", "Description", "Group Members & Contributions"},
+                new Node[]{
+                        new Label(value(p.getProjectTitle())),
+                        new Label(value(p.getProjectType())),
+                        new Label(ownerName),
                         new Label(p.getSubjectId() == null ? "" : subjects.getOrDefault(p.getSubjectId(), "Subject #" + p.getSubjectId())),
-                        new Label(value(p.getStatus())), new Label(value(p.getTechnologiesUsed())),
-                        new Label(value(p.getRepositoryUrl())), new Label(value(p.getDemoUrl())),
-                        new Label(Ui.formatDate(p.getProjectDate())), description, members});
+                        new Label(value(p.getStatus())),
+                        new Label(value(p.getTechnologiesUsed())),
+                        new Label(value(p.getRepositoryUrl())),
+                        new Label(value(p.getDemoUrl())),
+                        new Label(Ui.formatDate(p.getProjectDate())),
+                        description,
+                        membersLabel
+                });
         Ui.viewDialog("Project - " + p.getProjectTitle(), form);
     }
 
@@ -711,7 +992,8 @@ public final class StudentViews {
         }
         TextArea description = Ui.area("Description");
         description.setText(p.getDescription());
-        TextField technologies = Ui.field("Java, JavaFX, MySQL");
+        description.setPrefRowCount(3);
+        TextField technologies = Ui.field("Java, JavaFX, MySQL, Supabase");
         technologies.setText(p.getTechnologiesUsed());
         TextField repository = Ui.field("https://github.com/...");
         repository.setText(p.getRepositoryUrl());
@@ -721,15 +1003,139 @@ public final class StudentViews {
         ComboBox<String> status = Ui.combo(List.of("Draft", "In Progress", "Completed", "Archived"), s -> s);
         status.getSelectionModel().select(p.getStatus() == null ? "Draft" : p.getStatus());
 
-        Node form = Ui.form(
+        Node projectForm = Ui.form(
                 new String[]{"Title", "Type", "Subject", "Description", "Technologies", "Repository URL", "Demo URL", "Project date", "Status"},
                 new Node[]{title, type, subject, description, technologies, repository, demo, projectDate, status});
-        Ui.dialog(existing == null ? "Add Project" : "Edit Project", form).ifPresent(button -> {
-            if (button != ButtonType.OK) return;
-            guard(() -> {
-                Project target = new Project();
+
+        // Group Members Section
+        VBox membersSection = new VBox(10);
+        membersSection.getStyleClass().add("project-member-section");
+
+        Label membersTitle = new Label("GROUP MEMBERS & COLLABORATIVE CREDIT");
+        membersTitle.getStyleClass().add("project-member-section-title");
+
+        Label membersSubtitle = new Label("Tag fellow NextIT students to credit their contributions. Credited projects will automatically reflect on their profiles and portfolios.");
+        membersSubtitle.getStyleClass().add("project-member-section-subtitle");
+        membersSubtitle.setWrapText(true);
+
+        ObservableList<ProjectMember> draftMembers = FXCollections.observableArrayList();
+        if (existing != null && existing.getProjectId() > 0) {
+            projects.membersForProjectAsync(existing.getProjectId())
+                    .thenAccept(list -> Platform.runLater(() -> draftMembers.setAll(list)));
+        }
+
+        ComboBox<Student> studentPicker = new ComboBox<>();
+        studentPicker.setMaxWidth(Double.MAX_VALUE);
+        studentPicker.setPromptText("Select student to add...");
+
+        Runnable updateAvailableStudents = () -> {
+            List<Student> available = directory.students().stream()
+                    .filter(s -> s.getStudentId() != studentId)
+                    .filter(s -> draftMembers.stream().noneMatch(m -> m.getStudentId() == s.getStudentId()))
+                    .toList();
+            studentPicker.setItems(FXCollections.observableArrayList(available));
+            if (!available.isEmpty()) {
+                studentPicker.getSelectionModel().selectFirst();
+            } else {
+                studentPicker.getSelectionModel().clearSelection();
+            }
+        };
+
+        studentPicker.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(Student s, boolean empty) {
+                super.updateItem(s, empty);
+                setText(empty || s == null ? null : directory.studentName(s.getStudentId()) + " (" + s.getStudentNumber() + ")");
+            }
+        });
+        studentPicker.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Student s, boolean empty) {
+                super.updateItem(s, empty);
+                setText(empty || s == null ? null : directory.studentName(s.getStudentId()) + " (" + s.getStudentNumber() + ")");
+            }
+        });
+
+        TextField roleInput = Ui.field("Role (e.g., API Development, Frontend UI)");
+        TextField notesInput = Ui.field("Contribution notes (e.g., REST API endpoints, 50% UI)");
+
+        Button addMemberBtn = new Button("+ Add Member");
+        addMemberBtn.getStyleClass().add("project-member-add-btn");
+        addMemberBtn.setOnAction(e -> {
+            Student sel = studentPicker.getValue();
+            if (sel == null) {
+                Alerts.error("Select a student to add as a group member.");
+                return;
+            }
+            String roleVal = roleInput.getText() == null ? "" : roleInput.getText().trim();
+            String notesVal = notesInput.getText() == null ? "" : notesInput.getText().trim();
+            if (roleVal.isBlank()) roleVal = "Group Contributor";
+            if (notesVal.isBlank()) notesVal = "Project group member";
+            ProjectMember newMem = new ProjectMember(existing == null ? 0 : existing.getProjectId(), sel.getStudentId(), roleVal, notesVal);
+            draftMembers.add(newMem);
+            roleInput.clear();
+            notesInput.clear();
+            updateAvailableStudents.run();
+        });
+
+        updateAvailableStudents.run();
+
+        HBox memberInputsRow = new HBox(8, studentPicker, roleInput, notesInput, addMemberBtn);
+        memberInputsRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(studentPicker, Priority.ALWAYS);
+        HBox.setHgrow(roleInput, Priority.ALWAYS);
+        HBox.setHgrow(notesInput, Priority.ALWAYS);
+
+        TableView<ProjectMember> memberTable = Ui.table();
+        memberTable.setPrefHeight(150);
+        Ui.addColumn(memberTable, "Student", m -> directory.studentName(m.getStudentId()) + " (ID #" + m.getStudentId() + ")");
+        Ui.addColumn(memberTable, "Role", ProjectMember::getRole);
+        Ui.addColumn(memberTable, "Contribution Notes", ProjectMember::getContributionNotes);
+
+        TableColumn<ProjectMember, Void> actionCol = new TableColumn<>("Action");
+        actionCol.setPrefWidth(90);
+        actionCol.setCellFactory(col -> new TableCell<>() {
+            private final Button removeBtn = new Button("✕ Remove");
+            {
+                removeBtn.getStyleClass().add("project-member-remove-btn");
+                removeBtn.setOnAction(evt -> {
+                    ProjectMember item = getTableView().getItems().get(getIndex());
+                    draftMembers.remove(item);
+                    updateAvailableStudents.run();
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : removeBtn);
+                setAlignment(Pos.CENTER);
+            }
+        });
+        memberTable.getColumns().add(actionCol);
+        memberTable.setItems(draftMembers);
+        memberTable.setPlaceholder(new Label("No group members tagged yet. (Solo Project)"));
+
+        membersSection.getChildren().addAll(membersTitle, membersSubtitle, memberInputsRow, memberTable);
+
+        VBox dialogContent = new VBox(16, projectForm, membersSection);
+        ScrollPane scroll = new ScrollPane(dialogContent);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportWidth(760);
+        scroll.setPrefViewportHeight(580);
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Project" : "Edit Project — " + existing.getProjectTitle());
+        dialog.getDialogPane().setContent(scroll);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        Button okButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okButton.setText(existing == null ? "Create Project" : "Save Changes");
+        okButton.getStyleClass().add("primary-button");
+
+        okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            event.consume();
+            try {
+                Project target = existing == null ? new Project() : existing;
                 target.setStudentId(existing == null ? Integer.valueOf(studentId) : existing.getStudentId());
-                if (existing != null) target.setProjectId(existing.getProjectId());
                 target.setProjectTitle(title.getText());
                 target.setProjectType(type.getValue());
                 target.setSubjectId(subject.getValue() == null ? null : subject.getValue().getSubjectId());
@@ -739,23 +1145,47 @@ public final class StudentViews {
                 target.setDemoUrl(demo.getText());
                 target.setProjectDate(projectDate.getValue());
                 target.setStatus(status.getValue());
-                if (existing == null) projects.addProject(target);
-                else projects.updateProject(target, studentId);
-                refresh.run();
-                Alerts.info("Project saved.");
-            });
+
+                okButton.setDisable(true);
+                okButton.setText("Saving...");
+
+                projects.saveProjectWithMembersAsync(target, new ArrayList<>(draftMembers), studentId)
+                        .thenRun(() -> Platform.runLater(() -> {
+                            dialog.setResult(ButtonType.OK);
+                            dialog.close();
+                            refresh.run();
+                            Alerts.info("Project and group member credits saved successfully.");
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                okButton.setDisable(false);
+                                okButton.setText(existing == null ? "Create Project" : "Save Changes");
+                                Alerts.error(ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage());
+                            });
+                            return null;
+                        });
+            } catch (Exception ex) {
+                okButton.setDisable(false);
+                okButton.setText(existing == null ? "Create Project" : "Save Changes");
+                Alerts.error(ex.getMessage());
+            }
         });
+
+        dialog.showAndWait();
     }
 
-    private static void manageMembers(Project project, int studentId) {
+    private static void manageMembers(Project project, int studentId, Runnable refreshCallback) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Group Members - " + project.getProjectTitle());
         TableView<ProjectMember> table = Ui.table();
         Map<Integer, String> students = directory.studentNames();
         Ui.addColumn(table, "Student", m -> students.getOrDefault(m.getStudentId(), "Student #" + m.getStudentId()));
         Ui.addColumn(table, "Role", ProjectMember::getRole);
-        Ui.addColumn(table, "Contribution", ProjectMember::getContribution);
-        Runnable refresh = () -> table.setItems(FXCollections.observableArrayList(projects.membersForProject(project.getProjectId())));
+        Ui.addColumn(table, "Contribution Notes", ProjectMember::getContributionNotes);
+        Runnable refresh = () -> {
+            table.setItems(FXCollections.observableArrayList(projects.membersForProject(project.getProjectId())));
+            if (refreshCallback != null) refreshCallback.run();
+        };
         refresh.run();
 
         Button add = new Button("Add Member");
@@ -774,8 +1204,8 @@ public final class StudentViews {
                 return name + " (" + s.getStudentNumber() + ")";
             });
             TextField role = Ui.field("Role (e.g. Developer, Designer)");
-            TextField contribution = Ui.field("Contribution summary");
-            Node form = Ui.form(new String[]{"Student", "Role", "Contribution"}, new Node[]{student, role, contribution});
+            TextField contribution = Ui.field("Contribution notes / percentage / area");
+            Node form = Ui.form(new String[]{"Student", "Role", "Contribution Notes"}, new Node[]{student, role, contribution});
             Ui.dialog("Add Group Member", form).ifPresent(button -> {
                 if (button != ButtonType.OK) return;
                 guard(() -> {
@@ -785,6 +1215,7 @@ public final class StudentViews {
                     member.setStudentId(student.getValue().getStudentId());
                     member.setRole(role.getText());
                     member.setContribution(contribution.getText());
+                    member.setContributionNotes(contribution.getText());
                     projects.addMember(member, studentId);
                     refresh.run();
                 });
@@ -1063,7 +1494,7 @@ public final class StudentViews {
         name.getStyleClass().add("page-title");
         Student student = directory.students().stream()
                 .filter(s -> s.getStudentId() == studentId).findFirst().orElse(null);
-        Label program = new Label(student == null ? "" : student.getProgram() + " - Year " + student.getYearLevel());
+        Label program = new Label(student == null ? "" : student.getProgram() + " - " + Ui.formatYearDisplay(student.getYearLevel()));
         program.getStyleClass().add("page-subtitle");
         content.getChildren().addAll(name, program,
                 section("Professional Headline", value(p.getHeadline())),
@@ -1078,12 +1509,7 @@ public final class StudentViews {
                 .reduce("", (a, b) -> a + b + "\n");
         content.getChildren().add(section("Technical Skills", skills));
 
-        String projectText = projects.projectsForStudent(studentId).stream()
-                .map(pr -> "• " + value(pr.getProjectTitle()) + " — " + value(pr.getProjectType())
-                        + (pr.getTechnologiesUsed() == null ? "" : " [" + pr.getTechnologiesUsed() + "]")
-                        + (pr.getStatus() == null ? "" : " · " + pr.getStatus()))
-                .reduce("", (a, b) -> a + b + "\n");
-        content.getChildren().add(section("Projects", projectText));
+        content.getChildren().add(section("Projects", formatPortfolioProjects(studentId)));
 
         String achievements = studentService.achievementsFor(studentId).stream()
                 .map(a -> "• " + value(a.getTitle()) + (a.getOrganization() == null ? "" : " — " + a.getOrganization()))
@@ -1115,6 +1541,71 @@ public final class StudentViews {
         body.setWrapText(true);
         box.getChildren().addAll(heading, body);
         return box;
+    }
+
+    private static String formatPortfolioProjects(int studentId) {
+        List<Project> list = projects.projectsForStudent(studentId);
+        if (list.isEmpty()) return "No projects recorded.";
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < list.size(); i++) {
+            Project p = list.get(i);
+            boolean isOwner = p.getStudentId() != null && p.getStudentId() == studentId;
+            text.append("• ").append(value(p.getProjectTitle())).append(" — ").append(value(p.getProjectType()));
+            if (p.getStatus() != null && !p.getStatus().isBlank()) {
+                text.append(" · ").append(p.getStatus());
+            }
+            if (p.getProjectDate() != null) {
+                text.append(" (").append(Ui.formatDate(p.getProjectDate())).append(")");
+            }
+            text.append('\n');
+
+            if (isOwner) {
+                text.append("   Credit: Project Owner & Lead\n");
+                List<ProjectMember> members = projects.membersForProject(p.getProjectId());
+                if (!members.isEmpty()) {
+                    text.append("   Group Members: ");
+                    String memStr = members.stream().map(m -> {
+                        String name = directory.studentName(m.getStudentId());
+                        String role = m.getRole();
+                        return (role == null || role.isBlank()) ? name : name + " (" + role + ")";
+                    }).collect(java.util.stream.Collectors.joining(", "));
+                    text.append(memStr).append('\n');
+                }
+            } else {
+                text.append("   Credit: [Group Project - Credited Member]\n");
+                java.util.Optional<ProjectMember> memOpt = projects.memberForProjectAndStudent(p.getProjectId(), studentId);
+                if (memOpt.isPresent()) {
+                    ProjectMember mem = memOpt.get();
+                    if (mem.getRole() != null && !mem.getRole().isBlank()) {
+                        text.append("   Assigned Role: ").append(mem.getRole()).append('\n');
+                    }
+                    String notes = mem.getContributionNotes();
+                    if (notes != null && !notes.isBlank()) {
+                        text.append("   Contribution Notes: ").append(notes).append('\n');
+                    }
+                }
+                if (p.getStudentId() != null) {
+                    text.append("   Project Creator/Owner: ").append(directory.studentName(p.getStudentId())).append('\n');
+                }
+            }
+
+            if (p.getTechnologiesUsed() != null && !p.getTechnologiesUsed().isBlank()) {
+                text.append("   Technologies: ").append(p.getTechnologiesUsed()).append('\n');
+            }
+            if (p.getRepositoryUrl() != null && !p.getRepositoryUrl().isBlank()) {
+                text.append("   Repository: ").append(p.getRepositoryUrl()).append('\n');
+            }
+            if (p.getDemoUrl() != null && !p.getDemoUrl().isBlank()) {
+                text.append("   Demo: ").append(p.getDemoUrl()).append('\n');
+            }
+            if (p.getDescription() != null && !p.getDescription().isBlank()) {
+                text.append("   Description: ").append(p.getDescription()).append('\n');
+            }
+            if (i < list.size() - 1) {
+                text.append('\n');
+            }
+        }
+        return text.toString();
     }
 
     private static String value(String text) { return text == null ? "" : text; }
@@ -1229,18 +1720,18 @@ public final class StudentViews {
 
             if (!issuedLetters.isEmpty()) {
                 VBox recSection = new VBox(6);
-                recSection.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-padding: 10;");
+                recSection.setStyle("-fx-background-color: #FAF7F2; -fx-border-color: #F2E7D3; -fx-border-radius: 8; -fx-padding: 10;");
                 Label recTitle = new Label("Attach Verified Faculty Recommendation Letter:");
                 recTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
                 recSection.getChildren().addAll(recTitle, letterSelector);
                 formBox.getChildren().add(recSection);
             } else {
                 VBox recPrompt = new VBox(6);
-                recPrompt.setStyle("-fx-background-color: #FEF9E7; -fx-border-color: #C6A75E; -fx-border-radius: 8; -fx-padding: 10;");
+                recPrompt.setStyle("-fx-background-color: #FAF5E8; -fx-border-color: rgba(74, 90, 106, 0.25); -fx-border-radius: 8; -fx-padding: 10;");
                 Label pTitle = new Label("💡 Optional: Boost your application with a Faculty Recommendation");
-                pTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #7D6608; -fx-font-size: 11.5px;");
+                pTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #1A2634; -fx-font-size: 11.5px;");
                 Label pDesc = new Label("You can request an official endorsement letter from your course instructors before or after applying.");
-                pDesc.setStyle("-fx-font-size: 11px; -fx-text-fill: #414141;");
+                pDesc.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A;");
                 Button reqQuickBtn = Ui.button("Request Recommendation from Instructor", "secondary-button");
                 reqQuickBtn.setOnAction(ev -> showRequestRecommendationDialog(sid, selected.getOpportunityId(), filter));
                 recPrompt.getChildren().addAll(pTitle, pDesc, reqQuickBtn);
@@ -1270,6 +1761,7 @@ public final class StudentViews {
         });
 
         Button details = new Button("View Details");
+        details.getStyleClass().add("secondary-button");
         details.setOnAction(e -> {
             JobOpportunity selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select an opportunity to view."); return; }
@@ -1297,6 +1789,7 @@ public final class StudentViews {
         });
 
         Button refresh = new Button("Refresh");
+        refresh.getStyleClass().add("secondary-button");
         refresh.setOnAction(e -> filter.run());
         return Ui.page("Opportunities", "Browse internships and employment opportunities from industry partners.",
                 Ui.toolbar(new Label("Search:"), search, type, apply, details, requestRec, refresh), table);
@@ -1309,18 +1802,61 @@ public final class StudentViews {
         Map<Integer, JobOpportunity> byId = new java.util.HashMap<>();
         Map<Integer, RecommendationLetter> lettersByApp = new java.util.HashMap<>();
 
-        TableView<Application> table = Ui.table();
+        TableView<Application> table = Ui.table("You have not submitted any applications yet.");
         Ui.addColumn(table, "Opportunity", a -> opportunities.getOrDefault(a.getOpportunityId(), "Opportunity #" + a.getOpportunityId()));
         Ui.addColumn(table, "Company", a -> {
             JobOpportunity o = byId.get(a.getOpportunityId());
             return o == null ? "" : employers.getOrDefault(o.getEmployerId(), "Employer #" + o.getEmployerId());
         });
-        Ui.addColumn(table, "Applied", a -> a.getApplicationDate() == null ? "" : a.getApplicationDate().toLocalDate().toString());
-        Ui.addColumn(table, "Status", Application::getStatus);
-        Ui.addColumn(table, "Faculty Endorsement", a -> lettersByApp.containsKey(a.getApplicationId()) ? "✔ Endorsed" : "-");
-        Ui.addColumn(table, "Remarks", Application::getRemarks);
+        Ui.addColumn(table, "Applied", a -> a.getApplicationDate() == null ? "" : Ui.formatDate(a.getApplicationDate().toLocalDate()));
 
-        ComboBox<String> status = Ui.combo(List.of("All statuses", "Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted"), s -> s);
+        TableColumn<Application, Application> statusCol = new TableColumn<>("Status");
+        statusCol.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue()));
+        statusCol.setCellFactory(c -> new TableCell<>() {
+            @Override
+            protected void updateItem(Application item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    String st = item.getStatus() == null ? "Pending" : item.getStatus();
+                    setGraphic(Ui.badge(st, badgeClassFor(st)));
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                    setAlignment(Pos.CENTER_LEFT);
+                }
+            }
+        });
+        table.getColumns().add(statusCol);
+
+        Ui.addColumn(table, "Faculty Endorsement", a -> lettersByApp.containsKey(a.getApplicationId()) ? "✔ Endorsed" : "-");
+
+        TableColumn<Application, String> remarksCol = new TableColumn<>("Employer Remarks");
+        remarksCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getRemarks()));
+        remarksCol.setCellFactory(col -> new TableCell<Application, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null || item.isBlank()) {
+                    setText("No remarks yet");
+                    setStyle("-fx-text-fill: #999086; -fx-font-style: italic; -fx-alignment: CENTER-LEFT;");
+                    setTooltip(null);
+                } else {
+                    String trimmed = item.trim().replaceAll("\\s+", " ");
+                    String preview = trimmed.length() > 50 ? trimmed.substring(0, 47) + "..." : trimmed;
+                    setText(preview);
+                    setStyle("-fx-text-fill: #2B2625; -fx-font-weight: 500; -fx-alignment: CENTER-LEFT;");
+                    Tooltip tip = new Tooltip("Employer Feedback:\n" + item.trim());
+                    tip.setWrapText(true);
+                    tip.setMaxWidth(400);
+                    tip.setStyle("-fx-font-size: 12px; -fx-background-color: #2B2625; -fx-text-fill: #FDFBFA; -fx-padding: 8;");
+                    setTooltip(tip);
+                }
+            }
+        });
+        table.getColumns().add(remarksCol);
+
+        ComboBox<String> status = Ui.combo(List.of("All statuses", "Pending", "Under Review", "Shortlisted", "Rejected", "Accepted"), s -> s);
         status.getSelectionModel().selectFirst();
         TextField search = Ui.field("Search by opportunity, company, status or remarks...");
         Runnable filter = () -> {
@@ -1355,7 +1891,35 @@ public final class StudentViews {
         search.textProperty().addListener((obs, old, value) -> filter.run());
         status.valueProperty().addListener((obs, old, value) -> filter.run());
 
+        // Row double-click opens application & feedback details
+        table.setRowFactory(tv -> {
+            TableRow<Application> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    Application sel = row.getItem();
+                    showStudentApplicationDetailsModal(sel, byId.get(sel.getOpportunityId()),
+                            companyFor(sel, byId, employers), lettersByApp.get(sel.getApplicationId()));
+                }
+            });
+            return row;
+        });
+
+        Button viewDetailsBtn = new Button("View Details");
+        viewDetailsBtn.getStyleClass().add("primary-button");
+        viewDetailsBtn.setStyle("-fx-text-fill: #FDFBFA;");
+        viewDetailsBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        viewDetailsBtn.setOnAction(e -> {
+            Application sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) {
+                Alerts.error("Select an application to view.");
+                return;
+            }
+            showStudentApplicationDetailsModal(sel, byId.get(sel.getOpportunityId()),
+                    companyFor(sel, byId, employers), lettersByApp.get(sel.getApplicationId()));
+        });
+
         Button viewLetterBtn = new Button("View Recommendation Letter");
+        viewLetterBtn.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
         viewLetterBtn.setOnAction(e -> {
             Application sel = table.getSelectionModel().getSelectedItem();
             if (sel == null) {
@@ -1373,8 +1937,154 @@ public final class StudentViews {
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
 
-        return Ui.page("My Applications", "Follow the status of every internship and employment application you have submitted.",
-                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), status, viewLetterBtn, refresh), table);
+        return Ui.page("My Applications", "Follow the status and view employer feedback on every application you have submitted.",
+                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), status, viewDetailsBtn, viewLetterBtn, refresh), table);
+    }
+
+    public static void showStudentApplicationDetailsModal(Application app, JobOpportunity opportunity, String companyName, RecommendationLetter recLetter) {
+        if (app == null) {
+            Alerts.error("Select an application to view.");
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Application Details & Employer Feedback");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        dialog.getDialogPane().setStyle("-fx-background-color: #FDFBFA;");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox box = new VBox(14);
+        box.setPrefWidth(520);
+        box.setPadding(new Insets(16, 20, 16, 20));
+
+        // 1. Header with Opportunity & Company
+        VBox top = new VBox(4);
+        String oppTitle = opportunity != null ? opportunity.getTitle() : "Opportunity #" + app.getOpportunityId();
+        Label title = new Label(oppTitle);
+        title.setStyle("-fx-font-size: 17px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F;");
+        Label comp = new Label("Company: " + (companyName != null && !companyName.isBlank() ? companyName : "Hiring Partner"));
+        comp.setStyle("-fx-font-size: 13px; -fx-text-fill: #414141; -fx-font-weight: 600;");
+        top.getChildren().addAll(title, comp);
+
+        // 2. Application status details card
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(12));
+        grid.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        grid.add(new Label("Application Status:"), 0, 0);
+        String st = app.getStatus() == null ? "Pending" : app.getStatus();
+        Label stBadge = Ui.badge(st, badgeClassFor(st));
+        grid.add(stBadge, 1, 0);
+
+        grid.add(new Label("Date Submitted:"), 0, 1);
+        Label dateLbl = new Label(app.getApplicationDate() != null ? Ui.formatDate(app.getApplicationDate().toLocalDate()) : "—");
+        dateLbl.setStyle("-fx-font-weight: 700;");
+        grid.add(dateLbl, 1, 1);
+
+        grid.add(new Label("Faculty Endorsement:"), 0, 2);
+        Label endLbl = new Label(recLetter != null ? "✔ Verified Faculty Endorsed" : "— None attached");
+        endLbl.setStyle(recLetter != null ? "-fx-text-fill: #1E6B35; -fx-font-weight: 700;" : "-fx-text-fill: #8C827A;");
+        grid.add(endLbl, 1, 2);
+
+        grid.add(new Label("Employer Review Status:"), 0, 3);
+        String reviewedStr;
+        if (app.getReviewedAt() != null) {
+            reviewedStr = "Reviewed on " + Ui.formatDate(app.getReviewedAt().toLocalDate());
+        } else if ("Pending".equalsIgnoreCase(st)) {
+            reviewedStr = "Awaiting employer review";
+        } else {
+            reviewedStr = "Under evaluation";
+        }
+        Label revLbl = new Label(reviewedStr);
+        revLbl.setStyle("-fx-font-weight: 600; -fx-text-fill: #6E6862;");
+        grid.add(revLbl, 1, 3);
+
+        // 3. Status Guidance Pill / Explanatory Banner
+        VBox statusNoteBanner = new VBox(4);
+        statusNoteBanner.setPadding(new Insets(10, 12, 10, 12));
+        Label statusNoteTitle = new Label();
+        statusNoteTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px;");
+        Label statusNoteDesc = new Label();
+        statusNoteDesc.setWrapText(true);
+        statusNoteDesc.setStyle("-fx-font-size: 11.5px;");
+
+        if ("Accepted".equalsIgnoreCase(st)) {
+            statusNoteBanner.setStyle("-fx-background-color: #F4FAF5; -fx-border-color: #BDE4C7; -fx-border-radius: 8; -fx-background-radius: 8;");
+            statusNoteTitle.setText("🎉 Congratulations! Application Accepted");
+            statusNoteTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #1E6B35;");
+            statusNoteDesc.setText("The employer has accepted your application! Check the feedback section below for any onboarding or next-step instructions.");
+            statusNoteDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #225930;");
+        } else if ("Shortlisted".equalsIgnoreCase(st)) {
+            statusNoteBanner.setStyle("-fx-background-color: #FEF9E7; -fx-border-color: #EBD39E; -fx-border-radius: 8; -fx-background-radius: 8;");
+            statusNoteTitle.setText("⭐ Application Shortlisted");
+            statusNoteTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #996800;");
+            statusNoteDesc.setText("Great job! Your profile has been shortlisted for an interview or technical evaluation round.");
+            statusNoteDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #735300;");
+        } else if ("Rejected".equalsIgnoreCase(st)) {
+            statusNoteBanner.setStyle("-fx-background-color: #FFF5F5; -fx-border-color: #F0B8B8; -fx-border-radius: 8; -fx-background-radius: 8;");
+            statusNoteTitle.setText("Application Not Selected");
+            statusNoteTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #9E0B0F;");
+            statusNoteDesc.setText("This application was not selected. Read the constructive remarks from the employer below to help refine your future applications.");
+            statusNoteDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #732023;");
+        } else if ("Under Review".equalsIgnoreCase(st) || "Reviewed".equalsIgnoreCase(st)) {
+            statusNoteBanner.setStyle("-fx-background-color: #F6F8FA; -fx-border-color: #D3DFE8; -fx-border-radius: 8; -fx-background-radius: 8;");
+            statusNoteTitle.setText("🔍 Application Under Review");
+            statusNoteTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #2E5677;");
+            statusNoteDesc.setText("The hiring partner is actively assessing your credentials, portfolio, and project experience.");
+            statusNoteDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #3E6585;");
+        } else {
+            statusNoteBanner.setStyle("-fx-background-color: #FAF8F5; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8;");
+            statusNoteTitle.setText("⏳ Application Pending");
+            statusNoteTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #6E6862;");
+            statusNoteDesc.setText("Your application was received and is currently in the employer queue awaiting initial screening.");
+            statusNoteDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
+        }
+        statusNoteBanner.getChildren().addAll(statusNoteTitle, statusNoteDesc);
+
+        // 4. Employer Remarks & Feedback Card
+        VBox remBox = new VBox(8);
+        remBox.setStyle("-fx-background-color: #FAF8F5; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 12;");
+        Label remTitle = new Label("💬 Employer Remarks & Feedback");
+        remTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12.5px; -fx-text-fill: #9E0B0F;");
+
+        VBox remContentCard = new VBox(4);
+        remContentCard.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 10;");
+
+        Label remContent = new Label();
+        remContent.setWrapText(true);
+        if (app.getRemarks() != null && !app.getRemarks().isBlank()) {
+            remContent.setText(app.getRemarks());
+            remContent.setStyle("-fx-font-size: 13px; -fx-text-fill: #2B2625; -fx-line-spacing: 2.5px;");
+            remContentCard.getChildren().add(remContent);
+            if (app.getReviewedAt() != null) {
+                Label timeLbl = new Label("Provided on " + Ui.formatDate(app.getReviewedAt().toLocalDate()));
+                timeLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A; -fx-font-style: italic;");
+                remContentCard.getChildren().add(timeLbl);
+            }
+        } else {
+            remContent.setText("No remarks yet. The employer has not provided written feedback for this application.");
+            remContent.setStyle("-fx-font-size: 12px; -fx-text-fill: #8C827A; -fx-font-style: italic;");
+            remContentCard.getChildren().add(remContent);
+        }
+        remBox.getChildren().addAll(remTitle, remContentCard);
+
+        box.getChildren().addAll(top, grid, statusNoteBanner, remBox);
+        dialog.getDialogPane().setContent(box);
+        dialog.showAndWait();
+    }
+
+    private static String badgeClassFor(String status) {
+        if (status == null) return "badge-pill-cream";
+        return switch (status.toLowerCase(Locale.ROOT)) {
+            case "accepted" -> "badge-pill-mint";
+            case "shortlisted" -> "badge-pill-yellow";
+            case "rejected" -> "badge-pill-pink";
+            case "under review", "reviewed" -> "badge-pill-blue";
+            default -> "badge-pill-cream";
+        };
     }
 
     public static void showRequestRecommendationDialog(int sid, Integer preselectedOppId, Runnable onComplete) {

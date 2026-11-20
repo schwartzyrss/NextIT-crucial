@@ -177,6 +177,28 @@
         0 0 0 3.5px rgba(158, 11, 15, 0.2);
     }
 
+    /* ComboBox & Dropdown Selectors */
+    select.clay-input-pill {
+      appearance: none;
+      -webkit-appearance: none;
+      -moz-appearance: none;
+      background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236E6862' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+      background-repeat: no-repeat;
+      background-position: right 20px center;
+      background-size: 16px;
+      padding-right: 48px;
+    }
+
+    .clay-combo-trigger:focus,
+    .clay-combo-trigger:focus-within {
+      background: #FFFFFF;
+      border-color: #9E0B0F !important;
+      box-shadow: 
+        inset 1.5px 2px 4px rgba(158, 11, 15, 0.15),
+        inset -2px -2px 4px rgba(255, 255, 255, 0.9),
+        0 0 0 3.5px rgba(158, 11, 15, 0.2);
+    }
+
     /* Primary Pill Button (Deep Crimson Red with Dark Maroon and Ochre Trim) */
     .clay-btn-pill-primary {
       background: linear-gradient(135deg, #B51217 0%, #9E0B0F 55%, #660508 100%);
@@ -375,6 +397,8 @@
         { domain: 'dlsu.edu.ph', name: 'De La Salle University', country: 'PH', emblem: '🏹' },
         { domain: 'ateneo.edu', name: 'Ateneo de Manila University', country: 'PH', emblem: '🦅' },
         { domain: 'ust.edu.ph', name: 'University of Santo Tomas', country: 'PH', emblem: '🐯' },
+        { domain: 'g.bastate-u.edu.ph', name: 'Batangas State University', country: 'PH', emblem: '🏛️' },
+        { domain: 'bastate-u.edu.ph', name: 'Batangas State University', country: 'PH', emblem: '🏛️' },
         { domain: 'nextit.edu', name: 'NextIT Academic Network', country: 'Global', emblem: '⚡' }
       ],
 
@@ -390,7 +414,7 @@
           orgLabel: 'Degree Program / Course',
           orgPlaceholder: 'e.g. BS Computer Science or BS Information Technology',
           detailLabel: 'Expected Graduation Year',
-          detailPlaceholder: 'Class of 2026'
+          detailPlaceholder: 'Select graduation year (e.g., Class of 2026)'
         },
         instructor: {
           title: 'Instructor',
@@ -421,7 +445,40 @@
       },
 
       selectRole(r) {
-        this.role = r;
+        if (this.role !== r) {
+          this.role = r;
+          this.roleDetail = '';
+          this.formError = '';
+        }
+      },
+
+      gradYearsList: [],
+
+      getCurrentYear() {
+        if (window.javaBridge && window.javaBridge.getCurrentYear) {
+          try {
+            const yr = window.javaBridge.getCurrentYear();
+            if (yr && typeof yr === 'number' && yr > 2000) return yr;
+          } catch (e) {}
+        }
+        return new Date().getFullYear();
+      },
+
+      get graduationYears() {
+        if (this.gradYearsList && this.gradYearsList.length > 0) {
+          return this.gradYearsList;
+        }
+        const currentYear = this.getCurrentYear();
+        const list = [];
+        for (let y = currentYear; y <= currentYear + 6; y++) {
+          list.push({
+            year: y,
+            label: 'Class of ' + y,
+            value: 'Class of ' + y
+          });
+        }
+        this.gradYearsList = list;
+        return list;
       },
 
       continueToForm() {
@@ -579,7 +636,55 @@
         this.step = 2;
       },
 
+      validateStep2() {
+        this.formError = '';
+        if (this.role === 'student') {
+          if (!this.orgName || !this.orgName.trim()) {
+            this.formError = 'Please specify your degree program or course.';
+            return false;
+          }
+          if (!this.roleDetail || !this.roleDetail.trim()) {
+            this.formError = 'Please select your expected graduation year.';
+            return false;
+          }
+          if (!this.idNumber || !this.idNumber.trim()) {
+            this.formError = 'Please provide your institutional student ID number.';
+            return false;
+          }
+        } else if (this.role === 'instructor') {
+          if (!this.orgName || !this.orgName.trim()) {
+            this.formError = 'Please specify your academic department.';
+            return false;
+          }
+          if (!this.roleDetail || !this.roleDetail.trim()) {
+            this.formError = 'Please specify your department specialization.';
+            return false;
+          }
+          if (!this.idNumber || !this.idNumber.trim()) {
+            this.formError = 'Please provide your faculty employee ID number.';
+            return false;
+          }
+        } else if (this.role === 'employer') {
+          if (!this.orgName || !this.orgName.trim()) {
+            this.formError = 'Please specify your company or organization name.';
+            return false;
+          }
+          if (!this.roleDetail || !this.roleDetail.trim()) {
+            this.formError = 'Please specify company size and industry.';
+            return false;
+          }
+          if (!this.idNumber || !this.idNumber.trim()) {
+            this.formError = 'Please provide your corporate contact title or registration.';
+            return false;
+          }
+        }
+        return true;
+      },
+
       proceedToVerification() {
+        if (!this.validateStep2()) {
+          return;
+        }
         this.step = 3;
         this.requestVerificationCode();
       },
@@ -825,9 +930,9 @@
     <!-- Top Floating Header Bar -->
     <div class="flex items-center justify-between mb-6 px-2">
       <div class="flex items-center gap-3">
-        <!-- NextIT Oval Pill Logo Badge -->
-        <div class="px-4 py-1.5 rounded-full font-black text-sm text-[#FDFBFA] bg-gradient-to-r from-[#9E0B0F] to-[#660508] border border-[#C6A75E] shadow-sm tracking-wide flex items-center gap-2">
-          <span class="w-2.5 h-2.5 rounded-full bg-[#C6A75E] shadow-sm"></span>
+        <!-- Official NextIT Circular Emblem Logo & Wordmark Badge -->
+        <div class="px-3.5 py-1.5 rounded-full font-black text-sm text-[#FDFBFA] bg-gradient-to-r from-[#9E0B0F] to-[#660508] border border-[#C6A75E] shadow-sm tracking-wide flex items-center gap-2.5">
+          <img src="../icons/nextit-logo.png" alt="NextIT Logo" class="w-7 h-7 object-contain drop-shadow" />
           <span class="text-white font-black tracking-wider">NextIT</span>
         </div>
         <span class="text-xs font-semibold text-nextit-ink-muted hidden sm:inline">Track Your Progress, Build Your Future</span>
@@ -1256,8 +1361,99 @@
 
             <!-- Role-Specific Detail Field -->
             <div>
-              <label class="block text-xs font-bold text-nextit-ink uppercase tracking-wider mb-1.5 pl-3" x-text="roles[role].detailLabel"></label>
-              <input type="text" x-model="roleDetail" :placeholder="roles[role].detailPlaceholder" class="clay-input-pill" />
+              <label class="block text-xs font-bold text-nextit-ink uppercase tracking-wider mb-1.5 pl-3">
+                <span x-text="roles[role].detailLabel"></span>
+                <span x-show="role === 'student'" class="text-[#9E0B0F] ml-0.5">*</span>
+              </label>
+
+              <!-- STUDENT: Standardized Pill Dropdown (ComboBox) -->
+              <div 
+                x-show="role === 'student'" 
+                class="relative" 
+                x-data="{ open: false, focusedIndex: -1 }" 
+                @click.outside="open = false" 
+                @keydown.escape.prevent.stop="open = false"
+              >
+                <!-- ComboBox Trigger Button with warm cream fill, gold border, and crimson focus -->
+                <button
+                  type="button"
+                  id="graduationYearComboBox"
+                  @click="open = !open"
+                  @keydown.arrow-down.prevent="open = true; focusedIndex = Math.min(focusedIndex + 1, graduationYears.length - 1)"
+                  @keydown.arrow-up.prevent="open = true; focusedIndex = Math.max(focusedIndex - 1, 0)"
+                  @keydown.enter.prevent="if (open && focusedIndex >= 0) { roleDetail = graduationYears[focusedIndex].value; open = false; formError = ''; } else { open = !open; }"
+                  class="clay-input-pill clay-combo-trigger flex items-center justify-between text-left cursor-pointer w-full transition-all duration-200 select-none"
+                  :class="{ 'border-[#9E0B0F] ring-[3.5px] ring-[#9E0B0F]/20': open }"
+                  aria-haspopup="listbox"
+                  :aria-expanded="open"
+                >
+                  <span :class="roleDetail ? 'text-[#414141] font-semibold' : 'text-stone-400 font-medium'" x-text="roleDetail || 'Select graduation year (e.g., Class of 2026)'"></span>
+                  <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                    <span x-show="roleDetail" class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#FAF4EE] border border-[#C6A75E] text-[#9E0B0F]">Selected</span>
+                    <svg class="w-4 h-4 text-[#6E6862] transition-transform duration-200" :class="{ 'rotate-180 text-[#9E0B0F]': open }" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.2" d="M19 9l-7 7-7-7"></path>
+                    </svg>
+                  </div>
+                </button>
+
+                <!-- Hidden/Synced standard select for native form/accessibility compatibility -->
+                <select x-model="roleDetail" @change="formError = ''" class="sr-only" tabindex="-1" aria-hidden="true">
+                  <option value="">Select graduation year (e.g., Class of 2026)</option>
+                  <template x-for="item in graduationYears" :key="item.value">
+                    <option :value="item.value" x-text="item.label"></option>
+                  </template>
+                </select>
+
+                <!-- Popup List Cell Factory: Pill-rounded cells, warm cream fill, subtle gold border, crimson selection -->
+                <div
+                  x-show="open"
+                  x-transition:enter="transition ease-out duration-150"
+                  x-transition:enter-start="opacity-0 -translate-y-2 scale-98"
+                  x-transition:enter-end="opacity-100 translate-y-0 scale-100"
+                  x-transition:leave="transition ease-in duration-100"
+                  x-transition:leave-start="opacity-100 translate-y-0 scale-100"
+                  x-transition:leave-end="opacity-0 -translate-y-2 scale-98"
+                  class="absolute left-0 right-0 top-full mt-2 z-50 rounded-3xl p-2.5 shadow-2xl border border-[#C6A75E] bg-[#FAF7F2] max-h-60 overflow-y-auto"
+                  style="display: none;"
+                  role="listbox"
+                >
+                  <div class="px-3 py-1.5 text-[10px] font-extrabold text-[#6E6862] uppercase tracking-wider border-b border-[#E5D5BF] flex items-center justify-between mb-1.5">
+                    <span>Graduation Cohort</span>
+                    <span class="text-[9px] text-stone-400">↑↓ to navigate • Enter to choose</span>
+                  </div>
+                  <div class="space-y-1">
+                    <template x-for="(item, idx) in graduationYears" :key="item.value">
+                      <div
+                        role="option"
+                        :aria-selected="roleDetail === item.value"
+                        @click="roleDetail = item.value; open = false; formError = '';"
+                        @mouseenter="focusedIndex = idx"
+                        :class="{
+                          'bg-[#9E0B0F] text-white font-bold shadow-md shadow-[#9E0B0F]/20': roleDetail === item.value,
+                          'bg-[#EFE2CA] text-[#414141] font-semibold': roleDetail !== item.value && focusedIndex === idx,
+                          'text-[#414141] hover:bg-[#FAF4EE]': roleDetail !== item.value && focusedIndex !== idx
+                        }"
+                        class="px-4 py-2.5 rounded-full text-sm cursor-pointer flex items-center justify-between transition-all duration-150 select-none"
+                      >
+                        <div class="flex items-center gap-2">
+                          <span class="w-2 h-2 rounded-full" :class="roleDetail === item.value ? 'bg-white' : 'bg-[#C6A75E]'"></span>
+                          <span x-text="item.label"></span>
+                        </div>
+                        <template x-if="roleDetail === item.value">
+                          <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                          </svg>
+                        </template>
+                      </div>
+                    </template>
+                  </div>
+                </div>
+              </div>
+
+              <!-- INSTRUCTOR & EMPLOYER: Free-text inputs -->
+              <div x-show="role !== 'student'">
+                <input type="text" x-model="roleDetail" :placeholder="roles[role].detailPlaceholder" class="clay-input-pill" />
+              </div>
             </div>
 
             <!-- Identification Number Field -->
@@ -1272,10 +1468,15 @@
           </div>
 
           <div class="flex items-center justify-between">
-            <button @click="step = 1" class="clay-btn-pill-secondary">
+            <button @click="step = 1; formError = '';" class="clay-btn-pill-secondary">
               ← Back
             </button>
-            <button @click="proceedToVerification()" class="clay-btn-pill-primary">
+            <button 
+              @click="proceedToVerification()" 
+              :disabled="role === 'student' && (!roleDetail || !roleDetail.trim())"
+              :class="{ 'opacity-60 cursor-not-allowed': role === 'student' && (!roleDetail || !roleDetail.trim()) }"
+              class="clay-btn-pill-primary"
+            >
               Proceed to Verification ➔
             </button>
           </div>

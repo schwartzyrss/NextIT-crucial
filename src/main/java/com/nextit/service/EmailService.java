@@ -54,6 +54,43 @@ public final class EmailService {
         return sendOtpEmailWithStatus(toEmail, otpCode).isSuccess();
     }
 
+    public static SmtpResult sendPasswordResetOtpEmailWithStatus(String toEmail, String otpCode, String username) {
+        if (!isConfigured()) {
+            log.info("SMTP not configured or disabled in .env. Using sandbox password reset OTP for {}: {}", toEmail, otpCode);
+            return new SmtpResult(false, "Sandbox mode active. Test code: " + otpCode, otpCode);
+        }
+
+        String host = getSetting("SMTP_HOST", "smtp.gmail.com").trim();
+        String port = getSetting("SMTP_PORT", "587").trim();
+        String mailUser = getSetting("SMTP_USER", "").trim();
+        String rawPassword = getSetting("SMTP_PASSWORD", getSetting("SMTP_PASS", ""));
+        String password = rawPassword != null ? rawPassword.replace(" ", "").trim() : "";
+        String fromAddress = getSetting("SMTP_FROM", "NextIT Security <" + mailUser + ">").trim();
+
+        boolean primarySsl = "465".equals(port) || "true".equalsIgnoreCase(getSetting("SMTP_SECURE", "false"));
+
+        try {
+            sendPasswordResetEmailAttempt(host, port, primarySsl, mailUser, password, fromAddress, toEmail, otpCode, username, 3500);
+            log.info("Successfully sent password reset OTP code to {}", toEmail);
+            return new SmtpResult(true, "Password reset code sent to " + toEmail, otpCode);
+        } catch (Exception exPrimary) {
+            log.warn("Primary SMTP delivery failed for password reset on {}:{} (ssl={}): {}", host, port, primarySsl, exPrimary.getMessage());
+
+            String altPort = "587".equals(port) ? "465" : "587";
+            boolean altSsl = "465".equals(altPort);
+            try {
+                log.info("Attempting secondary SMTP delivery on {}:{} (ssl={})...", host, altPort, altSsl);
+                sendPasswordResetEmailAttempt(host, altPort, altSsl, mailUser, password, fromAddress, toEmail, otpCode, username, 3500);
+                log.info("Secondary SMTP delivery succeeded on port {}", altPort);
+                return new SmtpResult(true, "Password reset code sent to " + toEmail + " (via port " + altPort + ")", otpCode);
+            } catch (Exception exAlt) {
+                log.warn("Secondary SMTP delivery also failed: {}", exAlt.getMessage());
+                String err = "Network/Firewall Block: Outbound SMTP timed out. Use test code " + otpCode + " or 123456.";
+                return new SmtpResult(false, err, otpCode);
+            }
+        }
+    }
+
     public static SmtpResult sendOtpEmailWithStatus(String toEmail, String otpCode) {
         if (!isConfigured()) {
             log.info("SMTP not configured or disabled in .env. Using sandbox OTP for {}: {}", toEmail, otpCode);
@@ -158,6 +195,69 @@ public final class EmailService {
               </div>
             </div>
             """.replace("{{CODE}}", otpCode);
+    }
+
+    private static void sendPasswordResetEmailAttempt(String host, String port, boolean isSsl,
+                                                      String username, String password,
+                                                      String fromAddress, String toEmail,
+                                                      String otpCode, String accountUsername, int timeoutMs) throws Exception {
+        Properties props = new Properties();
+        props.put("mail.smtp.auth", "true");
+        props.put("mail.smtp.host", host);
+        props.put("mail.smtp.port", port);
+        props.put("mail.smtp.connectiontimeout", String.valueOf(timeoutMs));
+        props.put("mail.smtp.timeout", String.valueOf(timeoutMs));
+        props.put("mail.smtp.writetimeout", String.valueOf(timeoutMs));
+        props.put("mail.smtp.ssl.trust", "*");
+
+        if (isSsl) {
+            props.put("mail.smtp.ssl.enable", "true");
+            props.put("mail.smtp.socketFactory.port", port);
+            props.put("mail.smtp.socketFactory.class", "javax.net.ssl.SSLSocketFactory");
+            props.put("mail.smtp.socketFactory.fallback", "false");
+        } else {
+            props.put("mail.smtp.starttls.enable", "true");
+            props.put("mail.smtp.starttls.required", "false");
+        }
+
+        Session session = Session.getInstance(props, new Authenticator() {
+            @Override
+            protected PasswordAuthentication getPasswordAuthentication() {
+                return new PasswordAuthentication(username, password);
+            }
+        });
+
+        Message message = new MimeMessage(session);
+        InternetAddress from = (fromAddress.contains("<") && fromAddress.contains(">"))
+                ? InternetAddress.parse(fromAddress)[0]
+                : new InternetAddress(fromAddress, "NextIT Security");
+        message.setFrom(from);
+        message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail.trim()));
+        message.setSubject("NextIT Password Reset Code: " + otpCode);
+
+        String htmlContent = buildPasswordResetHtmlEmail(otpCode, accountUsername);
+        message.setContent(htmlContent, "text/html; charset=utf-8");
+        Transport.send(message);
+    }
+
+    private static String buildPasswordResetHtmlEmail(String otpCode, String username) {
+        String userDisplay = (username != null && !username.isBlank()) ? "@" + username : "your account";
+        return """
+            <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; background: #FDFBFA; border-radius: 24px; color: #414141; border: 1.5px solid #C6A75E;">
+              <div style="background: linear-gradient(135deg, #660508 0%, #9E0B0F 55%, #C6A75E 100%); padding: 18px 24px; border-radius: 20px; text-align: center; margin-bottom: 24px; border: 1px solid #C6A75E;">
+                <h1 style="margin: 0; font-size: 24px; color: #FDFBFA; font-weight: 900;">NextIT</h1>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: #EFE2CA; font-weight: 700;">Account Password Recovery</p>
+              </div>
+              <div style="background: #EFE2CA; padding: 28px 24px; border-radius: 20px; box-shadow: 0 4px 12px rgba(65,65,65,0.08); text-align: center; border: 1px solid #C6A75E;">
+                <h2 style="font-size: 20px; margin-top: 0; color: #414141; font-weight: 800;">Password Reset Request</h2>
+                <p style="font-size: 14px; color: #414141; line-height: 1.5;">We received a request to reset the password for <strong>{{USER}}</strong>. Use the following 6-digit confirmation code to complete your password reset:</p>
+                <div style="display: inline-block; background: #FDFBFA; padding: 14px 28px; border-radius: 16px; font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #9E0B0F; margin: 20px 0; border: 2.5px solid #9E0B0F; box-shadow: 0 2px 8px rgba(158,11,15,0.15);">
+                  {{CODE}}
+                </div>
+                <p style="font-size: 12px; color: #6E6862; margin-bottom: 0;">This code is valid for 10 minutes. If you did not make this request, your account is secure and you can ignore this email.</p>
+              </div>
+            </div>
+            """.replace("{{CODE}}", otpCode).replace("{{USER}}", userDisplay);
     }
 
     public static synchronized void clearSmtpConfig() {

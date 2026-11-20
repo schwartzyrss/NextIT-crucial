@@ -16,6 +16,8 @@ import javafx.scene.Parent;
 import javafx.scene.Scene;
 import javafx.scene.control.Label;
 import javafx.scene.control.ProgressBar;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
@@ -25,6 +27,7 @@ import javafx.util.Duration;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.InputStream;
 import java.sql.Connection;
 
 /**
@@ -59,38 +62,27 @@ public final class SplashScreenView {
                         + "-fx-effect: dropshadow(gaussian, rgba(65, 65, 65, 0.12), 32, 0.14, 0, 10);"
         );
 
-        // NEXTIT DEFENSE emblem with gold accent ring and crisp monogram
-        StackPane emblemContainer = new StackPane();
+        // Official NextIT circular emblem logo centered above title and progress bar
+        ImageView emblemLogo = new ImageView();
+        emblemLogo.setFitWidth(124);
+        emblemLogo.setFitHeight(124);
+        emblemLogo.setPreserveRatio(true);
+        emblemLogo.setSmooth(true);
+        try (InputStream is = SplashScreenView.class.getResourceAsStream("/images/nextit-logo.png")) {
+            if (is != null) {
+                emblemLogo.setImage(new Image(is));
+            } else {
+                try (InputStream fallback = SplashScreenView.class.getResourceAsStream("/com/nextit/icons/nextit-logo.png")) {
+                    if (fallback != null) emblemLogo.setImage(new Image(fallback));
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Could not load splash emblem logo: {}", e.getMessage());
+        }
+
+        StackPane emblemContainer = new StackPane(emblemLogo);
         emblemContainer.setAlignment(Pos.CENTER);
-
-        Region goldRing = new Region();
-        goldRing.setStyle(
-                "-fx-background-color: transparent;"
-                        + "-fx-border-color: #C6A75E;"
-                        + "-fx-border-radius: 999;"
-                        + "-fx-border-width: 2.2;"
-                        + "-fx-min-width: 86; -fx-min-height: 86; -fx-max-width: 86; -fx-max-height: 86;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.45), 14, 0.2, 0, 2);"
-        );
-
-        Region crimsonOrb = new Region();
-        crimsonOrb.setStyle(
-                "-fx-background-color: linear-gradient(from 0% 0% to 100% 100%, #B51217 0%, #9E0B0F 55%, #660508 100%);"
-                        + "-fx-background-radius: 999;"
-                        + "-fx-min-width: 72; -fx-min-height: 72; -fx-max-width: 72; -fx-max-height: 72;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.45), 16, 0.25, 0, 4);"
-        );
-
-        Label emblemMonogram = new Label("N");
-        emblemMonogram.setStyle(
-                "-fx-font-size: 32px;"
-                        + "-fx-font-weight: 900;"
-                        + "-fx-text-fill: #FFFFFF;"
-                        + "-fx-font-family: 'Segoe UI', -apple-system, sans-serif;"
-                        + "-fx-effect: dropshadow(gaussian, rgba(102, 5, 8, 0.4), 4, 0.1, 0, 1);"
-        );
-
-        emblemContainer.getChildren().addAll(goldRing, crimsonOrb, emblemMonogram);
+        emblemContainer.setStyle("-fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.28), 24, 0.18, 0, 6);");
 
         Label titleLabel = new Label("NextIT");
         titleLabel.setStyle(

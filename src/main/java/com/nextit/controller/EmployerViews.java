@@ -13,6 +13,8 @@ import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.application.Platform;
+import javafx.beans.property.SimpleObjectProperty;
+import javafx.beans.property.SimpleStringProperty;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 import javafx.util.Duration;
@@ -669,21 +671,7 @@ public final class EmployerViews {
 
     private static void reviewApplicationModal(int eid, Application selected, Map<Integer, String> studentNames, Runnable refresh) {
         if (selected == null) return;
-        ComboBox<String> status = Ui.combo(List.of("Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted"), s -> s);
-        status.getSelectionModel().select(selected.getStatus() == null ? "Pending" : selected.getStatus());
-        TextArea remarks = Ui.area("Remarks");
-        remarks.setText(selected.getRemarks());
-        String name = studentNames.getOrDefault(selected.getStudentId(), "Student #" + selected.getStudentId());
-        Node form = Ui.form(new String[]{"Applicant", "Status", "Remarks"},
-                new Node[]{new Label(name), status, remarks});
-        Ui.dialog("Review Application", form).ifPresent(button -> {
-            if (button != ButtonType.OK) return;
-            guard(() -> {
-                career.updateApplicationStatus(eid, selected, status.getValue(), remarks.getText());
-                if (refresh != null) refresh.run();
-                Alerts.info("Application updated.");
-            });
-        });
+        showUpdateStatusAndRemarksModal(eid, selected, studentNames, Collections.emptyMap(), refresh);
     }
 
     public static Node opportunities() {
@@ -804,15 +792,58 @@ public final class EmployerViews {
         Map<Integer, String> studentsById = new java.util.HashMap<>();
         Map<Integer, RecommendationLetter> attachedLettersByApp = new java.util.HashMap<>();
 
-        TableView<Application> table = Ui.table();
+        TableView<Application> table = Ui.table("No applications found matching your criteria.");
         Ui.addColumn(table, "Student", a -> studentsById.getOrDefault(a.getStudentId(), "Student #" + a.getStudentId()));
         Ui.addColumn(table, "Opportunity", a -> opportunityTitles.getOrDefault(a.getOpportunityId(), "Opportunity #" + a.getOpportunityId()));
-        Ui.addColumn(table, "Applied", a -> a.getApplicationDate() == null ? "" : a.getApplicationDate().toLocalDate().toString());
-        Ui.addColumn(table, "Status", Application::getStatus);
-        Ui.addColumn(table, "Faculty Recommendation", a -> attachedLettersByApp.containsKey(a.getApplicationId()) ? "✔ Faculty Endorsed" : "-");
-        Ui.addColumn(table, "Remarks", Application::getRemarks);
+        Ui.addColumn(table, "Applied", a -> a.getApplicationDate() == null ? "" : Ui.formatDate(a.getApplicationDate().toLocalDate()));
 
-        ComboBox<String> statusFilter = Ui.combo(List.of("All statuses", "Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted"), s -> s);
+        TableColumn<Application, Application> statusCol = new TableColumn<>("Status");
+        statusCol.setCellValueFactory(c -> new SimpleObjectProperty<>(c.getValue()));
+        statusCol.setCellFactory(c -> new TableCell<>() {
+            @Override
+            protected void updateItem(Application item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setGraphic(null);
+                    setText(null);
+                } else {
+                    String st = item.getStatus() == null ? "Pending" : item.getStatus();
+                    setGraphic(Ui.badge(st, badgeClassFor(st)));
+                    setContentDisplay(ContentDisplay.GRAPHIC_ONLY);
+                    setAlignment(Pos.CENTER_LEFT);
+                }
+            }
+        });
+        table.getColumns().add(statusCol);
+
+        Ui.addColumn(table, "Faculty Recommendation", a -> attachedLettersByApp.containsKey(a.getApplicationId()) ? "✔ Faculty Endorsed" : "-");
+
+        TableColumn<Application, String> remarksCol = new TableColumn<>("Remarks");
+        remarksCol.setCellValueFactory(cell -> new SimpleStringProperty(cell.getValue().getRemarks()));
+        remarksCol.setCellFactory(col -> new TableCell<Application, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null || item.isBlank()) {
+                    setText("—");
+                    setStyle("-fx-text-fill: #8C827A; -fx-alignment: CENTER-LEFT;");
+                    setTooltip(null);
+                } else {
+                    String trimmed = item.trim().replaceAll("\\s+", " ");
+                    String preview = trimmed.length() > 55 ? trimmed.substring(0, 52) + "..." : trimmed;
+                    setText(preview);
+                    setStyle("-fx-text-fill: #2B2625; -fx-font-weight: 500; -fx-alignment: CENTER-LEFT;");
+                    Tooltip tip = new Tooltip(item.trim());
+                    tip.setWrapText(true);
+                    tip.setMaxWidth(380);
+                    tip.setStyle("-fx-font-size: 12px; -fx-background-color: #2B2625; -fx-text-fill: #FDFBFA; -fx-padding: 8;");
+                    setTooltip(tip);
+                }
+            }
+        });
+        table.getColumns().add(remarksCol);
+
+        ComboBox<String> statusFilter = Ui.combo(List.of("All statuses", "Pending", "Under Review", "Shortlisted", "Rejected", "Accepted"), s -> s);
         statusFilter.getSelectionModel().selectFirst();
         TextField search = Ui.field("Search by student, opportunity or remarks...");
         Runnable filter = () -> {
@@ -842,28 +873,37 @@ public final class EmployerViews {
         search.textProperty().addListener((obs, old, value) -> filter.run());
         filter.run();
 
+        // Row double click opens status & remarks update
+        table.setRowFactory(tv -> {
+            TableRow<Application> row = new TableRow<>();
+            row.setOnMouseClicked(event -> {
+                if (event.getClickCount() == 2 && !row.isEmpty()) {
+                    showUpdateStatusAndRemarksModal(eid, row.getItem(), studentsById, opportunityTitles, filter);
+                }
+            });
+            return row;
+        });
+
         Button review = new Button("Update Status");
         review.getStyleClass().add("primary-button");
+        review.setStyle("-fx-text-fill: #FDFBFA;");
+        review.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
         review.setOnAction(e -> {
             Application selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select an application to review."); return; }
-            ComboBox<String> status = Ui.combo(List.of("Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted"), s -> s);
-            status.getSelectionModel().select(selected.getStatus() == null ? "Pending" : selected.getStatus());
-            TextArea remarks = Ui.area("Remarks");
-            remarks.setText(selected.getRemarks());
-            Node form = Ui.form(new String[]{"Applicant", "Status", "Remarks"},
-                    new Node[]{new Label(studentsById.getOrDefault(selected.getStudentId(), "Student #" + selected.getStudentId())), status, remarks});
-            Ui.dialog("Review Application", form).ifPresent(button -> {
-                if (button != ButtonType.OK) return;
-                guard(() -> {
-                    career.updateApplicationStatus(eid, selected, status.getValue(), remarks.getText());
-                    filter.run();
-                    Alerts.info("Application updated.");
-                });
-            });
+            showUpdateStatusAndRemarksModal(eid, selected, studentsById, opportunityTitles, filter);
+        });
+
+        Button viewDetails = new Button("View Details");
+        viewDetails.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
+        viewDetails.setOnAction(e -> {
+            Application selected = table.getSelectionModel().getSelectedItem();
+            if (selected == null) { Alerts.error("Select an application to view."); return; }
+            showApplicationDetailsModal(selected, studentsById, opportunityTitles, attachedLettersByApp.get(selected.getApplicationId()));
         });
 
         Button viewLetter = new Button("View Recommendation Letter");
+        viewLetter.disableProperty().bind(table.getSelectionModel().selectedItemProperty().isNull());
         viewLetter.setOnAction(e -> {
             Application selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) {
@@ -880,8 +920,334 @@ public final class EmployerViews {
 
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
-        return Ui.page("Applications", "Review applications submitted to your opportunities and review verified faculty recommendation letters.",
-                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), statusFilter, review, viewLetter, refresh), table);
+        return Ui.page("Applications", "Review applications submitted to your opportunities, update candidate statuses, and record actionable feedback.",
+                Ui.toolbar(new Label("Search:"), search, new Label("Filter:"), statusFilter, review, viewDetails, viewLetter, refresh), table);
+    }
+
+    public static void showUpdateStatusAndRemarksModal(int eid, Application selected, Map<Integer, String> studentsById, Map<Integer, String> opportunityTitles, Runnable onComplete) {
+        if (selected == null) {
+            Alerts.error("Select an application to review.");
+            return;
+        }
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Update Application Status & Remarks");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        dialog.getDialogPane().setStyle("-fx-background-color: #FDFBFA;");
+
+        VBox root = new VBox(14);
+        root.setPrefWidth(540);
+        root.setPadding(new Insets(16, 20, 16, 20));
+
+        // 1. Applicant Header Card
+        VBox headerCard = new VBox(6);
+        headerCard.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-radius: 10; -fx-background-radius: 10; -fx-padding: 14; -fx-effect: dropshadow(gaussian, rgba(198, 167, 94, 0.15), 6, 0.05, 0, 2);");
+
+        String applicantName = studentsById != null ? studentsById.getOrDefault(selected.getStudentId(), "Student #" + selected.getStudentId()) : "Student #" + selected.getStudentId();
+        String oppTitle = opportunityTitles != null ? opportunityTitles.getOrDefault(selected.getOpportunityId(), "Opportunity #" + selected.getOpportunityId()) : "Opportunity #" + selected.getOpportunityId();
+
+        HBox topRow = new HBox(10);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+        Label nameLabel = new Label(applicantName);
+        nameLabel.setStyle("-fx-font-size: 16px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F;");
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+        String currStatus = selected.getStatus() == null ? "Pending" : selected.getStatus();
+        Label currentStatusBadge = Ui.badge("Current: " + currStatus, badgeClassFor(currStatus));
+        topRow.getChildren().addAll(nameLabel, spacer, currentStatusBadge);
+
+        Label oppLabel = new Label("Applying for: " + oppTitle);
+        oppLabel.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 600; -fx-text-fill: #414141;");
+
+        String appliedDateStr = selected.getApplicationDate() == null ? "—" : Ui.formatDate(selected.getApplicationDate().toLocalDate());
+        Label metaLabel = new Label("Submitted: " + appliedDateStr + (selected.getReviewedAt() != null ? "  •  Last reviewed: " + Ui.formatDate(selected.getReviewedAt().toLocalDate()) : ""));
+        metaLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+
+        headerCard.getChildren().addAll(topRow, oppLabel, metaLabel);
+
+        // 2. Status Selector
+        VBox statusBox = new VBox(6);
+        Label statusLabel = new Label("APPLICATION STATUS");
+        statusLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6E6862; -fx-letter-spacing: 0.5px;");
+
+        ComboBox<String> statusCombo = new ComboBox<>(FXCollections.observableArrayList(
+                "Pending", "Under Review", "Shortlisted", "Accepted", "Rejected"
+        ));
+        statusCombo.setMaxWidth(Double.MAX_VALUE);
+        statusCombo.getStyleClass().add("combo-box");
+        String currentSt = selected.getStatus();
+        if ("Reviewed".equalsIgnoreCase(currentSt)) currentSt = "Under Review";
+        if (currentSt != null && statusCombo.getItems().contains(currentSt)) {
+            statusCombo.getSelectionModel().select(currentSt);
+        } else {
+            statusCombo.getSelectionModel().select("Pending");
+        }
+        statusBox.getChildren().addAll(statusLabel, statusCombo);
+
+        // 3. Dynamic Feedback Guidance Banner
+        VBox guidanceBanner = new VBox(4);
+        guidanceBanner.setPadding(new Insets(10, 12, 10, 12));
+        Label guidanceTitle = new Label();
+        guidanceTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px;");
+        Label guidanceDesc = new Label();
+        guidanceDesc.setWrapText(true);
+        guidanceDesc.setStyle("-fx-font-size: 11.5px;");
+        guidanceBanner.getChildren().addAll(guidanceTitle, guidanceDesc);
+
+        // 4. Remarks / Feedback Text Area
+        VBox remarksBox = new VBox(6);
+        HBox remarksHeader = new HBox(8);
+        remarksHeader.setAlignment(Pos.CENTER_LEFT);
+        Label remarksHeaderLabel = new Label("EMPLOYER REMARKS / FEEDBACK");
+        remarksHeaderLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+        Label optionalOrEncouraged = new Label();
+        remarksHeader.getChildren().addAll(remarksHeaderLabel, optionalOrEncouraged);
+
+        TextArea remarksArea = new TextArea();
+        remarksArea.setPrefRowCount(4);
+        remarksArea.setWrapText(true);
+        remarksArea.setPromptText("Enter constructive feedback, candidate notes, or next steps...");
+        remarksArea.getStyleClass().add("text-area");
+        remarksArea.setText(selected.getRemarks() == null ? "" : selected.getRemarks());
+
+        Label remarksHint = new Label("Remarks are shared directly with the student in their Application tracker.");
+        remarksHint.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A; -fx-font-style: italic;");
+        remarksBox.getChildren().addAll(remarksHeader, remarksArea, remarksHint);
+
+        // Reactive update for guidance banner & remarks input prompt
+        Runnable updateGuidance = () -> {
+            String st = statusCombo.getValue();
+            if ("Rejected".equalsIgnoreCase(st)) {
+                guidanceBanner.setStyle("-fx-background-color: #FFF5F5; -fx-border-color: #F0B8B8; -fx-border-radius: 8; -fx-background-radius: 8;");
+                guidanceTitle.setText("💡 Constructive Feedback Highly Encouraged");
+                guidanceTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #9E0B0F;");
+                guidanceDesc.setText("Providing constructive reasons (such as missing technical skills, position already filled, or portfolio suggestions) helps candidates understand the decision and improve.");
+                guidanceDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #732023;");
+                optionalOrEncouraged.setText("(Highly Encouraged)");
+                optionalOrEncouraged.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F;");
+                remarksArea.setStyle("-fx-border-color: #C6A75E; -fx-border-radius: 8;");
+            } else if ("Accepted".equalsIgnoreCase(st)) {
+                guidanceBanner.setStyle("-fx-background-color: #F4FAF5; -fx-border-color: #BDE4C7; -fx-border-radius: 8; -fx-background-radius: 8;");
+                guidanceTitle.setText("🎉 Candidate Accepted");
+                guidanceTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #1E6B35;");
+                guidanceDesc.setText("Congratulations! You can optionally include onboarding notes, contact information, or welcoming instructions.");
+                guidanceDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #225930;");
+                optionalOrEncouraged.setText("(Optional Welcome Notes)");
+                optionalOrEncouraged.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 600; -fx-text-fill: #1E6B35;");
+                remarksArea.setStyle("");
+            } else if ("Shortlisted".equalsIgnoreCase(st)) {
+                guidanceBanner.setStyle("-fx-background-color: #FEF9E7; -fx-border-color: #EBD39E; -fx-border-radius: 8; -fx-background-radius: 8;");
+                guidanceTitle.setText("⭐ Candidate Shortlisted");
+                guidanceTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #996800;");
+                guidanceDesc.setText("Candidate meets your requirements. Provide details on interview scheduling, presentation dates, or next round details.");
+                guidanceDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #735300;");
+                optionalOrEncouraged.setText("(Optional Interview Notes)");
+                optionalOrEncouraged.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 600; -fx-text-fill: #996800;");
+                remarksArea.setStyle("");
+            } else if ("Under Review".equalsIgnoreCase(st)) {
+                guidanceBanner.setStyle("-fx-background-color: #F6F8FA; -fx-border-color: #D3DFE8; -fx-border-radius: 8; -fx-background-radius: 8;");
+                guidanceTitle.setText("🔍 Application Under Review");
+                guidanceTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #2E5677;");
+                guidanceDesc.setText("Signal to the candidate that their portfolio and credentials are being reviewed by the hiring team.");
+                guidanceDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #3E6585;");
+                optionalOrEncouraged.setText("(Optional Review Notes)");
+                optionalOrEncouraged.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 600; -fx-text-fill: #2E5677;");
+                remarksArea.setStyle("");
+            } else {
+                guidanceBanner.setStyle("-fx-background-color: #FAF8F5; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8;");
+                guidanceTitle.setText("⏳ Application Pending");
+                guidanceTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12px; -fx-text-fill: #6E6862;");
+                guidanceDesc.setText("Application is awaiting initial review.");
+                guidanceDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
+                optionalOrEncouraged.setText("(Optional)");
+                optionalOrEncouraged.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 600; -fx-text-fill: #8C827A;");
+                remarksArea.setStyle("");
+            }
+        };
+        statusCombo.valueProperty().addListener((obs, old, val) -> updateGuidance.run());
+        updateGuidance.run();
+
+        // 5. Quick-Select Feedback Chips
+        VBox chipsBox = new VBox(6);
+        Label chipsLabel = new Label("QUICK-SELECT FEEDBACK CHIPS");
+        chipsLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+
+        FlowPane chipPane = new FlowPane(8, 8);
+        chipPane.setPrefWrapLength(500);
+
+        record FeedbackChip(String chipLabel, String feedbackText, String targetStatus) {}
+        List<FeedbackChip> presetChips = List.of(
+                new FeedbackChip("Position filled", "Thank you for applying. We have currently filled this position with another candidate.", "Rejected"),
+                new FeedbackChip("Lacks required technical stack", "Thank you for your interest. We are looking for candidates with more hands-on experience in the required technical stack for this specific opening.", "Rejected"),
+                new FeedbackChip("Proceeding with other candidates", "We reviewed your background carefully, but have decided to proceed with other candidates whose experience more closely matches our immediate requirements.", "Rejected"),
+                new FeedbackChip("Scheduled for interview", "Congratulations! Your profile has been shortlisted. Our recruiting team will reach out shortly to schedule an interview.", "Shortlisted"),
+                new FeedbackChip("Strong portfolio — shortlisted", "Impressive project portfolio and qualifications! You have been shortlisted for our technical evaluation round.", "Shortlisted"),
+                new FeedbackChip("Welcome to the team!", "Congratulations! We are pleased to accept your application. Our HR team will reach out with the formal offer and onboarding details.", "Accepted")
+        );
+
+        for (FeedbackChip c : presetChips) {
+            Button chipBtn = new Button(c.chipLabel());
+            chipBtn.getStyleClass().add("feedback-chip");
+            chipBtn.setOnAction(ev -> {
+                remarksArea.setText(c.feedbackText());
+                if (c.targetStatus() != null) {
+                    statusCombo.getSelectionModel().select(c.targetStatus());
+                }
+            });
+            chipPane.getChildren().add(chipBtn);
+        }
+        chipsBox.getChildren().addAll(chipsLabel, chipPane);
+
+        // Status & Progress Message
+        Label statusMsg = new Label();
+        statusMsg.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #9E0B0F;");
+
+        root.getChildren().addAll(headerCard, statusBox, guidanceBanner, chipsBox, remarksBox, statusMsg);
+
+        dialog.getDialogPane().setContent(root);
+        ButtonType saveBtnType = new ButtonType("Update Status", ButtonBar.ButtonData.OK_DONE);
+        ButtonType cancelBtnType = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
+        dialog.getDialogPane().getButtonTypes().addAll(saveBtnType, cancelBtnType);
+
+        Button saveBtn = (Button) dialog.getDialogPane().lookupButton(saveBtnType);
+        if (saveBtn != null) {
+            saveBtn.getStyleClass().add("primary-button");
+            saveBtn.setStyle("-fx-text-fill: #FDFBFA; -fx-font-weight: 800;");
+        }
+        Button cancelBtn = (Button) dialog.getDialogPane().lookupButton(cancelBtnType);
+        if (cancelBtn != null) {
+            cancelBtn.getStyleClass().add("secondary-button");
+        }
+
+        // Asynchronous Supabase save on click without freezing JavaFX UI thread
+        if (saveBtn != null) {
+            saveBtn.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+                event.consume();
+
+                String newStatus = statusCombo.getValue();
+                String newRemarks = remarksArea.getText();
+
+                saveBtn.setDisable(true);
+                if (cancelBtn != null) cancelBtn.setDisable(true);
+                statusCombo.setDisable(true);
+                remarksArea.setDisable(true);
+                statusMsg.setText("⏳ Updating application in Supabase...");
+
+                career.updateApplicationStatusAsync(eid, selected, newStatus, newRemarks)
+                        .thenRun(() -> Platform.runLater(() -> {
+                            dialog.setResult(saveBtnType);
+                            dialog.close();
+                            if (onComplete != null) onComplete.run();
+                            Alerts.info("Application status and remarks updated successfully.");
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                saveBtn.setDisable(false);
+                                if (cancelBtn != null) cancelBtn.setDisable(false);
+                                statusCombo.setDisable(false);
+                                remarksArea.setDisable(false);
+                                statusMsg.setText("");
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                if (cause instanceof AppException appEx) {
+                                    Alerts.error(appEx.getMessage());
+                                } else {
+                                    Alerts.error("Could not complete the operation: " + cause.getMessage());
+                                }
+                            });
+                            return null;
+                        });
+            });
+        }
+
+        dialog.showAndWait();
+    }
+
+    public static void showApplicationDetailsModal(Application app, Map<Integer, String> studentsById, Map<Integer, String> opportunityTitles, RecommendationLetter recLetter) {
+        if (app == null) {
+            Alerts.error("Select an application to view.");
+            return;
+        }
+        String studentName = studentsById != null ? studentsById.getOrDefault(app.getStudentId(), "Student #" + app.getStudentId()) : "Student #" + app.getStudentId();
+        String oppTitle = opportunityTitles != null ? opportunityTitles.getOrDefault(app.getOpportunityId(), "Opportunity #" + app.getOpportunityId()) : "Opportunity #" + app.getOpportunityId();
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Application Details");
+        dialog.setHeaderText(null);
+        dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        dialog.getDialogPane().setStyle("-fx-background-color: #FDFBFA;");
+        dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
+
+        VBox box = new VBox(14);
+        box.setPrefWidth(520);
+        box.setPadding(new Insets(16, 20, 16, 20));
+
+        // Header
+        VBox top = new VBox(4);
+        Label title = new Label(studentName);
+        title.setStyle("-fx-font-size: 18px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F;");
+        Label sub = new Label("Candidate application for " + oppTitle);
+        sub.setStyle("-fx-font-size: 13px; -fx-text-fill: #414141; -fx-font-weight: 600;");
+        top.getChildren().addAll(title, sub);
+
+        // Details grid
+        GridPane grid = new GridPane();
+        grid.setHgap(16);
+        grid.setVgap(10);
+        grid.setPadding(new Insets(12));
+        grid.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8;");
+
+        grid.add(new Label("Applied Date:"), 0, 0);
+        Label dateLbl = new Label(app.getApplicationDate() != null ? Ui.formatDate(app.getApplicationDate().toLocalDate()) : "—");
+        dateLbl.setStyle("-fx-font-weight: 700;");
+        grid.add(dateLbl, 1, 0);
+
+        grid.add(new Label("Current Status:"), 0, 1);
+        String st = app.getStatus() == null ? "Pending" : app.getStatus();
+        Label stBadge = Ui.badge(st, badgeClassFor(st));
+        grid.add(stBadge, 1, 1);
+
+        grid.add(new Label("Faculty Endorsement:"), 0, 2);
+        Label endLbl = new Label(recLetter != null ? "✔ Verified Faculty Endorsed" : "— None attached");
+        endLbl.setStyle(recLetter != null ? "-fx-text-fill: #1E6B35; -fx-font-weight: 700;" : "-fx-text-fill: #8C827A;");
+        grid.add(endLbl, 1, 2);
+
+        grid.add(new Label("Last Reviewed:"), 0, 3);
+        Label revLbl = new Label(app.getReviewedAt() != null ? Ui.formatDate(app.getReviewedAt().toLocalDate()) : "Not reviewed yet");
+        revLbl.setStyle("-fx-font-weight: 600; -fx-text-fill: #6E6862;");
+        grid.add(revLbl, 1, 3);
+
+        // Remarks Section
+        VBox remBox = new VBox(8);
+        remBox.setStyle("-fx-background-color: #FAF8F5; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 12;");
+        Label remTitle = new Label("Employer Remarks & Feedback");
+        remTitle.setStyle("-fx-font-weight: 800; -fx-font-size: 12.5px; -fx-text-fill: #9E0B0F;");
+
+        Label remContent = new Label();
+        remContent.setWrapText(true);
+        if (app.getRemarks() != null && !app.getRemarks().isBlank()) {
+            remContent.setText(app.getRemarks());
+            remContent.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #2B2625; -fx-line-spacing: 2px;");
+        } else {
+            remContent.setText("— No remarks added yet —");
+            remContent.setStyle("-fx-font-size: 12px; -fx-text-fill: #8C827A; -fx-font-style: italic;");
+        }
+        remBox.getChildren().addAll(remTitle, remContent);
+
+        box.getChildren().addAll(top, grid, remBox);
+        dialog.getDialogPane().setContent(box);
+        dialog.showAndWait();
+    }
+
+    private static String badgeClassFor(String status) {
+        if (status == null) return "badge-pill-cream";
+        return switch (status.toLowerCase(Locale.ROOT)) {
+            case "open", "accepted" -> "badge-pill-mint";
+            case "shortlisted", "under review", "reviewed" -> "badge-pill-navy";
+            case "rejected", "closed" -> "badge-pill-pink";
+            case "pending", "draft" -> "badge-pill-yellow";
+            default -> "badge-pill-cream";
+        };
     }
 
     public static Node portfolioSearch() {

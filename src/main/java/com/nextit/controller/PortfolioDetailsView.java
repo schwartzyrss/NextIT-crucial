@@ -11,6 +11,8 @@ import javafx.scene.Node;
 import javafx.scene.control.Label;
 import javafx.scene.control.ScrollPane;
 
+import java.util.List;
+
 /**
  * Shared read-only portfolio view used by administrators when reviewing a
  * submission and by employers when opening an authorised portfolio.
@@ -79,12 +81,68 @@ public final class PortfolioDetailsView {
     }
 
     private static String projectList(int studentId) {
+        List<com.nextit.model.Project> list = projects.projectsForStudent(studentId);
+        if (list.isEmpty()) return "No projects recorded.";
+
         StringBuilder text = new StringBuilder();
-        projects.projectsForStudent(studentId).forEach(p -> text.append("• ")
-                .append(p.getProjectTitle()).append(" — ").append(p.getProjectType())
-                .append(p.getTechnologiesUsed() == null ? "" : " [" + p.getTechnologiesUsed() + "]")
-                .append(p.getStatus() == null ? "" : " · " + p.getStatus())
-                .append('\n'));
+        for (int i = 0; i < list.size(); i++) {
+            com.nextit.model.Project p = list.get(i);
+            boolean isOwner = p.getStudentId() != null && p.getStudentId() == studentId;
+            text.append("• ").append(p.getProjectTitle()).append(" — ").append(p.getProjectType());
+            if (p.getStatus() != null && !p.getStatus().isBlank()) {
+                text.append(" · ").append(p.getStatus());
+            }
+            if (p.getProjectDate() != null) {
+                text.append(" (").append(Ui.formatDate(p.getProjectDate())).append(")");
+            }
+            text.append('\n');
+
+            if (isOwner) {
+                text.append("   Credit: Project Owner & Lead\n");
+                List<com.nextit.model.ProjectMember> members = projects.membersForProject(p.getProjectId());
+                if (!members.isEmpty()) {
+                    text.append("   Group Members: ");
+                    String memStr = members.stream().map(m -> {
+                        String name = directory.studentName(m.getStudentId());
+                        String role = m.getRole();
+                        return (role == null || role.isBlank()) ? name : name + " (" + role + ")";
+                    }).collect(java.util.stream.Collectors.joining(", "));
+                    text.append(memStr).append('\n');
+                }
+            } else {
+                text.append("   Credit: [Group Project - Credited Member]\n");
+                java.util.Optional<com.nextit.model.ProjectMember> memOpt = projects.memberForProjectAndStudent(p.getProjectId(), studentId);
+                if (memOpt.isPresent()) {
+                    com.nextit.model.ProjectMember mem = memOpt.get();
+                    if (mem.getRole() != null && !mem.getRole().isBlank()) {
+                        text.append("   Assigned Role: ").append(mem.getRole()).append('\n');
+                    }
+                    String notes = mem.getContributionNotes();
+                    if (notes != null && !notes.isBlank()) {
+                        text.append("   Contribution Notes: ").append(notes).append('\n');
+                    }
+                }
+                if (p.getStudentId() != null) {
+                    text.append("   Project Creator/Owner: ").append(directory.studentName(p.getStudentId())).append('\n');
+                }
+            }
+
+            if (p.getTechnologiesUsed() != null && !p.getTechnologiesUsed().isBlank()) {
+                text.append("   Technologies: ").append(p.getTechnologiesUsed()).append('\n');
+            }
+            if (p.getRepositoryUrl() != null && !p.getRepositoryUrl().isBlank()) {
+                text.append("   Repository: ").append(p.getRepositoryUrl()).append('\n');
+            }
+            if (p.getDemoUrl() != null && !p.getDemoUrl().isBlank()) {
+                text.append("   Demo: ").append(p.getDemoUrl()).append('\n');
+            }
+            if (p.getDescription() != null && !p.getDescription().isBlank()) {
+                text.append("   Description: ").append(p.getDescription()).append('\n');
+            }
+            if (i < list.size() - 1) {
+                text.append('\n');
+            }
+        }
         return text.toString();
     }
 

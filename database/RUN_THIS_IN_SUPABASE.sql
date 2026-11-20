@@ -182,9 +182,11 @@ CREATE TABLE project_members (
     student_id INT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
     role VARCHAR(100) NULL,
     contribution TEXT NULL,
+    contribution_notes TEXT NULL,
     CONSTRAINT uq_project_member UNIQUE (project_id, student_id)
 );
 CREATE INDEX idx_project_members_project ON project_members(project_id);
+ALTER TABLE project_members ADD COLUMN IF NOT EXISTS contribution_notes TEXT NULL;
 
 -- (13) Project Evaluations
 CREATE TABLE project_evaluations (

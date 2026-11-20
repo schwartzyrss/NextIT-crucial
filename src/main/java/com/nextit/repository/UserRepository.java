@@ -11,6 +11,15 @@ public interface UserRepository {
     Optional<User> findById(int id);
     Optional<User> findByUsername(String username);
     Optional<User> findByEmail(String email);
+    default Optional<User> findByIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) return Optional.empty();
+        String term = identifier.trim();
+        Optional<User> found = findByUsername(term);
+        if (found.isEmpty()) {
+            found = findByEmail(term);
+        }
+        return found;
+    }
     List<User> findAll();
     void save(User user);
     void update(User user);

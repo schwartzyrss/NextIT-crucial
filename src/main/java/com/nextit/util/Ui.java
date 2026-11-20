@@ -9,6 +9,8 @@ import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
 import javafx.scene.control.*;
+import javafx.scene.image.Image;
+import javafx.scene.image.ImageView;
 import javafx.scene.layout.*;
 import javafx.scene.paint.Color;
 import javafx.scene.shape.Circle;
@@ -92,6 +94,42 @@ public final class Ui {
         return label;
     }
 
+    public static Label statusBadge(String status) {
+        String cleanStatus = status == null ? "" : status.trim();
+        if (cleanStatus.isEmpty()) return new Label("—");
+        String styleVariant = switch (cleanStatus.toLowerCase(java.util.Locale.ROOT)) {
+            case "open", "accepted", "issued", "active", "completed", "present" -> "badge-pill-mint";
+            case "in progress", "shortlisted", "under review", "reviewed", "requested" -> "badge-pill-navy";
+            case "pending", "draft", "late" -> "badge-pill-yellow";
+            case "closed", "rejected", "withdrawn", "absent", "inactive" -> "badge-pill-pink";
+            default -> "badge-pill-cream";
+        };
+        Label badge = badge(cleanStatus, styleVariant);
+        badge.getStyleClass().add("status-pill");
+        return badge;
+    }
+
+    /**
+     * Creates a high-DPI smoothed ImageView of the official NextIT circular emblem.
+     */
+    public static ImageView logo(double size) {
+        ImageView iv = new ImageView();
+        iv.setFitWidth(size);
+        iv.setFitHeight(size);
+        iv.setPreserveRatio(true);
+        iv.setSmooth(true);
+        try (java.io.InputStream is = Ui.class.getResourceAsStream("/images/nextit-logo.png")) {
+            if (is != null) {
+                iv.setImage(new Image(is));
+            } else {
+                try (java.io.InputStream fallback = Ui.class.getResourceAsStream("/com/nextit/icons/nextit-logo.png")) {
+                    if (fallback != null) iv.setImage(new Image(fallback));
+                }
+            }
+        } catch (Exception ignored) {}
+        return iv;
+    }
+
     /**
      * Builds a vector circular status dot with a subtle pulsing halo.
      * Prevents missing-glyph boxes across all platforms and display DPIs.
@@ -135,8 +173,8 @@ public final class Ui {
         Circle halo = (Circle) dotBox.getProperties().get("halo");
         Circle core = (Circle) dotBox.getProperties().get("core");
         if (halo != null && core != null) {
-            Color primaryColor = active ? Color.web("#9E0B0F") : Color.web("#660508");
-            Color haloColor = active ? Color.web("#9E0B0F", 0.28) : Color.web("#660508", 0.28);
+            Color primaryColor = active ? Color.web("#9E0B0F") : Color.web("#1A2634");
+            Color haloColor = active ? Color.web("#9E0B0F", 0.28) : Color.web("#1A2634", 0.28);
             core.setFill(primaryColor);
             halo.setFill(haloColor);
         }
@@ -149,7 +187,7 @@ public final class Ui {
         SVGPath svg = new SVGPath();
         svg.setContent(SYNC_ICON_PATH);
         svg.setFill(Color.TRANSPARENT);
-        svg.setStroke(Color.web("#414141"));
+        svg.setStroke(Color.web("#1A2634"));
         svg.setStrokeWidth(1.8);
         svg.setStrokeLineCap(StrokeLineCap.ROUND);
         svg.setStrokeLineJoin(StrokeLineJoin.ROUND);
@@ -187,7 +225,7 @@ public final class Ui {
         private void setupInteractions() {
             button.hoverProperty().addListener((obs, old, hovered) -> {
                 if (svg != null) {
-                    svg.setStroke(hovered ? Color.web("#9E0B0F") : Color.web("#414141"));
+                    svg.setStroke(hovered ? Color.web("#9E0B0F") : Color.web("#1A2634"));
                 }
                 if (!fetching.get()) {
                     RotateTransition hoverTrans = new RotateTransition(Duration.millis(hovered ? 280 : 200), iconBox);
@@ -367,6 +405,59 @@ public final class Ui {
         return combo;
     }
 
+    /**
+     * Creates a standardized JavaFX ComboBox for Expected Graduation Year with prompt text,
+     * dynamic population based on Year.now().getValue() through +6 years ahead,
+     * and custom styling / cell factory matching the onboarding pill design.
+     */
+    public static ComboBox<String> createGraduationYearComboBox() {
+        int currentYear = java.time.Year.now().getValue();
+        List<String> years = new java.util.ArrayList<>();
+        for (int y = currentYear; y <= currentYear + 6; y++) {
+            years.add("Class of " + y);
+        }
+        ComboBox<String> combo = new ComboBox<>(FXCollections.observableArrayList(years));
+        combo.setPromptText("Select graduation year (e.g., Class of 2026)");
+        combo.setMaxWidth(Double.MAX_VALUE);
+        combo.getStyleClass().addAll("clay-combo-box-pill", "combo-box-pill");
+
+        combo.setCellFactory(lv -> new ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item);
+                }
+            }
+        });
+
+        combo.setButtonCell(new ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(combo.getPromptText());
+                    setStyle("-fx-text-fill: #9E9B97; -fx-font-weight: 500;");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #414141; -fx-font-weight: 600;");
+                }
+            }
+        });
+
+        return combo;
+    }
+
+    public static String formatYearDisplay(int yearLevel) {
+        if (yearLevel >= 2000 && yearLevel <= 2100) {
+            return "Class of " + yearLevel;
+        }
+        return "Year " + yearLevel;
+    }
+
     public static GridPane form(String[] labels, Node[] controls) {
         if (labels.length != controls.length) {
             throw new IllegalArgumentException("Every form field needs a label.");
@@ -410,6 +501,22 @@ public final class Ui {
         TableColumn<T, String> column = new TableColumn<>(name);
         column.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(
                 value(getter.apply(cell.getValue()))));
+        if ("Status".equalsIgnoreCase(name)) {
+            column.setCellFactory(col -> new TableCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null || item.isBlank()) {
+                        setText(null);
+                        setGraphic(null);
+                    } else {
+                        setText(null);
+                        setGraphic(statusBadge(item));
+                        setAlignment(Pos.CENTER_LEFT);
+                    }
+                }
+            });
+        }
         return column;
     }
 

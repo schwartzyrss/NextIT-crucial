@@ -7,6 +7,7 @@ public class Application {
     private java.time.LocalDateTime applicationDate;
     private String status;
     private String remarks;
+    private java.time.LocalDateTime reviewedAt;
 
     public int getApplicationId() { return applicationId; }
     public void setApplicationId(int applicationId) { this.applicationId = applicationId; }
@@ -25,5 +26,8 @@ public class Application {
 
     public String getRemarks() { return remarks; }
     public void setRemarks(String remarks) { this.remarks = remarks; }
+
+    public java.time.LocalDateTime getReviewedAt() { return reviewedAt; }
+    public void setReviewedAt(java.time.LocalDateTime reviewedAt) { this.reviewedAt = reviewedAt; }
 }
 

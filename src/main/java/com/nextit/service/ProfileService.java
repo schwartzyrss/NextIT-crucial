@@ -12,6 +12,7 @@ import com.nextit.repository.JdbcUserRepository;
 import com.nextit.util.Validator;
 
 import java.util.Optional;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Loads and updates the profile that belongs to the signed-in account.
@@ -89,6 +90,24 @@ public class ProfileService {
         Validator.maxLength(student.getSection(), 30, "Section");
         if (student.getYearLevel() < 1) throw new AppException("Year level must be at least 1.");
         studentRepo.update(student);
+        com.nextit.security.Session.setCurrentStudent(student);
+    }
+
+    public void updateStudentSection(Student student, String newSection) {
+        if (student == null) throw new AppException("Student profile not found.");
+        Validator.notBlank(newSection, "Class section");
+        String trimmed = newSection.trim();
+        Validator.maxLength(trimmed, 30, "Class section");
+        student.setSection(trimmed);
+        studentRepo.update(student);
+        com.nextit.security.Session.setCurrentStudent(student);
+    }
+
+    public CompletableFuture<Student> updateStudentSectionAsync(Student student, String newSection) {
+        return CompletableFuture.supplyAsync(() -> {
+            updateStudentSection(student, newSection);
+            return student;
+        });
     }
 
     public void updateInstructor(Instructor instructor) {
