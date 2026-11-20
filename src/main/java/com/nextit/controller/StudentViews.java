@@ -10,6 +10,7 @@ import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
 import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
@@ -18,9 +19,12 @@ import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 
 public final class StudentViews {
 
@@ -791,35 +795,94 @@ public final class StudentViews {
 
     public static Node projects() {
         int sid = studentId();
-        Map<Integer, String> subjects = directory.subjectNames();
+        Map<Integer, String> subjects = new ConcurrentHashMap<>();
+        Map<Integer, List<ProjectMember>> membersCache = new ConcurrentHashMap<>();
+        List<Project> allProjects = new ArrayList<>();
+
         TableView<Project> table = Ui.table();
         Ui.addColumn(table, "Title", Project::getProjectTitle);
         Ui.addColumn(table, "Type", Project::getProjectType);
         Ui.addColumn(table, "Subject", p -> p.getSubjectId() == null ? "" : subjects.getOrDefault(p.getSubjectId(), "Subject #" + p.getSubjectId()));
         Ui.addColumn(table, "Status", Project::getStatus);
-        Ui.addColumn(table, "Your role", p -> projects.isOwner(p, sid) ? "Owner" : "Group member");
+        Ui.addColumn(table, "Credit / Role", p -> {
+            if (projects.isOwner(p, sid)) {
+                List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+                return mems.isEmpty() ? "Owner (Solo)" : "Owner (Project Lead)";
+            }
+            List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+            String role = mems.stream()
+                    .filter(m -> m.getStudentId() == sid)
+                    .map(ProjectMember::getRole)
+                    .filter(r -> r != null && !r.isBlank())
+                    .findFirst()
+                    .orElse(null);
+            return role != null ? "Group Project - Credited (" + role + ")" : "Group Project - Credited";
+        });
+        Ui.addColumn(table, "Members", p -> {
+            List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+            if (mems.isEmpty()) {
+                return "1 (Solo)";
+            }
+            return (mems.size() + 1) + " members (" + mems.size() + " credited)";
+        });
         Ui.addColumn(table, "Technologies", Project::getTechnologiesUsed);
         Ui.addColumn(table, "Repository", Project::getRepositoryUrl);
         Ui.addColumn(table, "Demo", Project::getDemoUrl);
-        List<Project> all = projects.projectsForStudent(sid);
-        table.setItems(FXCollections.observableArrayList(all));
 
-        TextField search = Ui.field("Search by title, type, technology or status...");
+        TextField search = Ui.field("Search by title, type, technology, member or status...");
         Runnable applyFilter = () -> {
-            subjects.clear();
-            subjects.putAll(directory.subjectNames());
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(projects.projectsForStudent(sid).stream().filter(p ->
-                    String.valueOf(p.getProjectTitle()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(p.getProjectType()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(p.getTechnologiesUsed()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(p.getStatus()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+            List<Project> filtered = allProjects.stream().filter(p -> {
+                if (q.isBlank()) return true;
+                boolean matchMain = String.valueOf(p.getProjectTitle()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(p.getProjectType()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(p.getTechnologiesUsed()).toLowerCase(Locale.ROOT).contains(q)
+                        || String.valueOf(p.getStatus()).toLowerCase(Locale.ROOT).contains(q)
+                        || subjects.getOrDefault(p.getSubjectId(), "").toLowerCase(Locale.ROOT).contains(q);
+                if (matchMain) return true;
+                List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
+                return mems.stream().anyMatch(m ->
+                        String.valueOf(m.getRole()).toLowerCase(Locale.ROOT).contains(q)
+                                || String.valueOf(m.getContributionNotes()).toLowerCase(Locale.ROOT).contains(q)
+                                || directory.studentName(m.getStudentId()).toLowerCase(Locale.ROOT).contains(q));
+            }).toList();
+            table.setItems(FXCollections.observableArrayList(filtered));
         };
         search.textProperty().addListener((obs, old, value) -> applyFilter.run());
 
+        Runnable loadDataAsync = () -> {
+            CompletableFuture.supplyAsync(() -> {
+                List<Project> list = projects.projectsForStudent(sid);
+                List<Integer> pids = list.stream().map(Project::getProjectId).toList();
+                Map<Integer, List<ProjectMember>> memMap = projects.membersForProjects(pids);
+                Map<Integer, String> subs = directory.subjectNames();
+                return new Object[]{list, memMap, subs};
+            }).thenAccept(arr -> Platform.runLater(() -> {
+                @SuppressWarnings("unchecked")
+                List<Project> list = (List<Project>) arr[0];
+                @SuppressWarnings("unchecked")
+                Map<Integer, List<ProjectMember>> memMap = (Map<Integer, List<ProjectMember>>) arr[1];
+                @SuppressWarnings("unchecked")
+                Map<Integer, String> subs = (Map<Integer, String>) arr[2];
+
+                allProjects.clear();
+                allProjects.addAll(list);
+                membersCache.clear();
+                membersCache.putAll(memMap);
+                subjects.clear();
+                subjects.putAll(subs);
+                applyFilter.run();
+            })).exceptionally(ex -> {
+                Platform.runLater(() -> Alerts.error("Failed to load projects: " + ex.getMessage()));
+                return null;
+            });
+        };
+
+        loadDataAsync.run();
+
         Button add = new Button("Add Project");
         add.getStyleClass().add("primary-button");
-        add.setOnAction(e -> editProject(sid, null, applyFilter));
+        add.setOnAction(e -> editProject(sid, null, loadDataAsync));
         Button edit = new Button("Edit");
         edit.setOnAction(e -> {
             Project selected = table.getSelectionModel().getSelectedItem();
@@ -828,7 +891,7 @@ public final class StudentViews {
                 Alerts.error("Only the project owner can edit this project.");
                 return;
             }
-            editProject(sid, selected, applyFilter);
+            editProject(sid, selected, loadDataAsync);
         });
         Button delete = new Button("Delete");
         delete.setOnAction(e -> {
@@ -841,7 +904,7 @@ public final class StudentViews {
             if (Ui.confirmed("Delete project \"" + selected.getProjectTitle() + "\"?")) {
                 guard(() -> {
                     projects.deleteProject(selected.getProjectId(), sid);
-                    applyFilter.run();
+                    loadDataAsync.run();
                 });
             }
         });
@@ -853,7 +916,7 @@ public final class StudentViews {
                 Alerts.error("Only the project owner can manage group members.");
                 return;
             }
-            guard(() -> manageMembers(selected, sid));
+            guard(() -> manageMembers(selected, sid, loadDataAsync));
         });
         Button details = new Button("View Details");
         details.getStyleClass().add("secondary-button");
@@ -863,7 +926,7 @@ public final class StudentViews {
             guard(() -> showProject(selected));
         });
         Button refresh = new Button("Refresh");
-        refresh.setOnAction(e -> applyFilter.run());
+        refresh.setOnAction(e -> loadDataAsync.run());
 
         return Ui.page("My Projects", "Add projects, link repositories and demos, and record the contributions of group members.",
                 Ui.toolbar(new Label("Search:"), search, add, edit, delete, members, details, refresh), table);
@@ -873,21 +936,45 @@ public final class StudentViews {
         Map<Integer, String> subjects = directory.subjectNames();
         Label description = new Label(value(p.getDescription()));
         description.setWrapText(true);
+
+        String ownerName = p.getStudentId() == null ? "Unassigned" : directory.studentName(p.getStudentId());
+
+        List<ProjectMember> memberList = projects.membersForProject(p.getProjectId());
         StringBuilder memberText = new StringBuilder();
-        projects.membersForProject(p.getProjectId()).forEach(m -> memberText.append("• ")
-                .append(directory.studentName(m.getStudentId()))
-                .append(m.getRole() == null ? "" : " — " + m.getRole())
-                .append(m.getContribution() == null ? "" : ": " + m.getContribution())
-                .append('\n'));
-        Label members = new Label(memberText.isEmpty() ? "No group members recorded." : memberText.toString());
-        members.setWrapText(true);
+        if (memberList.isEmpty()) {
+            memberText.append("Individual Solo Project (No group members tagged)");
+        } else {
+            for (ProjectMember m : memberList) {
+                String sName = directory.studentName(m.getStudentId());
+                memberText.append("• ").append(sName);
+                if (m.getRole() != null && !m.getRole().isBlank()) {
+                    memberText.append(" — ").append(m.getRole());
+                }
+                String notes = m.getContributionNotes();
+                if (notes != null && !notes.isBlank()) {
+                    memberText.append("\n  Contribution: ").append(notes);
+                }
+                memberText.append('\n');
+            }
+        }
+        Label membersLabel = new Label(memberText.toString().trim());
+        membersLabel.setWrapText(true);
+
         Node form = Ui.form(
-                new String[]{"Title", "Type", "Subject", "Status", "Technologies", "Repository", "Demo", "Date", "Description", "Group members"},
-                new Node[]{new Label(value(p.getProjectTitle())), new Label(value(p.getProjectType())),
+                new String[]{"Title", "Type", "Project Owner", "Subject", "Status", "Technologies", "Repository", "Demo", "Date", "Description", "Group Members & Contributions"},
+                new Node[]{
+                        new Label(value(p.getProjectTitle())),
+                        new Label(value(p.getProjectType())),
+                        new Label(ownerName),
                         new Label(p.getSubjectId() == null ? "" : subjects.getOrDefault(p.getSubjectId(), "Subject #" + p.getSubjectId())),
-                        new Label(value(p.getStatus())), new Label(value(p.getTechnologiesUsed())),
-                        new Label(value(p.getRepositoryUrl())), new Label(value(p.getDemoUrl())),
-                        new Label(Ui.formatDate(p.getProjectDate())), description, members});
+                        new Label(value(p.getStatus())),
+                        new Label(value(p.getTechnologiesUsed())),
+                        new Label(value(p.getRepositoryUrl())),
+                        new Label(value(p.getDemoUrl())),
+                        new Label(Ui.formatDate(p.getProjectDate())),
+                        description,
+                        membersLabel
+                });
         Ui.viewDialog("Project - " + p.getProjectTitle(), form);
     }
 
@@ -905,7 +992,8 @@ public final class StudentViews {
         }
         TextArea description = Ui.area("Description");
         description.setText(p.getDescription());
-        TextField technologies = Ui.field("Java, JavaFX, MySQL");
+        description.setPrefRowCount(3);
+        TextField technologies = Ui.field("Java, JavaFX, MySQL, Supabase");
         technologies.setText(p.getTechnologiesUsed());
         TextField repository = Ui.field("https://github.com/...");
         repository.setText(p.getRepositoryUrl());
@@ -915,15 +1003,139 @@ public final class StudentViews {
         ComboBox<String> status = Ui.combo(List.of("Draft", "In Progress", "Completed", "Archived"), s -> s);
         status.getSelectionModel().select(p.getStatus() == null ? "Draft" : p.getStatus());
 
-        Node form = Ui.form(
+        Node projectForm = Ui.form(
                 new String[]{"Title", "Type", "Subject", "Description", "Technologies", "Repository URL", "Demo URL", "Project date", "Status"},
                 new Node[]{title, type, subject, description, technologies, repository, demo, projectDate, status});
-        Ui.dialog(existing == null ? "Add Project" : "Edit Project", form).ifPresent(button -> {
-            if (button != ButtonType.OK) return;
-            guard(() -> {
-                Project target = new Project();
+
+        // Group Members Section
+        VBox membersSection = new VBox(10);
+        membersSection.getStyleClass().add("project-member-section");
+
+        Label membersTitle = new Label("GROUP MEMBERS & COLLABORATIVE CREDIT");
+        membersTitle.getStyleClass().add("project-member-section-title");
+
+        Label membersSubtitle = new Label("Tag fellow NextIT students to credit their contributions. Credited projects will automatically reflect on their profiles and portfolios.");
+        membersSubtitle.getStyleClass().add("project-member-section-subtitle");
+        membersSubtitle.setWrapText(true);
+
+        ObservableList<ProjectMember> draftMembers = FXCollections.observableArrayList();
+        if (existing != null && existing.getProjectId() > 0) {
+            projects.membersForProjectAsync(existing.getProjectId())
+                    .thenAccept(list -> Platform.runLater(() -> draftMembers.setAll(list)));
+        }
+
+        ComboBox<Student> studentPicker = new ComboBox<>();
+        studentPicker.setMaxWidth(Double.MAX_VALUE);
+        studentPicker.setPromptText("Select student to add...");
+
+        Runnable updateAvailableStudents = () -> {
+            List<Student> available = directory.students().stream()
+                    .filter(s -> s.getStudentId() != studentId)
+                    .filter(s -> draftMembers.stream().noneMatch(m -> m.getStudentId() == s.getStudentId()))
+                    .toList();
+            studentPicker.setItems(FXCollections.observableArrayList(available));
+            if (!available.isEmpty()) {
+                studentPicker.getSelectionModel().selectFirst();
+            } else {
+                studentPicker.getSelectionModel().clearSelection();
+            }
+        };
+
+        studentPicker.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(Student s, boolean empty) {
+                super.updateItem(s, empty);
+                setText(empty || s == null ? null : directory.studentName(s.getStudentId()) + " (" + s.getStudentNumber() + ")");
+            }
+        });
+        studentPicker.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Student s, boolean empty) {
+                super.updateItem(s, empty);
+                setText(empty || s == null ? null : directory.studentName(s.getStudentId()) + " (" + s.getStudentNumber() + ")");
+            }
+        });
+
+        TextField roleInput = Ui.field("Role (e.g., API Development, Frontend UI)");
+        TextField notesInput = Ui.field("Contribution notes (e.g., REST API endpoints, 50% UI)");
+
+        Button addMemberBtn = new Button("+ Add Member");
+        addMemberBtn.getStyleClass().add("project-member-add-btn");
+        addMemberBtn.setOnAction(e -> {
+            Student sel = studentPicker.getValue();
+            if (sel == null) {
+                Alerts.error("Select a student to add as a group member.");
+                return;
+            }
+            String roleVal = roleInput.getText() == null ? "" : roleInput.getText().trim();
+            String notesVal = notesInput.getText() == null ? "" : notesInput.getText().trim();
+            if (roleVal.isBlank()) roleVal = "Group Contributor";
+            if (notesVal.isBlank()) notesVal = "Project group member";
+            ProjectMember newMem = new ProjectMember(existing == null ? 0 : existing.getProjectId(), sel.getStudentId(), roleVal, notesVal);
+            draftMembers.add(newMem);
+            roleInput.clear();
+            notesInput.clear();
+            updateAvailableStudents.run();
+        });
+
+        updateAvailableStudents.run();
+
+        HBox memberInputsRow = new HBox(8, studentPicker, roleInput, notesInput, addMemberBtn);
+        memberInputsRow.setAlignment(Pos.CENTER_LEFT);
+        HBox.setHgrow(studentPicker, Priority.ALWAYS);
+        HBox.setHgrow(roleInput, Priority.ALWAYS);
+        HBox.setHgrow(notesInput, Priority.ALWAYS);
+
+        TableView<ProjectMember> memberTable = Ui.table();
+        memberTable.setPrefHeight(150);
+        Ui.addColumn(memberTable, "Student", m -> directory.studentName(m.getStudentId()) + " (ID #" + m.getStudentId() + ")");
+        Ui.addColumn(memberTable, "Role", ProjectMember::getRole);
+        Ui.addColumn(memberTable, "Contribution Notes", ProjectMember::getContributionNotes);
+
+        TableColumn<ProjectMember, Void> actionCol = new TableColumn<>("Action");
+        actionCol.setPrefWidth(90);
+        actionCol.setCellFactory(col -> new TableCell<>() {
+            private final Button removeBtn = new Button("✕ Remove");
+            {
+                removeBtn.getStyleClass().add("project-member-remove-btn");
+                removeBtn.setOnAction(evt -> {
+                    ProjectMember item = getTableView().getItems().get(getIndex());
+                    draftMembers.remove(item);
+                    updateAvailableStudents.run();
+                });
+            }
+            @Override
+            protected void updateItem(Void item, boolean empty) {
+                super.updateItem(item, empty);
+                setGraphic(empty ? null : removeBtn);
+                setAlignment(Pos.CENTER);
+            }
+        });
+        memberTable.getColumns().add(actionCol);
+        memberTable.setItems(draftMembers);
+        memberTable.setPlaceholder(new Label("No group members tagged yet. (Solo Project)"));
+
+        membersSection.getChildren().addAll(membersTitle, membersSubtitle, memberInputsRow, memberTable);
+
+        VBox dialogContent = new VBox(16, projectForm, membersSection);
+        ScrollPane scroll = new ScrollPane(dialogContent);
+        scroll.setFitToWidth(true);
+        scroll.setPrefViewportWidth(760);
+        scroll.setPrefViewportHeight(580);
+
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Project" : "Edit Project — " + existing.getProjectTitle());
+        dialog.getDialogPane().setContent(scroll);
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        Button okButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okButton.setText(existing == null ? "Create Project" : "Save Changes");
+        okButton.getStyleClass().add("primary-button");
+
+        okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            event.consume();
+            try {
+                Project target = existing == null ? new Project() : existing;
                 target.setStudentId(existing == null ? Integer.valueOf(studentId) : existing.getStudentId());
-                if (existing != null) target.setProjectId(existing.getProjectId());
                 target.setProjectTitle(title.getText());
                 target.setProjectType(type.getValue());
                 target.setSubjectId(subject.getValue() == null ? null : subject.getValue().getSubjectId());
@@ -933,23 +1145,47 @@ public final class StudentViews {
                 target.setDemoUrl(demo.getText());
                 target.setProjectDate(projectDate.getValue());
                 target.setStatus(status.getValue());
-                if (existing == null) projects.addProject(target);
-                else projects.updateProject(target, studentId);
-                refresh.run();
-                Alerts.info("Project saved.");
-            });
+
+                okButton.setDisable(true);
+                okButton.setText("Saving...");
+
+                projects.saveProjectWithMembersAsync(target, new ArrayList<>(draftMembers), studentId)
+                        .thenRun(() -> Platform.runLater(() -> {
+                            dialog.setResult(ButtonType.OK);
+                            dialog.close();
+                            refresh.run();
+                            Alerts.info("Project and group member credits saved successfully.");
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                okButton.setDisable(false);
+                                okButton.setText(existing == null ? "Create Project" : "Save Changes");
+                                Alerts.error(ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage());
+                            });
+                            return null;
+                        });
+            } catch (Exception ex) {
+                okButton.setDisable(false);
+                okButton.setText(existing == null ? "Create Project" : "Save Changes");
+                Alerts.error(ex.getMessage());
+            }
         });
+
+        dialog.showAndWait();
     }
 
-    private static void manageMembers(Project project, int studentId) {
+    private static void manageMembers(Project project, int studentId, Runnable refreshCallback) {
         Dialog<ButtonType> dialog = new Dialog<>();
         dialog.setTitle("Group Members - " + project.getProjectTitle());
         TableView<ProjectMember> table = Ui.table();
         Map<Integer, String> students = directory.studentNames();
         Ui.addColumn(table, "Student", m -> students.getOrDefault(m.getStudentId(), "Student #" + m.getStudentId()));
         Ui.addColumn(table, "Role", ProjectMember::getRole);
-        Ui.addColumn(table, "Contribution", ProjectMember::getContribution);
-        Runnable refresh = () -> table.setItems(FXCollections.observableArrayList(projects.membersForProject(project.getProjectId())));
+        Ui.addColumn(table, "Contribution Notes", ProjectMember::getContributionNotes);
+        Runnable refresh = () -> {
+            table.setItems(FXCollections.observableArrayList(projects.membersForProject(project.getProjectId())));
+            if (refreshCallback != null) refreshCallback.run();
+        };
         refresh.run();
 
         Button add = new Button("Add Member");
@@ -968,8 +1204,8 @@ public final class StudentViews {
                 return name + " (" + s.getStudentNumber() + ")";
             });
             TextField role = Ui.field("Role (e.g. Developer, Designer)");
-            TextField contribution = Ui.field("Contribution summary");
-            Node form = Ui.form(new String[]{"Student", "Role", "Contribution"}, new Node[]{student, role, contribution});
+            TextField contribution = Ui.field("Contribution notes / percentage / area");
+            Node form = Ui.form(new String[]{"Student", "Role", "Contribution Notes"}, new Node[]{student, role, contribution});
             Ui.dialog("Add Group Member", form).ifPresent(button -> {
                 if (button != ButtonType.OK) return;
                 guard(() -> {
@@ -979,6 +1215,7 @@ public final class StudentViews {
                     member.setStudentId(student.getValue().getStudentId());
                     member.setRole(role.getText());
                     member.setContribution(contribution.getText());
+                    member.setContributionNotes(contribution.getText());
                     projects.addMember(member, studentId);
                     refresh.run();
                 });
@@ -1272,12 +1509,7 @@ public final class StudentViews {
                 .reduce("", (a, b) -> a + b + "\n");
         content.getChildren().add(section("Technical Skills", skills));
 
-        String projectText = projects.projectsForStudent(studentId).stream()
-                .map(pr -> "• " + value(pr.getProjectTitle()) + " — " + value(pr.getProjectType())
-                        + (pr.getTechnologiesUsed() == null ? "" : " [" + pr.getTechnologiesUsed() + "]")
-                        + (pr.getStatus() == null ? "" : " · " + pr.getStatus()))
-                .reduce("", (a, b) -> a + b + "\n");
-        content.getChildren().add(section("Projects", projectText));
+        content.getChildren().add(section("Projects", formatPortfolioProjects(studentId)));
 
         String achievements = studentService.achievementsFor(studentId).stream()
                 .map(a -> "• " + value(a.getTitle()) + (a.getOrganization() == null ? "" : " — " + a.getOrganization()))
@@ -1309,6 +1541,71 @@ public final class StudentViews {
         body.setWrapText(true);
         box.getChildren().addAll(heading, body);
         return box;
+    }
+
+    private static String formatPortfolioProjects(int studentId) {
+        List<Project> list = projects.projectsForStudent(studentId);
+        if (list.isEmpty()) return "No projects recorded.";
+        StringBuilder text = new StringBuilder();
+        for (int i = 0; i < list.size(); i++) {
+            Project p = list.get(i);
+            boolean isOwner = p.getStudentId() != null && p.getStudentId() == studentId;
+            text.append("• ").append(value(p.getProjectTitle())).append(" — ").append(value(p.getProjectType()));
+            if (p.getStatus() != null && !p.getStatus().isBlank()) {
+                text.append(" · ").append(p.getStatus());
+            }
+            if (p.getProjectDate() != null) {
+                text.append(" (").append(Ui.formatDate(p.getProjectDate())).append(")");
+            }
+            text.append('\n');
+
+            if (isOwner) {
+                text.append("   Credit: Project Owner & Lead\n");
+                List<ProjectMember> members = projects.membersForProject(p.getProjectId());
+                if (!members.isEmpty()) {
+                    text.append("   Group Members: ");
+                    String memStr = members.stream().map(m -> {
+                        String name = directory.studentName(m.getStudentId());
+                        String role = m.getRole();
+                        return (role == null || role.isBlank()) ? name : name + " (" + role + ")";
+                    }).collect(java.util.stream.Collectors.joining(", "));
+                    text.append(memStr).append('\n');
+                }
+            } else {
+                text.append("   Credit: [Group Project - Credited Member]\n");
+                java.util.Optional<ProjectMember> memOpt = projects.memberForProjectAndStudent(p.getProjectId(), studentId);
+                if (memOpt.isPresent()) {
+                    ProjectMember mem = memOpt.get();
+                    if (mem.getRole() != null && !mem.getRole().isBlank()) {
+                        text.append("   Assigned Role: ").append(mem.getRole()).append('\n');
+                    }
+                    String notes = mem.getContributionNotes();
+                    if (notes != null && !notes.isBlank()) {
+                        text.append("   Contribution Notes: ").append(notes).append('\n');
+                    }
+                }
+                if (p.getStudentId() != null) {
+                    text.append("   Project Creator/Owner: ").append(directory.studentName(p.getStudentId())).append('\n');
+                }
+            }
+
+            if (p.getTechnologiesUsed() != null && !p.getTechnologiesUsed().isBlank()) {
+                text.append("   Technologies: ").append(p.getTechnologiesUsed()).append('\n');
+            }
+            if (p.getRepositoryUrl() != null && !p.getRepositoryUrl().isBlank()) {
+                text.append("   Repository: ").append(p.getRepositoryUrl()).append('\n');
+            }
+            if (p.getDemoUrl() != null && !p.getDemoUrl().isBlank()) {
+                text.append("   Demo: ").append(p.getDemoUrl()).append('\n');
+            }
+            if (p.getDescription() != null && !p.getDescription().isBlank()) {
+                text.append("   Description: ").append(p.getDescription()).append('\n');
+            }
+            if (i < list.size() - 1) {
+                text.append('\n');
+            }
+        }
+        return text.toString();
     }
 
     private static String value(String text) { return text == null ? "" : text; }

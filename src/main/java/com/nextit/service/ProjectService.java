@@ -6,6 +6,7 @@ import com.nextit.repository.*;
 import com.nextit.util.Validator;
 
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 
 public class ProjectService {
     private final JdbcProjectRepository projectRepo = new JdbcProjectRepository();
@@ -46,6 +47,79 @@ public class ProjectService {
     }
 
     public List<ProjectMember> membersForProject(int projectId) { return memberRepo.findByProjectId(projectId); }
+    public java.util.Map<Integer, List<ProjectMember>> membersForProjects(java.util.Collection<Integer> projectIds) { return memberRepo.findByProjectIds(projectIds); }
+    public java.util.Optional<ProjectMember> memberForProjectAndStudent(int projectId, int studentId) { return memberRepo.findByProjectAndStudent(projectId, studentId); }
+
+    public CompletableFuture<List<Project>> projectsForStudentAsync(int studentId) {
+        return CompletableFuture.supplyAsync(() -> projectsForStudent(studentId));
+    }
+
+    public CompletableFuture<List<ProjectMember>> membersForProjectAsync(int projectId) {
+        return CompletableFuture.supplyAsync(() -> membersForProject(projectId));
+    }
+
+    public CompletableFuture<java.util.Map<Integer, List<ProjectMember>>> membersForProjectsAsync(java.util.Collection<Integer> projectIds) {
+        return CompletableFuture.supplyAsync(() -> membersForProjects(projectIds));
+    }
+
+    public void saveProjectWithMembers(Project project, List<ProjectMember> members, int actingStudentId) {
+        if (project == null) throw new AppException("Project details required.");
+        boolean isNew = project.getProjectId() <= 0;
+        if (isNew) {
+            project.setStudentId(actingStudentId);
+            addProject(project);
+        } else {
+            updateProject(project, actingStudentId);
+        }
+
+        int pid = project.getProjectId();
+        List<ProjectMember> existing = memberRepo.findByProjectId(pid);
+
+        // Remove members no longer in updated list
+        if (existing != null) {
+            for (ProjectMember oldMember : existing) {
+                boolean stillPresent = members != null && members.stream()
+                        .anyMatch(m -> m.getStudentId() == oldMember.getStudentId());
+                if (!stillPresent) {
+                    memberRepo.delete(oldMember.getProjectMemberId());
+                }
+            }
+        }
+
+        // Add or update members
+        if (members != null) {
+            for (ProjectMember m : members) {
+                if (m.getStudentId() == actingStudentId) {
+                    throw new AppException("The project owner cannot be added as a group member.");
+                }
+                if (studentRepo.findById(m.getStudentId()).isEmpty()) {
+                    throw new AppException("Select a valid student.");
+                }
+                m.setProjectId(pid);
+                Validator.maxLength(m.getRole(), 100, "Role");
+                String notes = m.getContributionNotes() != null ? m.getContributionNotes() : m.getContribution();
+                Validator.maxLength(notes, 16000, "Contribution notes");
+
+                java.util.Optional<ProjectMember> matchedExisting = existing != null ? existing.stream()
+                        .filter(e -> e.getStudentId() == m.getStudentId())
+                        .findFirst() : java.util.Optional.empty();
+
+                if (matchedExisting.isPresent()) {
+                    ProjectMember toUpdate = matchedExisting.get();
+                    toUpdate.setRole(m.getRole());
+                    toUpdate.setContribution(notes);
+                    toUpdate.setContributionNotes(notes);
+                    memberRepo.update(toUpdate);
+                } else {
+                    memberRepo.save(m);
+                }
+            }
+        }
+    }
+
+    public CompletableFuture<Void> saveProjectWithMembersAsync(Project project, List<ProjectMember> members, int actingStudentId) {
+        return CompletableFuture.runAsync(() -> saveProjectWithMembers(project, members, actingStudentId));
+    }
 
     public void addMember(ProjectMember m, int actingStudentId) {
         if (m.getProjectId() <= 0) throw new AppException("A project is required.");

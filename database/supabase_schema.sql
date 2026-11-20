@@ -131,9 +131,11 @@ CREATE TABLE IF NOT EXISTS project_members (
     student_id INT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
     role VARCHAR(100) NULL,
     contribution TEXT NULL,
+    contribution_notes TEXT NULL,
     CONSTRAINT uq_project_member UNIQUE (project_id, student_id)
 );
 CREATE INDEX IF NOT EXISTS idx_project_members_project ON project_members(project_id);
+ALTER TABLE project_members ADD COLUMN IF NOT EXISTS contribution_notes TEXT NULL;
 
 CREATE TABLE IF NOT EXISTS project_evaluations (
     evaluation_id SERIAL PRIMARY KEY,

@@ -146,6 +146,7 @@ CREATE TABLE IF NOT EXISTS project_members (
     student_id INT NOT NULL,
     role VARCHAR(100) NULL,
     contribution TEXT NULL,
+    contribution_notes TEXT NULL,
     FOREIGN KEY (project_id) REFERENCES projects(project_id) ON DELETE CASCADE,
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     UNIQUE KEY uq_project_member (project_id, student_id),
