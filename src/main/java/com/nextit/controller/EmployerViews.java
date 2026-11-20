@@ -1242,10 +1242,10 @@ public final class EmployerViews {
     private static String badgeClassFor(String status) {
         if (status == null) return "badge-pill-cream";
         return switch (status.toLowerCase(Locale.ROOT)) {
-            case "accepted" -> "badge-pill-mint";
-            case "shortlisted" -> "badge-pill-yellow";
-            case "rejected" -> "badge-pill-pink";
-            case "under review", "reviewed" -> "badge-pill-blue";
+            case "open", "accepted" -> "badge-pill-mint";
+            case "shortlisted", "under review", "reviewed" -> "badge-pill-navy";
+            case "rejected", "closed" -> "badge-pill-pink";
+            case "pending", "draft" -> "badge-pill-yellow";
             default -> "badge-pill-cream";
         };
     }

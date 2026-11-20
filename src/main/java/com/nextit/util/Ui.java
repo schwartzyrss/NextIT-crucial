@@ -94,6 +94,21 @@ public final class Ui {
         return label;
     }
 
+    public static Label statusBadge(String status) {
+        String cleanStatus = status == null ? "" : status.trim();
+        if (cleanStatus.isEmpty()) return new Label("—");
+        String styleVariant = switch (cleanStatus.toLowerCase(java.util.Locale.ROOT)) {
+            case "open", "accepted", "issued", "active", "completed", "present" -> "badge-pill-mint";
+            case "in progress", "shortlisted", "under review", "reviewed", "requested" -> "badge-pill-navy";
+            case "pending", "draft", "late" -> "badge-pill-yellow";
+            case "closed", "rejected", "withdrawn", "absent", "inactive" -> "badge-pill-pink";
+            default -> "badge-pill-cream";
+        };
+        Label badge = badge(cleanStatus, styleVariant);
+        badge.getStyleClass().add("status-pill");
+        return badge;
+    }
+
     /**
      * Creates a high-DPI smoothed ImageView of the official NextIT circular emblem.
      */
@@ -158,8 +173,8 @@ public final class Ui {
         Circle halo = (Circle) dotBox.getProperties().get("halo");
         Circle core = (Circle) dotBox.getProperties().get("core");
         if (halo != null && core != null) {
-            Color primaryColor = active ? Color.web("#9E0B0F") : Color.web("#660508");
-            Color haloColor = active ? Color.web("#9E0B0F", 0.28) : Color.web("#660508", 0.28);
+            Color primaryColor = active ? Color.web("#9E0B0F") : Color.web("#1A2634");
+            Color haloColor = active ? Color.web("#9E0B0F", 0.28) : Color.web("#1A2634", 0.28);
             core.setFill(primaryColor);
             halo.setFill(haloColor);
         }
@@ -172,7 +187,7 @@ public final class Ui {
         SVGPath svg = new SVGPath();
         svg.setContent(SYNC_ICON_PATH);
         svg.setFill(Color.TRANSPARENT);
-        svg.setStroke(Color.web("#414141"));
+        svg.setStroke(Color.web("#1A2634"));
         svg.setStrokeWidth(1.8);
         svg.setStrokeLineCap(StrokeLineCap.ROUND);
         svg.setStrokeLineJoin(StrokeLineJoin.ROUND);
@@ -210,7 +225,7 @@ public final class Ui {
         private void setupInteractions() {
             button.hoverProperty().addListener((obs, old, hovered) -> {
                 if (svg != null) {
-                    svg.setStroke(hovered ? Color.web("#9E0B0F") : Color.web("#414141"));
+                    svg.setStroke(hovered ? Color.web("#9E0B0F") : Color.web("#1A2634"));
                 }
                 if (!fetching.get()) {
                     RotateTransition hoverTrans = new RotateTransition(Duration.millis(hovered ? 280 : 200), iconBox);
@@ -433,6 +448,22 @@ public final class Ui {
         TableColumn<T, String> column = new TableColumn<>(name);
         column.setCellValueFactory(cell -> new javafx.beans.property.SimpleStringProperty(
                 value(getter.apply(cell.getValue()))));
+        if ("Status".equalsIgnoreCase(name)) {
+            column.setCellFactory(col -> new TableCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null || item.isBlank()) {
+                        setText(null);
+                        setGraphic(null);
+                    } else {
+                        setText(null);
+                        setGraphic(statusBadge(item));
+                        setAlignment(Pos.CENTER_LEFT);
+                    }
+                }
+            });
+        }
         return column;
     }
 

@@ -665,6 +665,7 @@ public final class StudentViews {
             guard(() -> manageMembers(selected, sid));
         });
         Button details = new Button("View Details");
+        details.getStyleClass().add("secondary-button");
         details.setOnAction(e -> {
             Project selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select a project to view."); return; }
@@ -1231,18 +1232,18 @@ public final class StudentViews {
 
             if (!issuedLetters.isEmpty()) {
                 VBox recSection = new VBox(6);
-                recSection.setStyle("-fx-background-color: #FDFBFA; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-padding: 10;");
+                recSection.setStyle("-fx-background-color: #FAF7F2; -fx-border-color: #F2E7D3; -fx-border-radius: 8; -fx-padding: 10;");
                 Label recTitle = new Label("Attach Verified Faculty Recommendation Letter:");
                 recTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #9E0B0F; -fx-font-size: 12px;");
                 recSection.getChildren().addAll(recTitle, letterSelector);
                 formBox.getChildren().add(recSection);
             } else {
                 VBox recPrompt = new VBox(6);
-                recPrompt.setStyle("-fx-background-color: #FEF9E7; -fx-border-color: #C6A75E; -fx-border-radius: 8; -fx-padding: 10;");
+                recPrompt.setStyle("-fx-background-color: #FAF5E8; -fx-border-color: rgba(74, 90, 106, 0.25); -fx-border-radius: 8; -fx-padding: 10;");
                 Label pTitle = new Label("💡 Optional: Boost your application with a Faculty Recommendation");
-                pTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #7D6608; -fx-font-size: 11.5px;");
+                pTitle.setStyle("-fx-font-weight: bold; -fx-text-fill: #1A2634; -fx-font-size: 11.5px;");
                 Label pDesc = new Label("You can request an official endorsement letter from your course instructors before or after applying.");
-                pDesc.setStyle("-fx-font-size: 11px; -fx-text-fill: #414141;");
+                pDesc.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A;");
                 Button reqQuickBtn = Ui.button("Request Recommendation from Instructor", "secondary-button");
                 reqQuickBtn.setOnAction(ev -> showRequestRecommendationDialog(sid, selected.getOpportunityId(), filter));
                 recPrompt.getChildren().addAll(pTitle, pDesc, reqQuickBtn);
@@ -1272,6 +1273,7 @@ public final class StudentViews {
         });
 
         Button details = new Button("View Details");
+        details.getStyleClass().add("secondary-button");
         details.setOnAction(e -> {
             JobOpportunity selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select an opportunity to view."); return; }
@@ -1299,6 +1301,7 @@ public final class StudentViews {
         });
 
         Button refresh = new Button("Refresh");
+        refresh.getStyleClass().add("secondary-button");
         refresh.setOnAction(e -> filter.run());
         return Ui.page("Opportunities", "Browse internships and employment opportunities from industry partners.",
                 Ui.toolbar(new Label("Search:"), search, type, apply, details, requestRec, refresh), table);

@@ -14,9 +14,8 @@
 <BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.nextit.controller.AppController" styleClass="app-root">
     <top>
-        <HBox spacing="14" styleClass="app-header" alignment="CENTER_LEFT">
-            <Button fx:id="toggleSidebarButton" text="◀" onAction="#toggleSidebar" styleClass="sidebar-toggle-btn" focusTraversable="false"/>
-            <ImageView fitWidth="38" fitHeight="38" preserveRatio="true" smooth="true" style="-fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.28), 8, 0.15, 0, 2);">
+        <HBox spacing="12" styleClass="app-header" alignment="CENTER_LEFT">
+            <ImageView fitWidth="36" fitHeight="36" preserveRatio="true" smooth="true" style="-fx-effect: dropshadow(gaussian, rgba(26, 38, 52, 0.12), 8, 0.1, 0, 2);">
                 <image>
                     <Image url="@/images/nextit-logo.png"/>
                 </image>
