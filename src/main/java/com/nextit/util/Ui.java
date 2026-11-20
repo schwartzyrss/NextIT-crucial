@@ -405,6 +405,59 @@ public final class Ui {
         return combo;
     }
 
+    /**
+     * Creates a standardized JavaFX ComboBox for Expected Graduation Year with prompt text,
+     * dynamic population based on Year.now().getValue() through +6 years ahead,
+     * and custom styling / cell factory matching the onboarding pill design.
+     */
+    public static ComboBox<String> createGraduationYearComboBox() {
+        int currentYear = java.time.Year.now().getValue();
+        List<String> years = new java.util.ArrayList<>();
+        for (int y = currentYear; y <= currentYear + 6; y++) {
+            years.add("Class of " + y);
+        }
+        ComboBox<String> combo = new ComboBox<>(FXCollections.observableArrayList(years));
+        combo.setPromptText("Select graduation year (e.g., Class of 2026)");
+        combo.setMaxWidth(Double.MAX_VALUE);
+        combo.getStyleClass().addAll("clay-combo-box-pill", "combo-box-pill");
+
+        combo.setCellFactory(lv -> new ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                    setGraphic(null);
+                } else {
+                    setText(item);
+                }
+            }
+        });
+
+        combo.setButtonCell(new ListCell<String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(combo.getPromptText());
+                    setStyle("-fx-text-fill: #9E9B97; -fx-font-weight: 500;");
+                } else {
+                    setText(item);
+                    setStyle("-fx-text-fill: #414141; -fx-font-weight: 600;");
+                }
+            }
+        });
+
+        return combo;
+    }
+
+    public static String formatYearDisplay(int yearLevel) {
+        if (yearLevel >= 2000 && yearLevel <= 2100) {
+            return "Class of " + yearLevel;
+        }
+        return "Year " + yearLevel;
+    }
+
     public static GridPane form(String[] labels, Node[] controls) {
         if (labels.length != controls.length) {
             throw new IllegalArgumentException("Every form field needs a label.");

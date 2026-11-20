@@ -82,7 +82,7 @@ public final class StudentViews {
         Label programHighlight = new Label(heroProg);
         programHighlight.getStyleClass().add("profile-hero-highlight-title");
         String currentSectionDisplay = formatSectionDisplay(student.getSection());
-        Label yearSectionHighlight = new Label("Year " + student.getYearLevel() + " • " + currentSectionDisplay);
+        Label yearSectionHighlight = new Label(Ui.formatYearDisplay(student.getYearLevel()) + " • " + currentSectionDisplay);
         yearSectionHighlight.getStyleClass().add("profile-hero-highlight-subtitle");
         heroRight.getChildren().addAll(programHighlight, yearSectionHighlight);
 
@@ -117,7 +117,7 @@ public final class StudentViews {
                 ? student.getProgram().trim()
                 : "Undeclared";
         academicGrid.add(Ui.propertyTile("Degree Program", degreeProg), 1, 0);
-        academicGrid.add(Ui.propertyTile("Year Level", "Year " + student.getYearLevel()), 0, 1);
+        academicGrid.add(Ui.propertyTile("Year Level", Ui.formatYearDisplay(student.getYearLevel())), 0, 1);
         academicGrid.add(createEditableSectionTile(student, yearSectionHighlight), 1, 1);
         academicGrid.add(Ui.propertyTile("Enrollment Status", Ui.badge(value(student.getEnrollmentStatus()), "badge-pill-mint")), 0, 2);
 
@@ -300,7 +300,7 @@ public final class StudentViews {
 
                         String formatted = formatSectionDisplay(updatedStudent.getSection());
                         valueLabel.setText(formatted);
-                        yearSectionHighlight.setText("Year " + updatedStudent.getYearLevel() + " • " + formatted);
+                        yearSectionHighlight.setText(Ui.formatYearDisplay(updatedStudent.getYearLevel()) + " • " + formatted);
 
                         showViewMode.run();
                         Alerts.info("Class section updated to " + formatted + " successfully.");
@@ -573,7 +573,7 @@ public final class StudentViews {
 
         VBox standingItems = new VBox(8);
         String sNum = student != null && student.getStudentNumber() != null ? student.getStudentNumber() : "2023-0001";
-        String sYear = student != null ? "Year " + student.getYearLevel() + " • Section " + (student.getSection() != null ? student.getSection() : "A") : "Year 3 • Section A";
+        String sYear = student != null ? Ui.formatYearDisplay(student.getYearLevel()) + " • Section " + (student.getSection() != null ? student.getSection() : "A") : "Year 3 • Section A";
         String sStatus = student != null && student.getEnrollmentStatus() != null ? student.getEnrollmentStatus() : "Enrolled";
 
         standingItems.getChildren().addAll(
@@ -1494,7 +1494,7 @@ public final class StudentViews {
         name.getStyleClass().add("page-title");
         Student student = directory.students().stream()
                 .filter(s -> s.getStudentId() == studentId).findFirst().orElse(null);
-        Label program = new Label(student == null ? "" : student.getProgram() + " - Year " + student.getYearLevel());
+        Label program = new Label(student == null ? "" : student.getProgram() + " - " + Ui.formatYearDisplay(student.getYearLevel()));
         program.getStyleClass().add("page-subtitle");
         content.getChildren().addAll(name, program,
                 section("Professional Headline", value(p.getHeadline())),

@@ -68,6 +68,10 @@ public class OnboardingView {
         }
     }
 
+    public static javafx.scene.control.ComboBox<String> createGraduationYearComboBox() {
+        return com.nextit.util.Ui.createGraduationYearComboBox();
+    }
+
     public static class JavaBridge {
         private final Stage stage;
         private final WebEngine engine;
@@ -75,6 +79,21 @@ public class OnboardingView {
         public JavaBridge(Stage stage, WebEngine engine) {
             this.stage = stage;
             this.engine = engine;
+        }
+
+        public int getCurrentYear() {
+            return java.time.Year.now().getValue();
+        }
+
+        public String getGraduationYearsJson() {
+            int current = java.time.Year.now().getValue();
+            StringBuilder sb = new StringBuilder("[");
+            for (int y = current; y <= current + 6; y++) {
+                if (y > current) sb.append(",");
+                sb.append(String.format("{\"year\":%d,\"label\":\"Class of %d\",\"value\":\"Class of %d\"}", y, y, y));
+            }
+            sb.append("]");
+            return sb.toString();
         }
 
         public String requestOtp(String email) {
@@ -241,7 +260,10 @@ public class OnboardingView {
                     req.setOrganizationName(detail1 != null ? detail1.trim() : null);
                     req.setBusinessRegistrationNumber(role == Role.EMPLOYER && detail3 != null ? detail3.trim() : null);
                     req.setDocumentReference("Onboarding Self-Registration Submission");
-                    req.setSubmissionNotes(analysis.reviewerNotes());
+                    String gradNote = (role == Role.STUDENT && detail2 != null && !detail2.isBlank())
+                            ? " [Expected Graduation: " + detail2.trim() + "]"
+                            : "";
+                    req.setSubmissionNotes(analysis.reviewerNotes() + gradNote);
                     req.setStatus(VerificationStatus.VERIFIED);
                     req.setRiskScore(analysis.riskScore());
                     req.setRiskFlags(String.join(",", analysis.riskFlags()));

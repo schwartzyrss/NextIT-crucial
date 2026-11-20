@@ -570,6 +570,7 @@ BEGIN
     ('STUDENT', '2023-0002', 'student2@nextit.edu', 'Bianca Cruz', 'BS Information Technology', TRUE),
     ('STUDENT', '2026-0042', 'carlos.mendoza@nextit.edu', 'Carlos Mendoza', 'BS Computer Science', TRUE),
     ('STUDENT', '2026-0099', 'diane.tan@dlsu.edu.ph', 'Diane Tan', 'BS Information Systems', TRUE),
+    ('STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'BatStateU Scholar', 'BS Information Technology', TRUE),
     ('INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'Maria Santos', 'Computer Science', TRUE),
     ('INSTRUCTOR', 'EMP-1002', 'roberto.garcia@nextit.edu', 'Roberto Garcia', 'Information Technology', TRUE)
     ON CONFLICT (identifier_number) DO NOTHING;
@@ -587,4 +588,62 @@ BEGIN
     (v_student_user, 'student1', 'LOGIN_SUCCESS', v_student_user, '127.0.0.1', 'Successful authentication for verified student account.', 'INFO');
 
 END $$;
+
+-- ==============================================================================
+-- SECURITY DEFINER RPC: lookup_account_for_recovery
+-- Safely looks up user for password recovery across username, email, and
+-- institutional/work emails (even when anonymous/unauthenticated and RLS is enabled).
+-- Returns minimal account info needed for OTP dispatch without exposing password hash.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION lookup_account_for_recovery(identifier TEXT)
+RETURNS TABLE (
+    user_id INT,
+    username VARCHAR,
+    email VARCHAR,
+    role VARCHAR,
+    first_name VARCHAR,
+    last_name VARCHAR,
+    masked_email TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT
+        u.user_id,
+        u.username::VARCHAR,
+        COALESCE(vr.institutional_email, ir.institutional_email, u.email)::VARCHAR AS email,
+        u.role::VARCHAR,
+        u.first_name::VARCHAR,
+        u.last_name::VARCHAR,
+        CONCAT(
+            SUBSTRING(COALESCE(vr.institutional_email, ir.institutional_email, u.email), 1, 2),
+            '***',
+            SUBSTRING(COALESCE(vr.institutional_email, ir.institutional_email, u.email) FROM POSITION('@' IN COALESCE(vr.institutional_email, ir.institutional_email, u.email)))
+        )::TEXT AS masked_email
+    FROM users u
+    LEFT JOIN verification_requests vr ON vr.user_id = u.user_id
+    LEFT JOIN students s ON s.user_id = u.user_id
+    LEFT JOIN instructors i ON i.user_id = u.user_id
+    LEFT JOIN employers emp ON emp.user_id = u.user_id
+    LEFT JOIN institutional_records ir ON (
+        (s.student_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(s.student_number))) OR
+        (i.employee_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(i.employee_number))) OR
+        (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number)))
+    )
+    WHERE 
+        LOWER(TRIM(u.username)) = LOWER(TRIM(identifier))
+        OR LOWER(TRIM(u.email)) = LOWER(TRIM(identifier))
+        OR (vr.institutional_email IS NOT NULL AND LOWER(TRIM(vr.institutional_email)) = LOWER(TRIM(identifier)))
+        OR (ir.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(identifier)))
+        OR (s.student_number IS NOT NULL AND LOWER(TRIM(s.student_number)) = LOWER(TRIM(identifier)))
+        OR (i.employee_number IS NOT NULL AND LOWER(TRIM(i.employee_number)) = LOWER(TRIM(identifier)))
+        OR (vr.id_number IS NOT NULL AND LOWER(TRIM(vr.id_number)) = LOWER(TRIM(identifier)))
+    LIMIT 1;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION lookup_account_for_recovery(TEXT) TO anon, authenticated, service_role;
+
 

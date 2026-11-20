@@ -5,14 +5,19 @@ import com.nextit.exception.AppException;
 import com.nextit.model.Role;
 import com.nextit.model.User;
 import com.nextit.model.VerificationStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 public class JdbcUserRepository implements UserRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcUserRepository.class);
 
     @Override
     public Optional<User> findById(int id) {
@@ -30,28 +35,129 @@ public class JdbcUserRepository implements UserRepository {
     @Override
     public Optional<User> findByUsername(String username) {
         if (username == null || username.isBlank()) return Optional.empty();
-        String sql = "SELECT * FROM users WHERE LOWER(username) = LOWER(?)";
+        String sql = "SELECT * FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(?))";
         try (Connection c = DatabaseConfig.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, username.trim());
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
-            throw new AppException("Failed to find user", e);
+            throw new AppException("Failed to find user: " + e.getMessage(), e);
         }
     }
 
     @Override
     public Optional<User> findByEmail(String email) {
         if (email == null || email.isBlank()) return Optional.empty();
-        String sql = "SELECT * FROM users WHERE LOWER(email) = LOWER(?)";
+        String sql = "SELECT * FROM users WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))";
         try (Connection c = DatabaseConfig.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, email.trim());
             try (ResultSet rs = ps.executeQuery()) {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
-            throw new AppException("Failed to find user", e);
+            throw new AppException("Failed to find user: " + e.getMessage(), e);
+        }
+    }
+
+    @Override
+    public Optional<User> findByIdentifier(String identifier) {
+        if (identifier == null || identifier.isBlank()) return Optional.empty();
+        String term = identifier.trim();
+
+        try (Connection c = DatabaseConfig.getConnection()) {
+            DatabaseMetaData meta = c.getMetaData();
+            String dbProduct = meta.getDatabaseProductName();
+            boolean isPostgres = dbProduct != null && dbProduct.toLowerCase(Locale.ROOT).contains("postgres");
+
+            // 1. In PostgreSQL / Supabase, attempt RPC call first to bypass Row-Level Security (RLS) safely
+            if (isPostgres) {
+                try (PreparedStatement rpcPs = c.prepareStatement("SELECT * FROM lookup_account_for_recovery(?)")) {
+                    rpcPs.setString(1, term);
+                    try (ResultSet rs = rpcPs.executeQuery()) {
+                        if (rs.next()) {
+                            User u = new User();
+                            u.setUserId(rs.getInt("user_id"));
+                            u.setUsername(rs.getString("username"));
+                            u.setEmail(rs.getString("email"));
+                            String roleStr = rs.getString("role");
+                            if (roleStr != null) {
+                                try { u.setRole(Role.valueOf(roleStr.toUpperCase(Locale.ROOT))); } catch (Exception ignored) {}
+                            }
+                            u.setFirstName(rs.getString("first_name"));
+                            u.setLastName(rs.getString("last_name"));
+                            u.setVerificationStatus(VerificationStatus.VERIFIED);
+                            return Optional.of(u);
+                        }
+                    }
+                } catch (SQLException rpcEx) {
+                    // Function may not exist yet or RPC disabled, continue to query
+                    log.debug("RPC lookup_account_for_recovery not available: {}", rpcEx.getMessage());
+                }
+            }
+
+            // 2. Query across users, verification_requests, students, instructors, employers, and institutional_records
+            String sql = """
+                SELECT DISTINCT u.*,
+                       COALESCE(vr.institutional_email, ir.institutional_email, u.email) AS resolved_email
+                FROM users u
+                LEFT JOIN verification_requests vr ON vr.user_id = u.user_id
+                LEFT JOIN students s ON s.user_id = u.user_id
+                LEFT JOIN instructors i ON i.user_id = u.user_id
+                LEFT JOIN employers emp ON emp.user_id = u.user_id
+                LEFT JOIN institutional_records ir ON (
+                    (s.student_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(s.student_number))) OR
+                    (i.employee_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(i.employee_number))) OR
+                    (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number)))
+                )
+                WHERE LOWER(TRIM(u.username)) = LOWER(TRIM(?))
+                   OR LOWER(TRIM(u.email)) = LOWER(TRIM(?))
+                   OR (vr.institutional_email IS NOT NULL AND LOWER(TRIM(vr.institutional_email)) = LOWER(TRIM(?)))
+                   OR (ir.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(?)))
+                   OR (s.student_number IS NOT NULL AND LOWER(TRIM(s.student_number)) = LOWER(TRIM(?)))
+                   OR (i.employee_number IS NOT NULL AND LOWER(TRIM(i.employee_number)) = LOWER(TRIM(?)))
+                   OR (vr.id_number IS NOT NULL AND LOWER(TRIM(vr.id_number)) = LOWER(TRIM(?)))
+                LIMIT 1
+            """;
+
+            try (PreparedStatement ps = c.prepareStatement(sql)) {
+                for (int i = 1; i <= 7; i++) {
+                    ps.setString(i, term);
+                }
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        User user = map(rs);
+                        try {
+                            String resolved = rs.getString("resolved_email");
+                            if ((user.getEmail() == null || user.getEmail().isBlank()) && resolved != null && !resolved.isBlank()) {
+                                user.setEmail(resolved.trim());
+                            }
+                        } catch (Exception ignored) {}
+                        return Optional.of(user);
+                    }
+                }
+            } catch (SQLException ex) {
+                log.warn("Cross-table lookup failed ({}), checking users table directly", ex.getMessage());
+            }
+
+            // 3. Fallback direct query on users table
+            String fallbackSql = "SELECT * FROM users WHERE LOWER(TRIM(username)) = LOWER(TRIM(?)) OR LOWER(TRIM(email)) = LOWER(TRIM(?)) LIMIT 1";
+            try (PreparedStatement fallbackPs = c.prepareStatement(fallbackSql)) {
+                fallbackPs.setString(1, term);
+                fallbackPs.setString(2, term);
+                try (ResultSet rs = fallbackPs.executeQuery()) {
+                    if (rs.next()) {
+                        return Optional.of(map(rs));
+                    }
+                }
+            } catch (SQLException ex) {
+                throw new AppException("Database error during account lookup: " + ex.getMessage(), ex);
+            }
+
+            return Optional.empty();
+        } catch (SQLException e) {
+            log.error("Failed to find user by identifier '{}': {}", term, e.getMessage());
+            throw new AppException("Database connection error during account lookup: " + e.getMessage(), e);
         }
     }
 

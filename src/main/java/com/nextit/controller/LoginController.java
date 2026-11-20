@@ -154,8 +154,12 @@ public class LoginController {
         }
 
         VBox root = new VBox(16);
-        root.setPrefWidth(480);
+        root.setPrefWidth(520);
+        root.setMaxWidth(520);
         root.setPadding(new Insets(18, 22, 18, 22));
+
+        dialog.getDialogPane().setPrefWidth(540);
+        dialog.getDialogPane().setMinWidth(480);
 
         // Top Banner Emblem & Steps
         VBox topBanner = new VBox(10);
@@ -212,6 +216,8 @@ public class LoginController {
             pill3.getStyleClass().setAll("badge-pill", "badge-pill-cream");
 
             Label stepDesc = new Label("Enter your registered username or institutional email address:");
+            stepDesc.setWrapText(true);
+            stepDesc.setMaxWidth(Double.MAX_VALUE);
             stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
 
             TextField accountField = new TextField();
@@ -222,10 +228,12 @@ public class LoginController {
 
             Label helperNote = new Label("We will resolve your verified account and dispatch a 6-digit confirmation code to your email address.");
             helperNote.setWrapText(true);
-            helperNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+            helperNote.setMaxWidth(Double.MAX_VALUE);
+            helperNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A; -fx-line-spacing: 2px;");
 
             Label step1Msg = new Label();
             step1Msg.setWrapText(true);
+            step1Msg.setMaxWidth(Double.MAX_VALUE);
             step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
 
             HBox buttons = new HBox(10);
@@ -272,8 +280,15 @@ public class LoginController {
                                 sendCodeBtn.setDisable(false);
                                 cancelBtn.setDisable(false);
                                 accountField.setDisable(false);
-                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                                step1Msg.setText(cause.getMessage());
+                                Throwable cause = ex;
+                                while (cause.getCause() != null && cause.getCause() != cause) {
+                                    cause = cause.getCause();
+                                }
+                                String msg = cause.getMessage();
+                                if (msg == null || msg.isBlank()) {
+                                    msg = "An error occurred during account lookup. Please try again.";
+                                }
+                                step1Msg.setText(msg);
                                 step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
                             });
                             return null;
@@ -293,10 +308,13 @@ public class LoginController {
 
             String masked = AuthenticationService.maskEmail(targetUser[0].getEmail());
             Label stepDesc = new Label("Verification code dispatched to " + masked);
+            stepDesc.setWrapText(true);
+            stepDesc.setMaxWidth(Double.MAX_VALUE);
             stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
 
             Label expireNote = new Label("The 6-digit code is valid for 10 minutes. Enter it below to verify your identity:");
             expireNote.setWrapText(true);
+            expireNote.setMaxWidth(Double.MAX_VALUE);
             expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
 
             TextField otpField = new TextField();

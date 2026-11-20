@@ -58,6 +58,41 @@ class PasswordResetWorkflowTest {
     }
 
     @Test
+    void findUserForPasswordReset_withInstitutionalEmail() {
+        User student = new User();
+        student.setUserId(99);
+        student.setUsername("25-16522");
+        student.setEmail("25-16522@g.bastate-u.edu.ph");
+        student.setPasswordHash(AuthenticationService.hashPassword("SecureStudent2026!"));
+        student.setRole(Role.STUDENT);
+        userRepository.save(student);
+        userRepository.linkInstitutionalEmail("25-16522@g.bastate-u.edu.ph", student);
+
+        // Exact match
+        Optional<User> found = authService.findUserForPasswordReset("25-16522@g.bastate-u.edu.ph");
+        assertTrue(found.isPresent());
+        assertEquals(99, found.get().getUserId());
+
+        // Trimmed and mixed case match
+        Optional<User> foundPadded = authService.findUserForPasswordReset("   25-16522@G.BASTATE-U.EDU.PH   ");
+        assertTrue(foundPadded.isPresent());
+        assertEquals(99, foundPadded.get().getUserId());
+
+        // Full 3-step workflow end-to-end with institutional email
+        // Step 1: Account Lookup succeeded (found.get())
+        User recoveredUser = found.get();
+        // Step 2: Request & Verify OTP
+        OtpService.OtpResponse otpResp = OtpService.requestPasswordResetOtp(recoveredUser);
+        assertNotNull(otpResp);
+        assertTrue(otpResp.code().length() == 6);
+        assertTrue(OtpService.verifyPasswordResetOtp(recoveredUser, otpResp.code()));
+        // Step 3: Set New Password
+        authService.resetPassword(recoveredUser.getUserId(), "NewInstitutionalPass2026!");
+        User afterReset = userRepository.findById(99).orElseThrow();
+        assertTrue(AuthenticationService.verifyPassword("NewInstitutionalPass2026!", afterReset.getPasswordHash()));
+    }
+
+    @Test
     void findUserForPasswordReset_returnsEmptyWhenNotFoundOrEmpty() {
         assertTrue(authService.findUserForPasswordReset("").isEmpty());
         assertTrue(authService.findUserForPasswordReset("   ").isEmpty());
@@ -118,7 +153,24 @@ class PasswordResetWorkflowTest {
     // In-memory stub for UserRepository
     private static class InMemoryUserRepository implements UserRepository {
         private final Map<Integer, User> usersById = new HashMap<>();
+        private final Map<String, User> institutionalEmails = new HashMap<>();
         int failedLoginAttempts = -1;
+
+        public void linkInstitutionalEmail(String email, User user) {
+            institutionalEmails.put(email.trim().toLowerCase(), user);
+        }
+
+        @Override
+        public Optional<User> findByIdentifier(String identifier) {
+            if (identifier == null || identifier.isBlank()) return Optional.empty();
+            String term = identifier.trim().toLowerCase();
+            if (institutionalEmails.containsKey(term)) {
+                return Optional.of(institutionalEmails.get(term));
+            }
+            return usersById.values().stream()
+                    .filter(u -> term.equalsIgnoreCase(u.getUsername()) || term.equalsIgnoreCase(u.getEmail()))
+                    .findFirst();
+        }
 
         @Override
         public Optional<User> findById(int id) {

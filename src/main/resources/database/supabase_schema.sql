@@ -301,3 +301,61 @@ CREATE INDEX IF NOT EXISTS idx_rec_opportunity ON recommendation_letters(opportu
 CREATE INDEX IF NOT EXISTS idx_rec_application ON recommendation_letters(application_id);
 CREATE INDEX IF NOT EXISTS idx_rec_status ON recommendation_letters(status);
 
+-- ==============================================================================
+-- SECURITY DEFINER RPC: lookup_account_for_recovery
+-- Safely looks up user for password recovery across username, email, and
+-- institutional/work emails (even when anonymous/unauthenticated and RLS is enabled).
+-- Returns minimal account info needed for OTP dispatch without exposing password hash.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION lookup_account_for_recovery(identifier TEXT)
+RETURNS TABLE (
+    user_id INT,
+    username VARCHAR,
+    email VARCHAR,
+    role VARCHAR,
+    first_name VARCHAR,
+    last_name VARCHAR,
+    masked_email TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT
+        u.user_id,
+        u.username::VARCHAR,
+        COALESCE(vr.institutional_email, ir.institutional_email, u.email)::VARCHAR AS email,
+        u.role::VARCHAR,
+        u.first_name::VARCHAR,
+        u.last_name::VARCHAR,
+        CONCAT(
+            SUBSTRING(COALESCE(vr.institutional_email, ir.institutional_email, u.email), 1, 2),
+            '***',
+            SUBSTRING(COALESCE(vr.institutional_email, ir.institutional_email, u.email) FROM POSITION('@' IN COALESCE(vr.institutional_email, ir.institutional_email, u.email)))
+        )::TEXT AS masked_email
+    FROM users u
+    LEFT JOIN verification_requests vr ON vr.user_id = u.user_id
+    LEFT JOIN students s ON s.user_id = u.user_id
+    LEFT JOIN instructors i ON i.user_id = u.user_id
+    LEFT JOIN employers emp ON emp.user_id = u.user_id
+    LEFT JOIN institutional_records ir ON (
+        (s.student_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(s.student_number))) OR
+        (i.employee_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(i.employee_number))) OR
+        (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number)))
+    )
+    WHERE 
+        LOWER(TRIM(u.username)) = LOWER(TRIM(identifier))
+        OR LOWER(TRIM(u.email)) = LOWER(TRIM(identifier))
+        OR (vr.institutional_email IS NOT NULL AND LOWER(TRIM(vr.institutional_email)) = LOWER(TRIM(identifier)))
+        OR (ir.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(identifier)))
+        OR (s.student_number IS NOT NULL AND LOWER(TRIM(s.student_number)) = LOWER(TRIM(identifier)))
+        OR (i.employee_number IS NOT NULL AND LOWER(TRIM(i.employee_number)) = LOWER(TRIM(identifier)))
+        OR (vr.id_number IS NOT NULL AND LOWER(TRIM(vr.id_number)) = LOWER(TRIM(identifier)))
+    LIMIT 1;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION lookup_account_for_recovery(TEXT) TO anon, authenticated, service_role;
+
+

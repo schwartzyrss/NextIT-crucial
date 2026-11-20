@@ -189,11 +189,7 @@ public class AuthenticationService {
     public Optional<User> findUserForPasswordReset(String identifier) {
         if (identifier == null || identifier.isBlank()) return Optional.empty();
         String term = identifier.trim();
-        Optional<User> found = userRepository.findByUsername(term);
-        if (found.isEmpty()) {
-            found = userRepository.findByEmail(term);
-        }
-        return found;
+        return userRepository.findByIdentifier(term);
     }
 
     public void resetPassword(int userId, String newPassword) {

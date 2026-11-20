@@ -197,6 +197,7 @@ BEGIN
     ('STUDENT', '2023-0002', 'student2@nextit.edu', 'Bianca Cruz', 'BS Information Technology', TRUE),
     ('STUDENT', '2026-0042', 'carlos.mendoza@nextit.edu', 'Carlos Mendoza', 'BS Computer Science', TRUE),
     ('STUDENT', '2026-0099', 'diane.tan@dlsu.edu.ph', 'Diane Tan', 'BS Information Systems', TRUE),
+    ('STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'BatStateU Scholar', 'BS Information Technology', TRUE),
     ('INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'Maria Santos', 'Computer Science', TRUE),
     ('INSTRUCTOR', 'EMP-1002', 'roberto.garcia@nextit.edu', 'Roberto Garcia', 'Information Technology', TRUE)
     ON CONFLICT (identifier_number) DO NOTHING;
