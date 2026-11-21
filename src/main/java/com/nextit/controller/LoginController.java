@@ -1,6 +1,8 @@
 package com.nextit.controller;
 
+import com.nextit.config.AppConfig;
 import com.nextit.exception.AppException;
+import com.nextit.model.Role;
 import com.nextit.model.User;
 import com.nextit.service.AuthenticationService;
 import com.nextit.service.OtpService;
@@ -42,6 +44,11 @@ public class LoginController {
     @FXML private Hyperlink forgotPasswordLink;
     @FXML private SVGPath eyeIcon;
     @FXML private Label errorLabel;
+    @FXML private Button signInBtn;
+    @FXML private VBox quickAccessPane;
+    @FXML private Button quickStudentBtn;
+    @FXML private Button quickInstructorBtn;
+    @FXML private Button quickEmployerBtn;
 
     private boolean passwordVisible = false;
 
@@ -52,6 +59,15 @@ public class LoginController {
 
     public void setAuthenticationService(AuthenticationService authenticationService) {
         this.authenticationService = authenticationService;
+    }
+
+    @FXML
+    public void initialize() {
+        if (quickAccessPane != null) {
+            boolean enabled = AppConfig.isQuickLoginEnabled();
+            quickAccessPane.setVisible(enabled);
+            quickAccessPane.setManaged(enabled);
+        }
     }
 
     @FXML
@@ -115,6 +131,118 @@ public class LoginController {
             alert.setContentText("Could not log in. Please check the database connection.");
             alert.show();
         }
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void handleQuickLoginStudent() {
+        performQuickLogin(Role.STUDENT, "Student");
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void handleQuickLoginInstructor() {
+        performQuickLogin(Role.INSTRUCTOR, "Instructor");
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void handleQuickLoginEmployer() {
+        performQuickLogin(Role.EMPLOYER, "Employer");
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void quickLoginStudent() {
+        handleQuickLoginStudent();
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void quickLoginInstructor() {
+        handleQuickLoginInstructor();
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void quickLoginEmployer() {
+        handleQuickLoginEmployer();
+    }
+
+    private void setQuickLoginBusy(boolean busy, String statusMessage) {
+        if (quickStudentBtn != null) quickStudentBtn.setDisable(busy);
+        if (quickInstructorBtn != null) quickInstructorBtn.setDisable(busy);
+        if (quickEmployerBtn != null) quickEmployerBtn.setDisable(busy);
+        if (signInBtn != null) signInBtn.setDisable(busy);
+        if (usernameField != null) usernameField.setDisable(busy);
+        if (passwordField != null) passwordField.setDisable(busy);
+        if (visiblePasswordField != null) visiblePasswordField.setDisable(busy);
+
+        if (errorLabel != null) {
+            if (busy) {
+                errorLabel.setStyle("-fx-text-fill: #1A2634; -fx-font-weight: 700; -fx-font-size: 11.5px; -fx-background-color: #FAF5E8; -fx-border-color: #DBC8AA; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6 12;");
+                errorLabel.setText(statusMessage != null ? statusMessage : "⏳ Authenticating...");
+            } else if (statusMessage != null) {
+                errorLabel.setStyle("-fx-text-fill: #9E0B0F; -fx-font-weight: 700; -fx-font-size: 11.5px; -fx-background-color: #FDF2F2; -fx-border-color: #F5C2C7; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6 12;");
+                errorLabel.setText(statusMessage);
+            } else {
+                errorLabel.setStyle("");
+                errorLabel.setText("");
+            }
+        }
+    }
+
+    private void performQuickLogin(Role role, String roleDisplayName) {
+        if (authenticationService == null) {
+            authenticationService = new AuthenticationService();
+        }
+
+        setQuickLoginBusy(true, "⏳ Locating " + roleDisplayName + " account...");
+
+        CompletableFuture.supplyAsync(() -> authenticationService.findQuickAccessUser(role))
+                .thenCompose(userOpt -> {
+                    if (userOpt.isEmpty()) {
+                        throw new AppException("No demo or active " + roleDisplayName + " account found in database.");
+                    }
+                    User user = userOpt.get();
+                    Platform.runLater(() -> {
+                        usernameField.setText(user.getUsername());
+                        passwordField.setText("password123");
+                        visiblePasswordField.setText("password123");
+                        if (errorLabel != null) {
+                            errorLabel.setText("⏳ Signing in as " + user.getUsername() + " (" + roleDisplayName + ")...");
+                        }
+                    });
+                    return CompletableFuture.supplyAsync(() -> authenticationService.quickLogin(user, "password123"));
+                })
+                .thenAccept(authenticatedUser -> Platform.runLater(() -> {
+                    try {
+                        setQuickLoginBusy(false, null);
+                        transitionToMain(authenticatedUser);
+                    } catch (Exception ex) {
+                        log.error("Failed to transition to main view after quick login", ex);
+                        setQuickLoginBusy(false, "Failed to load dashboard: " + ex.getMessage());
+                    }
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        Throwable cause = ex;
+                        while (cause.getCause() != null && cause.getCause() != cause) {
+                            cause = cause.getCause();
+                        }
+                        if (cause instanceof AuthenticationService.MfaRequiredException mfa) {
+                            setQuickLoginBusy(false, null);
+                            promptMfaDialog(mfa.getUser(), mfa.getMessage());
+                        } else {
+                            String msg = cause.getMessage();
+                            if (msg == null || msg.isBlank()) {
+                                msg = "Quick login failed for " + roleDisplayName + ".";
+                            }
+                            setQuickLoginBusy(false, msg);
+                        }
+                    });
+                    return null;
+                });
     }
 
     @FXML

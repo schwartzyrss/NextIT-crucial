@@ -20,6 +20,12 @@ public interface UserRepository {
         }
         return found;
     }
+    default Optional<User> findLatestActiveByRole(com.nextit.model.Role role) {
+        if (role == null) return Optional.empty();
+        return findAll().stream()
+                .filter(u -> u.getRole() == role && !u.isSuspended())
+                .reduce((first, second) -> second);
+    }
     List<User> findAll();
     void save(User user);
     void update(User user);

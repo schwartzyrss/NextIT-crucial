@@ -229,6 +229,37 @@ public class JdbcUserRepository implements UserRepository {
     }
 
     @Override
+    public Optional<User> findLatestActiveByRole(Role role) {
+        if (role == null) return Optional.empty();
+        String verifiedSql = "SELECT * FROM users WHERE role = ? AND (verification_status = 'VERIFIED' OR verification_status IS NULL) ORDER BY user_id DESC LIMIT 1";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(verifiedSql)) {
+            ps.setString(1, role.name());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(map(rs));
+                }
+            }
+        } catch (SQLException ex) {
+            log.warn("Direct lookup for latest verified user by role {} failed: {}", role, ex.getMessage());
+        }
+
+        String fallbackSql = "SELECT * FROM users WHERE role = ? ORDER BY user_id DESC LIMIT 1";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(fallbackSql)) {
+            ps.setString(1, role.name());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(map(rs));
+                }
+            }
+        } catch (SQLException ex) {
+            log.warn("Fallback lookup for latest user by role {} failed: {}", role, ex.getMessage());
+        }
+        return Optional.empty();
+    }
+
+    @Override
     public void save(User user) {
         String sqlWithSecurity = "INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, rejection_reason, verified_at, failed_login_attempts, locked_until, mfa_enabled) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)";
         String fallbackSql = "INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES (?,?,?,?,?,?)";

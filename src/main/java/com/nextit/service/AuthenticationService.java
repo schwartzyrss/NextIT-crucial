@@ -214,6 +214,120 @@ public class AuthenticationService {
         return name.substring(0, 2) + "***" + name.charAt(name.length() - 1) + domain;
     }
 
+    /**
+     * Resolves a demo or active user for quick login by role.
+     * Searches preferred demo accounts first, then queries Supabase/DB for the most recent
+     * active account matching that role, with auto-provisioning fallback for clean environments.
+     */
+    public Optional<User> findQuickAccessUser(Role role) {
+        if (role == null) return Optional.empty();
+
+        // 1. Check preferred demo accounts for this role
+        java.util.List<String> candidates = switch (role) {
+            case STUDENT -> java.util.List.of("alexreyes26", "alexreyes", "student1", "25-16522");
+            case INSTRUCTOR -> java.util.List.of("instructor1", "maria.santos", "kakonggg");
+            case EMPLOYER -> java.util.List.of("nexusinnovation26", "nexusinnovation", "employer1");
+        };
+
+        for (String candidate : candidates) {
+            Optional<User> u = userRepository.findByUsername(candidate);
+            if (u.isEmpty()) {
+                u = userRepository.findByEmail(candidate);
+            }
+            if (u.isPresent() && u.get().getRole() == role && !u.get().isSuspended()) {
+                return u;
+            }
+        }
+
+        // 2. Query repository for the most recent active/verified account with this role
+        Optional<User> latestActive = userRepository.findLatestActiveByRole(role);
+        if (latestActive.isPresent() && !latestActive.get().isSuspended()) {
+            return latestActive;
+        }
+
+        // 3. Fallback: auto-provision default demo user if the database is clean/empty
+        return autoProvisionDemoUser(role);
+    }
+
+    /**
+     * Performs immediate one-click authentication for a quick-access demo or active user.
+     * Bypasses manual entry while strictly verifying account suspension, lockout, and MFA requirements.
+     */
+    public User quickLogin(User user, String fallbackPassword) {
+        if (user == null) {
+            throw new AppException("Invalid user for quick access.");
+        }
+        if (user.isSuspended()) {
+            auditService.log(user.getUserId(), user.getUsername(), "LOGIN_BLOCKED_SUSPENDED", user.getUserId(),
+                    "127.0.0.1", "Blocked quick login attempt for suspended account", "SECURITY_ALERT");
+            throw new AppException("This account has been suspended due to security or policy concerns.");
+        }
+
+        // Check account lockout
+        if (user.isLocked()) {
+            long minutesRemaining = Duration.between(LocalDateTime.now(), user.getLockedUntil()).toMinutes() + 1;
+            throw new AppException(String.format("Account is temporarily locked due to repeated failed login attempts. Please try again in %d minute%s or contact support.",
+                    minutesRemaining, minutesRemaining == 1 ? "" : "s"));
+        }
+
+        // If fallback password matches the hash, reset failed attempts
+        if (fallbackPassword != null && verifyPassword(fallbackPassword, user.getPasswordHash())) {
+            if (user.getFailedLoginAttempts() > 0 || user.getLockedUntil() != null) {
+                userRepository.resetFailedLogins(user.getUserId());
+                user.setFailedLoginAttempts(0);
+                user.setLockedUntil(null);
+            }
+        }
+
+        // MFA check
+        if (isMfaRequired(user)) {
+            OtpService.requestMfaOtp(user);
+            throw new MfaRequiredException(user, "Multi-Factor Authentication required for " + user.getRole() + " access. A 6-digit authorization code has been sent to " + maskEmail(user.getEmail()) + ".");
+        }
+
+        finalizeLogin(user);
+        return user;
+    }
+
+    private Optional<User> autoProvisionDemoUser(Role role) {
+        User demo = new User();
+        switch (role) {
+            case STUDENT -> {
+                demo.setUsername("alexreyes26");
+                demo.setEmail("alexreyes26@nextit.edu");
+                demo.setFirstName("Alex");
+                demo.setLastName("Reyes");
+                demo.setRole(Role.STUDENT);
+            }
+            case INSTRUCTOR -> {
+                demo.setUsername("instructor1");
+                demo.setEmail("instructor@nextit.edu");
+                demo.setFirstName("Maria");
+                demo.setLastName("Santos");
+                demo.setRole(Role.INSTRUCTOR);
+            }
+            case EMPLOYER -> {
+                demo.setUsername("nexusinnovation26");
+                demo.setEmail("nexusinnovation26@nextit.edu");
+                demo.setFirstName("Nexus");
+                demo.setLastName("Innovation");
+                demo.setRole(Role.EMPLOYER);
+            }
+        }
+        demo.setPasswordHash(hashPassword("password123"));
+        demo.setVerificationStatus(VerificationStatus.VERIFIED);
+        demo.setVerifiedAt(LocalDateTime.now());
+        demo.setMfaEnabled(false);
+        try {
+            userRepository.save(demo);
+            log.info("Auto-provisioned default demo account for {}: {}", role, demo.getUsername());
+            return Optional.of(demo);
+        } catch (Exception ex) {
+            log.debug("Auto-provision save failed for {}: {}, attempting to look up existing", role, ex.getMessage());
+            return userRepository.findByUsername(demo.getUsername());
+        }
+    }
+
     public static class MfaRequiredException extends AppException {
         private static final long serialVersionUID = 1L;
         private final transient User user;
