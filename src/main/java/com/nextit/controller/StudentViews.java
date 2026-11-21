@@ -71,7 +71,12 @@ public final class StudentViews {
                 Ui.badge(String.valueOf(account.getRole()), "badge-pill-lavender"),
                 Ui.badge(value(student.getEnrollmentStatus()), "badge-pill-mint")
         );
-        identityDetails.getChildren().addAll(nameLabel, badges);
+
+        Region goldSeparator = new Region();
+        goldSeparator.getStyleClass().add("profile-gold-separator");
+        VBox.setMargin(goldSeparator, new Insets(4, 0, 0, 0));
+
+        identityDetails.getChildren().addAll(nameLabel, badges, goldSeparator);
 
         Region heroSpacer = new Region();
         HBox.setHgrow(heroSpacer, Priority.ALWAYS);

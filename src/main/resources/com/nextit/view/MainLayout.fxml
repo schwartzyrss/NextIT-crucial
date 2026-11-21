@@ -9,17 +9,20 @@
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.Region?>
+<?import javafx.scene.layout.StackPane?>
 <?import javafx.scene.layout.VBox?>
 
 <BorderPane xmlns="http://javafx.com/javafx/21" xmlns:fx="http://javafx.com/fxml/1"
             fx:controller="com.nextit.controller.AppController" styleClass="app-root">
     <top>
         <HBox spacing="12" styleClass="app-header" alignment="CENTER_LEFT">
-            <ImageView fitWidth="36" fitHeight="36" preserveRatio="true" smooth="true" style="-fx-effect: dropshadow(gaussian, rgba(26, 38, 52, 0.12), 8, 0.1, 0, 2);">
-                <image>
-                    <Image url="@/images/nextit-logo.png"/>
-                </image>
-            </ImageView>
+            <StackPane styleClass="app-header-logo-container">
+                <ImageView fitWidth="26" fitHeight="26" preserveRatio="true" smooth="true">
+                    <image>
+                        <Image url="@/images/nextit-logo.png"/>
+                    </image>
+                </ImageView>
+            </StackPane>
             <Label fx:id="headerLabel" text="NextIT" styleClass="app-header-title"/>
             <Region HBox.hgrow="ALWAYS"/>
             <Label fx:id="userLabel" styleClass="app-header-user"/>
