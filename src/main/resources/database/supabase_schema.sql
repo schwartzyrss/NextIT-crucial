@@ -490,4 +490,50 @@ BEFORE INSERT ON students
 FOR EACH ROW
 EXECUTE FUNCTION trg_auto_assign_student_number();
 
+-- ------------------------------------------------------------------------------
+-- PASSWORD RESET REQUESTS (ADMINISTRATIVE RECOVERY WORKFLOW)
+-- ------------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS password_reset_requests (
+    request_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id INT NULL REFERENCES users(user_id) ON DELETE SET NULL,
+    identifier_submitted TEXT NOT NULL,
+    role TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'PENDING',
+    requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ NULL,
+    admin_remarks TEXT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_pwd_reset_user ON password_reset_requests(user_id);
+CREATE INDEX IF NOT EXISTS idx_pwd_reset_status ON password_reset_requests(status);
+CREATE INDEX IF NOT EXISTS idx_pwd_reset_role ON password_reset_requests(role);
+
+ALTER TABLE password_reset_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow anon insert password reset requests" ON password_reset_requests;
+CREATE POLICY "Allow anon insert password reset requests"
+ON password_reset_requests FOR INSERT
+TO anon, authenticated
+WITH CHECK (
+    status = 'PENDING' AND
+    identifier_submitted IS NOT NULL AND TRIM(identifier_submitted) != '' AND
+    role IN ('STUDENT', 'INSTRUCTOR', 'EMPLOYER') AND
+    reason IS NOT NULL AND TRIM(reason) != ''
+);
+
+DROP POLICY IF EXISTS "Allow authenticated read password reset requests" ON password_reset_requests;
+CREATE POLICY "Allow authenticated read password reset requests"
+ON password_reset_requests FOR SELECT
+TO authenticated
+USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated update password reset requests" ON password_reset_requests;
+CREATE POLICY "Allow authenticated update password reset requests"
+ON password_reset_requests FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);
+
+
 
