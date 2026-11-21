@@ -16,16 +16,19 @@ import javafx.application.Platform;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
+import javafx.geometry.Rectangle2D;
 import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 import javafx.scene.shape.SVGPath;
+import javafx.stage.Screen;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 import org.slf4j.Logger;
@@ -282,12 +285,30 @@ public class LoginController {
             sysCloseBtn.setManaged(false);
         }
 
-        VBox root = new VBox(16);
+        VBox root = new VBox(14);
         root.setPrefWidth(520);
         root.setMaxWidth(520);
-        root.setPadding(new Insets(18, 22, 18, 22));
+        root.setPadding(new Insets(16, 20, 16, 20));
 
-        dialog.getDialogPane().setPrefWidth(540);
+        ScrollPane scrollPane = new ScrollPane(root);
+        scrollPane.getStyleClass().add("dialog-scroll");
+        scrollPane.setFitToWidth(true);
+        scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
+        scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
+        scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent; -fx-padding: 0;");
+
+        double screenVisualHeight = 800;
+        try {
+            Screen primaryScreen = Screen.getPrimary();
+            if (primaryScreen != null) {
+                screenVisualHeight = primaryScreen.getVisualBounds().getHeight();
+            }
+        } catch (Exception ignored) {}
+        double maxScrollH = Math.max(450, Math.min(680, screenVisualHeight - 120));
+        scrollPane.setMaxHeight(maxScrollH);
+
+        dialog.setResizable(true);
+        dialog.getDialogPane().setPrefWidth(560);
         dialog.getDialogPane().setMinWidth(480);
 
         // Top Banner Emblem & Steps
@@ -326,7 +347,22 @@ public class LoginController {
         VBox stepContent = new VBox(12);
 
         root.getChildren().addAll(topBanner, stepContent);
-        dialog.getDialogPane().setContent(root);
+        dialog.getDialogPane().setContent(scrollPane);
+
+        Runnable resizeDialog = () -> Platform.runLater(() -> {
+            if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
+                stage.sizeToScene();
+                try {
+                    Screen screen = Screen.getPrimary();
+                    if (screen != null) {
+                        Rectangle2D bounds = screen.getVisualBounds();
+                        if (stage.getY() + stage.getHeight() > bounds.getMaxY()) {
+                            stage.setY(Math.max(bounds.getMinY(), bounds.getMaxY() - stage.getHeight() - 20));
+                        }
+                    }
+                } catch (Exception ignored) {}
+            }
+        });
 
         User[] targetUser = new User[1];
         Timeline[] cooldownTimer = new Timeline[1];
@@ -342,6 +378,7 @@ public class LoginController {
 
         // Step 1: Account Lookup & Code Dispatch
         showStep1[0] = () -> {
+            scrollPane.setVvalue(0.0);
             stepContent.getChildren().clear();
             title.setText("Account Password Recovery");
             subtitle.setText("Follow the 3 steps to verify your identity and set a new password.");
@@ -451,10 +488,12 @@ public class LoginController {
             manualHelpRow.getChildren().addAll(helpNoteLbl, requestManualLink);
 
             stepContent.getChildren().addAll(stepDesc, accountField, helperNote, step1Msg, buttons, manualHelpRow);
+            resizeDialog.run();
         };
 
         // Manual / Administrative Reset Request Form
         showManualReset[0] = () -> {
+            scrollPane.setVvalue(0.0);
             stepContent.getChildren().clear();
             title.setText("Request Administrative Password Reset");
             subtitle.setText("Submit a manual recovery assistance request to department coordinators.");
@@ -514,8 +553,21 @@ public class LoginController {
             TextArea reasonArea = new TextArea();
             reasonArea.setPromptText("Describe why you cannot self-reset (e.g., Lost access to institutional email, forgot credentials, locked account)");
             reasonArea.setPrefRowCount(3);
+            reasonArea.setPrefHeight(72);
             reasonArea.setWrapText(true);
             reasonArea.getStyleClass().add("text-area");
+
+            reasonArea.addEventFilter(ScrollEvent.SCROLL, se -> {
+                if (reasonArea.lookup(".scroll-bar:vertical") instanceof ScrollBar vbar) {
+                    if (!vbar.isVisible() || vbar.getMax() == vbar.getMin()) {
+                        scrollPane.fireEvent(se.copyFor(scrollPane, scrollPane));
+                        se.consume();
+                    }
+                } else {
+                    scrollPane.fireEvent(se.copyFor(scrollPane, scrollPane));
+                    se.consume();
+                }
+            });
 
             Label manualStatus = new Label();
             manualStatus.setWrapText(true);
@@ -585,6 +637,7 @@ public class LoginController {
 
                     successCard.getChildren().addAll(okHeader, okDesc, refLabel, doneBtn);
                     stepContent.getChildren().add(successCard);
+                    resizeDialog.run();
                 })).exceptionally(ex -> {
                     Platform.runLater(() -> {
                         submitReqBtn.setDisable(false);
@@ -612,10 +665,12 @@ public class LoginController {
             btnRow.getChildren().addAll(backBtn, submitReqBtn);
 
             stepContent.getChildren().addAll(desc, f1, f2, f3, f4, manualStatus, btnRow);
+            resizeDialog.run();
         };
 
         // Step 2: OTP Verification
         showStep2[0] = () -> {
+            scrollPane.setVvalue(0.0);
             stepContent.getChildren().clear();
             pill1.getStyleClass().setAll("badge-pill", "badge-pill-cream");
             pill2.getStyleClass().setAll("badge-pill", "badge-pill-pink");
@@ -752,10 +807,12 @@ public class LoginController {
 
             buttons.getChildren().addAll(backBtn, verifyBtn);
             stepContent.getChildren().addAll(stepDesc, expireNote, otpField, resendRow, step2Msg, buttons);
+            resizeDialog.run();
         };
 
         // Step 3: New Password Reset
         showStep3[0] = () -> {
+            scrollPane.setVvalue(0.0);
             stepContent.getChildren().clear();
             pill1.getStyleClass().setAll("badge-pill", "badge-pill-cream");
             pill2.getStyleClass().setAll("badge-pill", "badge-pill-cream");
@@ -856,6 +913,7 @@ public class LoginController {
 
             buttons.getChildren().addAll(cancelBtn, resetBtn);
             stepContent.getChildren().addAll(stepDesc, newPassLabel, passBox1, confirmPassLabel, passBox2, reqsLabel, step3Msg, buttons);
+            resizeDialog.run();
         };
 
         showStep1[0].run();
