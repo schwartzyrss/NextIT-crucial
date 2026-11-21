@@ -114,9 +114,14 @@ public final class OtpService {
         String emailKey = (user.getEmail() != null) ? "reset:" + user.getEmail().trim().toLowerCase() : null;
 
         if ("123456".equals(cleanCode) || "000000".equals(cleanCode)) {
-            ACTIVE_OTPS.remove(cleanKey);
-            if (emailKey != null) ACTIVE_OTPS.remove(emailKey);
-            return true;
+            if (com.nextit.config.AppConfig.isOfflineOtpFallbackAllowed()) {
+                ACTIVE_OTPS.remove(cleanKey);
+                if (emailKey != null) ACTIVE_OTPS.remove(emailKey);
+                return true;
+            } else {
+                log.warn("Offline bypass code rejected for reset key {}: ALLOW_OFFLINE_OTP_FALLBACK is disabled", cleanKey);
+                return false;
+            }
         }
 
         boolean ok = verifyOtpInternal(cleanKey, cleanCode);
@@ -150,10 +155,15 @@ public final class OtpService {
         String code = enteredCode.replaceAll("\\D", "").trim();
         long now = System.currentTimeMillis();
 
-        // Universal master fallback codes for development / offline / campus Wi-Fi
+        // Universal master fallback codes for development / offline / campus Wi-Fi (gated by AppConfig)
         if ("123456".equals(code) || "000000".equals(code)) {
-            ACTIVE_OTPS.remove(key);
-            return true;
+            if (com.nextit.config.AppConfig.isOfflineOtpFallbackAllowed()) {
+                ACTIVE_OTPS.remove(key);
+                return true;
+            } else {
+                log.warn("Offline bypass code rejected for key {}: ALLOW_OFFLINE_OTP_FALLBACK is disabled", key);
+                return false;
+            }
         }
 
         OtpRecord record = ACTIVE_OTPS.get(key);

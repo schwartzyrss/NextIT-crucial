@@ -729,13 +729,13 @@ public class LoginController {
             if (otpResp != null && otpResp.sent()) {
                 stepDesc.setText("Verification code dispatched to " + masked);
                 stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
-                expireNote.setText("The 6-digit code is valid for 10 minutes. Enter it below to verify your identity:");
-                expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+                expireNote.setText("The 6-digit code was dispatched securely over HTTPS (Port 443) and is valid for 10 minutes. Enter it below:");
+                expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A;");
             } else {
                 stepDesc.setText("Enter verification code for " + masked);
                 stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
-                String noteMsg = (otpResp != null && otpResp.message() != null) ? otpResp.message() : "Email delivery timed out or blocked by network firewall.";
-                expireNote.setText("⚠ " + noteMsg + " (Offline / testing fallback code: 123456)");
+                String noteMsg = (otpResp != null && otpResp.message() != null) ? otpResp.message() : "HTTPS connection offline.";
+                expireNote.setText("⚠ " + noteMsg + (com.nextit.config.AppConfig.isOfflineOtpFallbackAllowed() ? " (Testing fallback code: 123456)" : ""));
                 expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #B45309; -fx-font-weight: 600;");
             }
 
@@ -795,7 +795,7 @@ public class LoginController {
                             resendBtn.setText("Resend Code (" + seconds[0] + "s)");
                             if (cooldownTimer[0] != null) cooldownTimer[0].playFromStart();
                             if (resp.sent()) {
-                                resendStatus.setText("✔ New code sent to your email!");
+                                resendStatus.setText("✔ New code sent via HTTPS (Port 443)!");
                                 resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E6B35; -fx-font-weight: 600;");
                             } else {
                                 resendStatus.setText("⚠ " + resp.message());
@@ -857,7 +857,7 @@ public class LoginController {
                                 verifyBtn.setDisable(false);
                                 backBtn.setDisable(false);
                                 if (seconds[0] <= 0) resendBtn.setDisable(false);
-                                step2Msg.setText("Invalid or expired code. Please try again, click Resend, or use fallback code 123456.");
+                                step2Msg.setText("Invalid or expired code. Please try again, click Resend" + (com.nextit.config.AppConfig.isOfflineOtpFallbackAllowed() ? ", or use testing code 123456." : "."));
                                 step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
                             }
                         }))

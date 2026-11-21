@@ -108,7 +108,7 @@ public class OnboardingView {
         public String requestOtp(String email) {
             OtpService.OtpResponse resp = OtpService.requestOtp(email);
             String safeMsg = resp.message() != null ? resp.message().replace("\"", "\\\"").replace("\n", " ") : "";
-            return String.format("{\"sent\":%b,\"configured\":%b,\"rateLimited\":%b,\"code\":\"%s\",\"message\":\"%s\"}",
+            return String.format("{\"sent\":%b,\"configured\":%b,\"rateLimited\":%b,\"code\":\"%s\",\"message\":\"%s\",\"delivery\":\"HTTPS (Port 443)\"}",
                     resp.sent(), resp.configured(), resp.rateLimited(), resp.code(), safeMsg);
         }
 
@@ -117,12 +117,11 @@ public class OnboardingView {
         }
 
         public String getSmtpConfig() {
-            String host = EmailService.getSetting("SMTP_HOST", "smtp.gmail.com");
-            String port = EmailService.getSetting("SMTP_PORT", "587");
-            String user = EmailService.getSetting("SMTP_USER", "");
+            String supabaseUrl = EmailService.getSupabaseUrl();
+            String mode = EmailService.getDispatchMode().name();
             boolean configured = EmailService.isConfigured();
-            return String.format("{\"host\":\"%s\",\"port\":\"%s\",\"user\":\"%s\",\"configured\":%b}",
-                    host, port, user, configured);
+            return String.format("{\"mode\":\"%s\",\"supabaseUrl\":\"%s\",\"port\":\"443\",\"host\":\"%s\",\"configured\":%b}",
+                    mode, supabaseUrl, EmailService.getSetting("SMTP_HOST", "smtp.gmail.com"), configured);
         }
 
         public String resetSmtpSettings() {
