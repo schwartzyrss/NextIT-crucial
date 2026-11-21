@@ -201,6 +201,13 @@ public class AppController {
                 sidebar.getChildren().add(navButton("✨ Recommended Students", () -> setView(EmployerViews.recommendedStudents())));
                 sidebar.getChildren().add(navButton("🔍 Portfolio Search", () -> setView(EmployerViews.portfolioSearch())));
             }
+            case ADMIN -> {
+                sidebar.getChildren().add(categoryHeader("Verification Management"));
+                sidebar.getChildren().add(navButton("🛡️ Verification Queue", () -> setView(AdminViews.verificationWorkspace())));
+                sidebar.getChildren().add(navButton("🔑 Password Reset Queue", () -> setView(AdminViews.passwordResetRequests())));
+                sidebar.getChildren().add(categoryHeader("Administration"));
+                sidebar.getChildren().add(navButton("👤 Admin Profile", () -> setView(AdminViews.profile())));
+            }
         }
 
         // Pinned sticky logout button at the bottom of the sidebar
@@ -259,6 +266,7 @@ public class AppController {
             case STUDENT -> setView(StudentViews.dashboard());
             case INSTRUCTOR -> setView(InstructorViews.dashboard());
             case EMPLOYER -> setView(EmployerViews.dashboard());
+            case ADMIN -> setView(AdminViews.dashboard());
         }
     }
 

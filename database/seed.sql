@@ -12,7 +12,8 @@ INSERT INTO users (username, password_hash, email, role, first_name, last_name, 
 ('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
-('25-16522',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', '25-16522@g.bastate-u.edu.ph', 'STUDENT', 'BatStateU', 'Scholar', 'VERIFIED', CURRENT_TIMESTAMP, FALSE);
+('25-16522',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', '25-16522@g.bastate-u.edu.ph', 'STUDENT', 'BatStateU', 'Scholar', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
+('admin',       '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu.ph',         'ADMIN',   'System',   'Administrator', 'VERIFIED', CURRENT_TIMESTAMP, FALSE);
 
 SET @student_user    = (SELECT user_id FROM users WHERE username = 'student1');
 SET @student2_user   = (SELECT user_id FROM users WHERE username = 'student2');

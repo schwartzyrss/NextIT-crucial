@@ -53,6 +53,7 @@ public class LoginController {
     @FXML private Button quickStudentBtn;
     @FXML private Button quickInstructorBtn;
     @FXML private Button quickEmployerBtn;
+    @FXML private Button quickAdminBtn;
 
     private boolean passwordVisible = false;
 
@@ -157,6 +158,12 @@ public class LoginController {
 
     @FXML
     @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void handleQuickLoginAdmin() {
+        performQuickLogin(Role.ADMIN, "Admin");
+    }
+
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
     private void quickLoginStudent() {
         handleQuickLoginStudent();
     }
@@ -173,10 +180,17 @@ public class LoginController {
         handleQuickLoginEmployer();
     }
 
+    @FXML
+    @SuppressWarnings("PMD.UnusedPrivateMethod")
+    private void quickLoginAdmin() {
+        handleQuickLoginAdmin();
+    }
+
     private void setQuickLoginBusy(boolean busy, String statusMessage) {
         if (quickStudentBtn != null) quickStudentBtn.setDisable(busy);
         if (quickInstructorBtn != null) quickInstructorBtn.setDisable(busy);
         if (quickEmployerBtn != null) quickEmployerBtn.setDisable(busy);
+        if (quickAdminBtn != null) quickAdminBtn.setDisable(busy);
         if (signInBtn != null) signInBtn.setDisable(busy);
         if (usernameField != null) usernameField.setDisable(busy);
         if (passwordField != null) passwordField.setDisable(busy);
@@ -541,10 +555,11 @@ public class LoginController {
                         case STUDENT -> "Student Scholar";
                         case INSTRUCTOR -> "Faculty Instructor / Coordinator";
                         case EMPLOYER -> "Industry Employer Partner";
+                        case ADMIN -> "System Administrator";
                     };
                 }
                 @Override
-                public Role fromString(String string) { return Role.valueOf(string); }
+                public Role fromString(String string) { return Role.fromString(string); }
             });
 
             VBox f4 = new VBox(2);

@@ -136,7 +136,7 @@ public class JdbcVerificationRequestRepository implements VerificationRequestRep
         VerificationRequest req = new VerificationRequest();
         req.setRequestId(rs.getInt("request_id"));
         req.setUserId(rs.getInt("user_id"));
-        req.setRole(Role.valueOf(rs.getString("role")));
+        req.setRole(Role.fromString(rs.getString("role")));
         req.setIdNumber(rs.getString("id_number"));
         req.setInstitutionalEmail(rs.getString("institutional_email"));
         req.setOrganizationName(rs.getString("organization_name"));

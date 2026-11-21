@@ -227,6 +227,7 @@ public class AuthenticationService {
             case STUDENT -> java.util.List.of("alexreyes26", "alexreyes", "student1", "25-16522");
             case INSTRUCTOR -> java.util.List.of("instructor1", "maria.santos", "kakonggg");
             case EMPLOYER -> java.util.List.of("nexusinnovation26", "nexusinnovation", "employer1");
+            case ADMIN -> java.util.List.of("admin", "admin26", "sysadmin");
         };
 
         for (String candidate : candidates) {
@@ -312,6 +313,13 @@ public class AuthenticationService {
                 demo.setFirstName("Nexus");
                 demo.setLastName("Innovation");
                 demo.setRole(Role.EMPLOYER);
+            }
+            case ADMIN -> {
+                demo.setUsername("admin");
+                demo.setEmail("admin@nextit.edu.ph");
+                demo.setFirstName("System");
+                demo.setLastName("Administrator");
+                demo.setRole(Role.ADMIN);
             }
         }
         demo.setPasswordHash(hashPassword("password123"));

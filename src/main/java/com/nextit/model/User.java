@@ -66,7 +66,7 @@ public class User {
     public String getFullName() { return firstName + " " + lastName; }
 
     public boolean isVerified() {
-        return verificationStatus == VerificationStatus.VERIFIED;
+        return role == Role.ADMIN || verificationStatus == VerificationStatus.VERIFIED;
     }
 
     public boolean isLocked() {

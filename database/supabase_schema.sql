@@ -6,7 +6,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verification_status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
@@ -300,7 +300,7 @@ CREATE TABLE IF NOT EXISTS institutional_records (
 CREATE TABLE IF NOT EXISTS verification_requests (
     request_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
     id_number VARCHAR(50) NULL,
     institutional_email VARCHAR(100) NULL,
     organization_name VARCHAR(150) NULL,
@@ -518,7 +518,7 @@ TO anon, authenticated
 WITH CHECK (
     status = 'PENDING' AND
     identifier_submitted IS NOT NULL AND TRIM(identifier_submitted) != '' AND
-    role IN ('STUDENT', 'INSTRUCTOR', 'EMPLOYER') AND
+    role IN ('STUDENT', 'INSTRUCTOR', 'EMPLOYER', 'ADMIN') AND
     reason IS NOT NULL AND TRIM(reason) != ''
 );
 
@@ -534,6 +534,33 @@ ON password_reset_requests FOR UPDATE
 TO authenticated
 USING (true)
 WITH CHECK (true);
+
+-- ------------------------------------------------------------------------------
+-- RLS Policies for Admin Identity Verification Requests
+-- ------------------------------------------------------------------------------
+ALTER TABLE verification_requests ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Allow authenticated read verification requests" ON verification_requests;
+CREATE POLICY "Allow authenticated read verification requests"
+ON verification_requests FOR SELECT
+TO authenticated
+USING (true);
+
+DROP POLICY IF EXISTS "Allow authenticated insert verification requests" ON verification_requests;
+CREATE POLICY "Allow authenticated insert verification requests"
+ON verification_requests FOR INSERT
+TO authenticated
+WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Allow authenticated update verification requests" ON verification_requests;
+CREATE POLICY "Allow authenticated update verification requests"
+ON verification_requests FOR UPDATE
+TO authenticated
+USING (true)
+WITH CHECK (true);
+
+GRANT SELECT, INSERT, UPDATE, DELETE ON verification_requests TO anon, authenticated, service_role;
+
 
 
 

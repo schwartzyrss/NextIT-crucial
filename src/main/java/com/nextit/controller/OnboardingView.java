@@ -156,10 +156,8 @@ public class OnboardingView {
                                       String email, String password, String detail1, String detail2, String detail3) {
             CompletableFuture.runAsync(() -> {
                 try {
-                    Role role;
-                    try {
-                        role = Role.valueOf(roleStr.trim().toUpperCase());
-                    } catch (Exception ex) {
+                    Role role = Role.fromString(roleStr);
+                    if (role == null || role == Role.ADMIN) {
                         throw new AppException("Invalid registration role. Supported roles are Student, Instructor, and Employer.");
                     }
 

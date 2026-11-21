@@ -100,6 +100,36 @@ class QuickAccessLoginTest {
     }
 
     @Test
+    void testFindQuickAccessAdmin() {
+        User adminUser = new User();
+        adminUser.setUserId(401);
+        adminUser.setUsername("admin");
+        adminUser.setEmail("admin@nextit.edu.ph");
+        adminUser.setPasswordHash(AuthenticationService.hashPassword("password123"));
+        adminUser.setRole(Role.ADMIN);
+        adminUser.setVerificationStatus(VerificationStatus.VERIFIED);
+        userRepository.save(adminUser);
+
+        Optional<User> found = authService.findQuickAccessUser(Role.ADMIN);
+        assertTrue(found.isPresent());
+        assertEquals("admin", found.get().getUsername());
+        assertEquals(Role.ADMIN, found.get().getRole());
+    }
+
+    @Test
+    void testRoleFromStringParsing() {
+        assertEquals(Role.ADMIN, Role.fromString("admin"));
+        assertEquals(Role.ADMIN, Role.fromString("ADMIN"));
+        assertEquals(Role.ADMIN, Role.fromString(" Admin "));
+        assertEquals(Role.STUDENT, Role.fromString("student"));
+        assertEquals(Role.INSTRUCTOR, Role.fromString("instructor"));
+        assertEquals(Role.EMPLOYER, Role.fromString("employer"));
+        assertNull(Role.fromString(null));
+        assertNull(Role.fromString(""));
+        assertNull(Role.fromString("unknown_role"));
+    }
+
+    @Test
     void testQuickLoginAuthenticationSuccess() {
         User student = new User();
         student.setUserId(101);

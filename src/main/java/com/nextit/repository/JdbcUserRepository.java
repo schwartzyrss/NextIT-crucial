@@ -419,7 +419,7 @@ public class JdbcUserRepository implements UserRepository {
         u.setUsername(rs.getString("username"));
         u.setPasswordHash(rs.getString("password_hash"));
         u.setEmail(rs.getString("email"));
-        u.setRole(Role.valueOf(rs.getString("role")));
+        u.setRole(Role.fromString(rs.getString("role")));
         u.setFirstName(rs.getString("first_name"));
         u.setLastName(rs.getString("last_name"));
 

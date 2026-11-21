@@ -178,6 +178,19 @@
                                 </HBox>
                             </graphic>
                         </Button>
+
+                        <!-- Admin Button -->
+                        <Button fx:id="quickAdminBtn" onAction="#handleQuickLoginAdmin" maxWidth="Infinity" HBox.hgrow="ALWAYS" styleClass="quick-access-btn">
+                            <graphic>
+                                <HBox spacing="8" alignment="CENTER_LEFT">
+                                    <Label text="🛡️" styleClass="quick-access-icon"/>
+                                    <VBox spacing="1">
+                                        <Label text="Admin" styleClass="quick-access-title"/>
+                                        <Label text="Coordinator" styleClass="quick-access-sub"/>
+                                    </VBox>
+                                </HBox>
+                            </graphic>
+                        </Button>
                     </HBox>
                 </VBox>
 

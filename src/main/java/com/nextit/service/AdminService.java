@@ -11,14 +11,50 @@ import java.util.Locale;
 
 public class AdminService {
 
-    private final JdbcUserRepository userRepo = new JdbcUserRepository();
-    private final JdbcSubjectRepository subjectRepo = new JdbcSubjectRepository();
-    private final JdbcStudentRepository studentRepo = new JdbcStudentRepository();
-    private final JdbcInstructorRepository instructorRepo = new JdbcInstructorRepository();
-    private final JdbcEmployerRepository employerRepo = new JdbcEmployerRepository();
-    private final JdbcVerificationRequestRepository verificationRepo = new JdbcVerificationRequestRepository();
-    private final JdbcInstitutionalRecordRepository institutionalRepo = new JdbcInstitutionalRecordRepository();
+    private final UserRepository userRepo;
+    private final JdbcSubjectRepository subjectRepo;
+    private final JdbcStudentRepository studentRepo;
+    private final JdbcInstructorRepository instructorRepo;
+    private final JdbcEmployerRepository employerRepo;
+    private final VerificationRequestRepository verificationRepo;
+    private final InstitutionalRecordRepository institutionalRepo;
     private final SecurityAuditService auditService = SecurityAuditService.getInstance();
+
+    public AdminService() {
+        this(new JdbcUserRepository(),
+             new JdbcSubjectRepository(),
+             new JdbcStudentRepository(),
+             new JdbcInstructorRepository(),
+             new JdbcEmployerRepository(),
+             new JdbcVerificationRequestRepository(),
+             new JdbcInstitutionalRecordRepository());
+    }
+
+    public AdminService(UserRepository userRepo, VerificationRequestRepository verificationRepo) {
+        this(userRepo,
+             new JdbcSubjectRepository(),
+             new JdbcStudentRepository(),
+             new JdbcInstructorRepository(),
+             new JdbcEmployerRepository(),
+             verificationRepo,
+             new JdbcInstitutionalRecordRepository());
+    }
+
+    public AdminService(UserRepository userRepo,
+                        JdbcSubjectRepository subjectRepo,
+                        JdbcStudentRepository studentRepo,
+                        JdbcInstructorRepository instructorRepo,
+                        JdbcEmployerRepository employerRepo,
+                        VerificationRequestRepository verificationRepo,
+                        InstitutionalRecordRepository institutionalRepo) {
+        this.userRepo = userRepo;
+        this.subjectRepo = subjectRepo;
+        this.studentRepo = studentRepo;
+        this.instructorRepo = instructorRepo;
+        this.employerRepo = employerRepo;
+        this.verificationRepo = verificationRepo;
+        this.institutionalRepo = institutionalRepo;
+    }
 
     public List<User> users() { return userRepo.findAll(); }
     public List<Subject> subjects() { return subjectRepo.findAll(); }
@@ -265,6 +301,24 @@ public class AdminService {
             employer.setAddress("");
             employerRepo.save(employer);
         }
+    }
+
+    public void provisionAdmin(User adminUser, String rawPassword) {
+        if (adminUser == null) throw new AppException("Admin user details are required.");
+        Validator.notBlank(adminUser.getUsername(), "Username");
+        Validator.email(adminUser.getEmail());
+        Validator.notBlank(adminUser.getFirstName(), "First name");
+        Validator.notBlank(adminUser.getLastName(), "Last name");
+        if (rawPassword == null || rawPassword.length() < 8) {
+            throw new AppException("Administrator password must be at least 8 characters.");
+        }
+        adminUser.setRole(Role.ADMIN);
+        adminUser.setVerificationStatus(VerificationStatus.VERIFIED);
+        adminUser.setVerifiedAt(LocalDateTime.now());
+        adminUser.setPasswordHash(AuthenticationService.hashPassword(rawPassword));
+        userRepo.save(adminUser);
+        auditService.log(adminUser.getUserId(), adminUser.getUsername(), "ADMIN_PROVISIONED",
+                adminUser.getUserId(), "127.0.0.1", "Admin account provisioned by " + currentUserUsername(), "SECURITY_EVENT");
     }
 
     private String currentUserUsername() {
