@@ -90,13 +90,39 @@ CREATE TABLE employers (
     address VARCHAR(255) NULL
 );
 
+-- Ensure institutional / work email columns exist across profile and user tables
+ALTER TABLE users ADD COLUMN IF NOT EXISTS institutional_email VARCHAR(100) NULL;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS work_email VARCHAR(100) NULL;
+ALTER TABLE students ADD COLUMN IF NOT EXISTS institutional_email VARCHAR(100) NULL;
+ALTER TABLE instructors ADD COLUMN IF NOT EXISTS institutional_email VARCHAR(100) NULL;
+ALTER TABLE instructors ADD COLUMN IF NOT EXISTS work_email VARCHAR(100) NULL;
+ALTER TABLE employers ADD COLUMN IF NOT EXISTS work_email VARCHAR(100) NULL;
+ALTER TABLE employers ADD COLUMN IF NOT EXISTS institutional_email VARCHAR(100) NULL;
+
+-- Profile views for compatibility with profile-based lookup queries
+CREATE OR REPLACE VIEW student_profiles AS 
+    SELECT s.*, u.email, u.username, u.first_name, u.last_name 
+    FROM students s JOIN users u ON u.user_id = s.user_id;
+
+CREATE OR REPLACE VIEW instructor_profiles AS 
+    SELECT i.*, u.email, u.username, u.first_name, u.last_name 
+    FROM instructors i JOIN users u ON u.user_id = i.user_id;
+
+CREATE OR REPLACE VIEW employer_profiles AS 
+    SELECT e.*, u.email, u.username, u.first_name, u.last_name 
+    FROM employers e JOIN users u ON u.user_id = e.user_id;
+
 -- (5) Subjects
 CREATE TABLE subjects (
     subject_id SERIAL PRIMARY KEY,
     subject_code VARCHAR(30) NOT NULL UNIQUE,
     subject_name VARCHAR(150) NOT NULL,
     units DECIMAL(3,1) NOT NULL,
-    description TEXT NULL
+    description TEXT NULL,
+    section VARCHAR(30) NULL,
+    semester VARCHAR(20) NULL,
+    academic_year VARCHAR(20) NULL,
+    instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL
 );
 
 -- (6) Enrollments
@@ -106,10 +132,45 @@ CREATE TABLE enrollments (
     subject_id INT NOT NULL REFERENCES subjects(subject_id) ON DELETE RESTRICT,
     academic_year VARCHAR(20) NOT NULL,
     semester VARCHAR(20) NOT NULL,
-    status VARCHAR(30) NOT NULL
+    status VARCHAR(30) NOT NULL,
+    instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL,
+    grade VARCHAR(20) NULL,
+    enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_student_enrollment_subject UNIQUE (student_id, subject_id)
 );
 CREATE INDEX idx_enrollments_student ON enrollments(student_id);
 CREATE INDEX idx_enrollments_subject ON enrollments(subject_id);
+
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS section VARCHAR(30) NULL;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS semester VARCHAR(20) NULL;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS academic_year VARCHAR(20) NULL;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL;
+
+ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL;
+ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS grade VARCHAR(20) NULL;
+ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
+-- View for student_enrollments (junction compatibility view)
+CREATE OR REPLACE VIEW student_enrollments AS
+SELECT 
+    e.enrollment_id,
+    e.student_id,
+    st.student_number,
+    e.subject_id,
+    COALESCE(e.instructor_id, s.instructor_id) AS instructor_id,
+    e.grade,
+    e.status,
+    e.enrolled_at,
+    e.academic_year,
+    e.semester,
+    s.subject_code,
+    s.subject_name,
+    s.subject_name AS subject_title,
+    s.units,
+    s.section
+FROM enrollments e
+JOIN students st ON st.student_id = e.student_id
+JOIN subjects s ON s.subject_id = e.subject_id;
 
 -- (7) Grades
 CREATE TABLE grades (
@@ -370,6 +431,7 @@ DO $$
 DECLARE
     v_student_user    INT;
     v_student2_user   INT;
+    v_batstate_user   INT;
     v_instructor_user INT;
     v_employer_user   INT;
     v_admin_user      INT;
@@ -424,6 +486,12 @@ BEGIN
     ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_employer_user;
 
+    -- Seed BatStateU Scholar student user
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('25-16522',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', '25-16522@g.bastate-u.edu.ph', 'STUDENT', 'BatStateU', 'Scholar', 'VERIFIED', NOW(), FALSE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
+    RETURNING user_id INTO v_batstate_user;
+
     -- B. Students
     INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status)
     VALUES (v_student_user, '2023-0001', 'BS Information Technology', 3, 'A', 'Enrolled')
@@ -434,6 +502,10 @@ BEGIN
     VALUES (v_student2_user, '2023-0002', 'BS Information Technology', 3, 'A', 'Enrolled')
     ON CONFLICT (student_number) DO UPDATE SET program = EXCLUDED.program
     RETURNING student_id INTO v_student2_id;
+
+    INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status)
+    VALUES (v_batstate_user, '25-16522', 'BS Information Technology', 3, 'A', 'Enrolled')
+    ON CONFLICT (student_number) DO UPDATE SET program = EXCLUDED.program;
 
     -- C. Instructors
     INSERT INTO instructors (user_id, employee_number, department, specialization)
@@ -579,6 +651,7 @@ BEGIN
     INSERT INTO verification_requests (user_id, role, id_number, institutional_email, organization_name, business_registration_number, document_reference, submission_notes, status, risk_score, risk_flags, reviewed_at) VALUES
     (v_student_user, 'STUDENT', '2023-0001', 'student@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
     (v_student2_user, 'STUDENT', '2023-0002', 'student2@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
+    (v_batstate_user, 'STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'Batangas State University', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
     (v_instructor_user, 'INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'College of Computer Studies', NULL, 'Faculty Appointment Form CS-2024', 'Faculty credentials confirmed against institutional records.', 'VERIFIED', 5, 'REGISTRAR_FACULTY_CONFIRMED', NOW()),
     (v_employer_user, 'EMPLOYER', NULL, 'employer@techcorp.com', 'TechCorp Solutions', 'SEC-CS2021008891-TIN009', 'SEC Certificate of Incorporation & DTI Permit', 'Corporate registration verified.', 'VERIFIED', 10, 'CORPORATE_DOMAIN_DETECTED', NOW());
 
@@ -608,19 +681,42 @@ RETURNS TABLE (
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
+DECLARE
+    clean_id TEXT := LOWER(TRIM(identifier));
 BEGIN
     RETURN QUERY
     SELECT DISTINCT
         u.user_id,
         u.username::VARCHAR,
-        COALESCE(vr.institutional_email, ir.institutional_email, u.email)::VARCHAR AS email,
+        COALESCE(
+            NULLIF(TRIM(u.email), ''),
+            NULLIF(TRIM(vr.institutional_email), ''),
+            NULLIF(TRIM(ir.institutional_email), '')
+        )::VARCHAR AS email,
         u.role::VARCHAR,
         u.first_name::VARCHAR,
         u.last_name::VARCHAR,
         CONCAT(
-            SUBSTRING(COALESCE(vr.institutional_email, ir.institutional_email, u.email), 1, 2),
+            SUBSTRING(
+                COALESCE(
+                    NULLIF(TRIM(u.email), ''),
+                    NULLIF(TRIM(vr.institutional_email), ''),
+                    NULLIF(TRIM(ir.institutional_email), '')
+                ), 1, 2
+            ),
             '***',
-            SUBSTRING(COALESCE(vr.institutional_email, ir.institutional_email, u.email) FROM POSITION('@' IN COALESCE(vr.institutional_email, ir.institutional_email, u.email)))
+            SUBSTRING(
+                COALESCE(
+                    NULLIF(TRIM(u.email), ''),
+                    NULLIF(TRIM(vr.institutional_email), ''),
+                    NULLIF(TRIM(ir.institutional_email), '')
+                )
+                FROM POSITION('@' IN COALESCE(
+                    NULLIF(TRIM(u.email), ''),
+                    NULLIF(TRIM(vr.institutional_email), ''),
+                    NULLIF(TRIM(ir.institutional_email), '')
+                ))
+            )
         )::TEXT AS masked_email
     FROM users u
     LEFT JOIN verification_requests vr ON vr.user_id = u.user_id
@@ -630,20 +726,72 @@ BEGIN
     LEFT JOIN institutional_records ir ON (
         (s.student_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(s.student_number))) OR
         (i.employee_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(i.employee_number))) OR
-        (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number)))
+        (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number))) OR
+        (u.username IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(u.username))) OR
+        (u.email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(u.email))) OR
+        (vr.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(vr.institutional_email)))
     )
     WHERE 
-        LOWER(TRIM(u.username)) = LOWER(TRIM(identifier))
-        OR LOWER(TRIM(u.email)) = LOWER(TRIM(identifier))
-        OR (vr.institutional_email IS NOT NULL AND LOWER(TRIM(vr.institutional_email)) = LOWER(TRIM(identifier)))
-        OR (ir.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(identifier)))
-        OR (s.student_number IS NOT NULL AND LOWER(TRIM(s.student_number)) = LOWER(TRIM(identifier)))
-        OR (i.employee_number IS NOT NULL AND LOWER(TRIM(i.employee_number)) = LOWER(TRIM(identifier)))
-        OR (vr.id_number IS NOT NULL AND LOWER(TRIM(vr.id_number)) = LOWER(TRIM(identifier)))
+        LOWER(TRIM(u.username)) = clean_id
+        OR LOWER(TRIM(u.email)) = clean_id
+        OR (vr.institutional_email IS NOT NULL AND LOWER(TRIM(vr.institutional_email)) = clean_id)
+        OR (ir.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = clean_id)
+        OR (ir.identifier_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = clean_id)
+        OR (s.student_number IS NOT NULL AND LOWER(TRIM(s.student_number)) = clean_id)
+        OR (i.employee_number IS NOT NULL AND LOWER(TRIM(i.employee_number)) = clean_id)
+        OR (vr.id_number IS NOT NULL AND LOWER(TRIM(vr.id_number)) = clean_id)
     LIMIT 1;
 END;
 $$;
 
-GRANT EXECUTE ON FUNCTION lookup_account_for_recovery(TEXT) TO anon, authenticated, service_role;
+GRANT EXECUTE ON FUNCTION lookup_account_for_recovery(TEXT) TO anon, authenticated, service_role, public;
+
+-- ------------------------------------------------------------------------------
+-- AUTOMATED STUDENT ID GENERATION FUNCTION (RPC) & TRIGGER
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION generate_next_student_number(p_year INT DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::INT)
+RETURNS TEXT AS $$
+DECLARE
+    v_prefix TEXT;
+    v_max_seq INT := 0;
+    v_num TEXT;
+    v_seq INT;
+BEGIN
+    v_prefix := p_year || '-';
+    FOR v_num IN 
+        SELECT student_number FROM students WHERE student_number LIKE v_prefix || '%'
+        UNION
+        SELECT id_number FROM verification_requests WHERE id_number LIKE v_prefix || '%'
+    LOOP
+        BEGIN
+            v_seq := SUBSTRING(v_num FROM LENGTH(v_prefix) + 1)::INT;
+            IF v_seq > v_max_seq THEN
+                v_max_seq := v_seq;
+            END IF;
+        EXCEPTION WHEN OTHERS THEN
+            -- Ignore non-numeric suffixes
+        END;
+    END LOOP;
+    RETURN v_prefix || LPAD((v_max_seq + 1)::TEXT, 4, '0');
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION generate_next_student_number(INT) TO anon, authenticated, service_role, public;
+
+CREATE OR REPLACE FUNCTION trg_auto_assign_student_number()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.student_number IS NULL OR TRIM(NEW.student_number) = '' THEN
+        NEW.student_number := generate_next_student_number(EXTRACT(YEAR FROM CURRENT_DATE)::INT);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_students_auto_number ON students;
+CREATE TRIGGER trg_students_auto_number
+BEFORE INSERT ON students
+FOR EACH ROW
+EXECUTE FUNCTION trg_auto_assign_student_number();
 
 

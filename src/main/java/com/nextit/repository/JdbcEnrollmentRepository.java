@@ -12,7 +12,7 @@ import java.util.Optional;
 public class JdbcEnrollmentRepository {
 
     public List<Enrollment> findByStudentId(int studentId) {
-        String sql = "SELECT * FROM enrollments WHERE student_id=?";
+        String sql = "SELECT * FROM enrollments WHERE student_id=? ORDER BY enrollment_id DESC";
         List<Enrollment> list = new ArrayList<>();
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
@@ -22,6 +22,50 @@ public class JdbcEnrollmentRepository {
                 return list;
             }
         } catch (SQLException e) { throw new AppException("Failed to load enrollments", e); }
+    }
+
+    public List<Enrollment> findByInstructorId(int instructorId) {
+        String sql = "SELECT e.* FROM enrollments e LEFT JOIN subjects s ON s.subject_id = e.subject_id "
+                + "WHERE e.instructor_id = ? OR s.instructor_id = ? ORDER BY e.enrollment_id DESC";
+        List<Enrollment> list = new ArrayList<>();
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, instructorId);
+            ps.setInt(2, instructorId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(map(rs));
+                return list;
+            }
+        } catch (SQLException e) { throw new AppException("Failed to load enrollments for instructor", e); }
+    }
+
+    public List<Enrollment> findBySubjectId(int subjectId) {
+        String sql = "SELECT * FROM enrollments WHERE subject_id=? ORDER BY enrollment_id DESC";
+        List<Enrollment> list = new ArrayList<>();
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, subjectId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(map(rs));
+                return list;
+            }
+        } catch (SQLException e) { throw new AppException("Failed to load enrollments for subject", e); }
+    }
+
+    public List<Enrollment> findByInstructorAndSubject(int instructorId, int subjectId) {
+        String sql = "SELECT e.* FROM enrollments e LEFT JOIN subjects s ON s.subject_id = e.subject_id "
+                + "WHERE (e.instructor_id = ? OR s.instructor_id = ?) AND e.subject_id = ? ORDER BY e.enrollment_id DESC";
+        List<Enrollment> list = new ArrayList<>();
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, instructorId);
+            ps.setInt(2, instructorId);
+            ps.setInt(3, subjectId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(map(rs));
+                return list;
+            }
+        } catch (SQLException e) { throw new AppException("Failed to load enrollments for instructor and subject", e); }
     }
 
     public Optional<Enrollment> findById(int enrollmentId) {
@@ -61,7 +105,7 @@ public class JdbcEnrollmentRepository {
     }
 
     public void save(Enrollment e) {
-        String sql = "INSERT INTO enrollments (student_id, subject_id, academic_year, semester, status) VALUES (?,?,?,?,?)";
+        String sql = "INSERT INTO enrollments (student_id, subject_id, academic_year, semester, status, instructor_id, grade, enrolled_at) VALUES (?,?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, e.getStudentId());
@@ -69,6 +113,10 @@ public class JdbcEnrollmentRepository {
             ps.setString(3, e.getAcademicYear());
             ps.setString(4, e.getSemester());
             ps.setString(5, e.getStatus());
+            if (e.getInstructorId() != null) ps.setInt(6, e.getInstructorId()); else ps.setNull(6, Types.INTEGER);
+            ps.setString(7, e.getGrade());
+            Timestamp ts = e.getEnrolledAt() != null ? Timestamp.valueOf(e.getEnrolledAt()) : new Timestamp(System.currentTimeMillis());
+            ps.setTimestamp(8, ts);
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) {
                 if (k.next()) e.setEnrollmentId(k.getInt(1));
@@ -77,7 +125,7 @@ public class JdbcEnrollmentRepository {
     }
 
     public void update(Enrollment e) {
-        String sql = "UPDATE enrollments SET student_id=?, subject_id=?, academic_year=?, semester=?, status=? WHERE enrollment_id=?";
+        String sql = "UPDATE enrollments SET student_id=?, subject_id=?, academic_year=?, semester=?, status=?, instructor_id=?, grade=? WHERE enrollment_id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, e.getStudentId());
@@ -85,7 +133,9 @@ public class JdbcEnrollmentRepository {
             ps.setString(3, e.getAcademicYear());
             ps.setString(4, e.getSemester());
             ps.setString(5, e.getStatus());
-            ps.setInt(6, e.getEnrollmentId());
+            if (e.getInstructorId() != null) ps.setInt(6, e.getInstructorId()); else ps.setNull(6, Types.INTEGER);
+            ps.setString(7, e.getGrade());
+            ps.setInt(8, e.getEnrollmentId());
             ps.executeUpdate();
         } catch (SQLException ex) { throw new AppException("Failed to update enrollment", ex); }
     }
@@ -106,6 +156,15 @@ public class JdbcEnrollmentRepository {
         e.setAcademicYear(rs.getString("academic_year"));
         e.setSemester(rs.getString("semester"));
         e.setStatus(rs.getString("status"));
+        try {
+            int instId = rs.getInt("instructor_id");
+            if (!rs.wasNull()) e.setInstructorId(instId);
+        } catch (SQLException ignored) {}
+        try { e.setGrade(rs.getString("grade")); } catch (SQLException ignored) {}
+        try {
+            Timestamp ts = rs.getTimestamp("enrolled_at");
+            if (ts != null) e.setEnrolledAt(ts.toLocalDateTime());
+        } catch (SQLException ignored) {}
         return e;
     }
 }

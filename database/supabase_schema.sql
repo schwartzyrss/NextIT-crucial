@@ -47,12 +47,29 @@ CREATE TABLE IF NOT EXISTS employers (
     address VARCHAR(255) NULL
 );
 
+-- Profile views for compatibility with profile-based lookup queries
+CREATE OR REPLACE VIEW student_profiles AS 
+    SELECT s.*, u.email, u.username, u.first_name, u.last_name 
+    FROM students s JOIN users u ON u.user_id = s.user_id;
+
+CREATE OR REPLACE VIEW instructor_profiles AS 
+    SELECT i.*, u.email, u.username, u.first_name, u.last_name 
+    FROM instructors i JOIN users u ON u.user_id = i.user_id;
+
+CREATE OR REPLACE VIEW employer_profiles AS 
+    SELECT e.*, u.email, u.username, u.first_name, u.last_name 
+    FROM employers e JOIN users u ON u.user_id = e.user_id;
+
 CREATE TABLE IF NOT EXISTS subjects (
     subject_id SERIAL PRIMARY KEY,
     subject_code VARCHAR(30) NOT NULL UNIQUE,
     subject_name VARCHAR(150) NOT NULL,
     units DECIMAL(3,1) NOT NULL,
-    description TEXT NULL
+    description TEXT NULL,
+    section VARCHAR(30) NULL,
+    semester VARCHAR(20) NULL,
+    academic_year VARCHAR(20) NULL,
+    instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS enrollments (
@@ -61,10 +78,44 @@ CREATE TABLE IF NOT EXISTS enrollments (
     subject_id INT NOT NULL REFERENCES subjects(subject_id) ON DELETE RESTRICT,
     academic_year VARCHAR(20) NOT NULL,
     semester VARCHAR(20) NOT NULL,
-    status VARCHAR(30) NOT NULL
+    status VARCHAR(30) NOT NULL,
+    instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL,
+    grade VARCHAR(20) NULL,
+    enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uq_student_enrollment_subject UNIQUE (student_id, subject_id)
 );
 CREATE INDEX IF NOT EXISTS idx_enrollments_student ON enrollments(student_id);
 CREATE INDEX IF NOT EXISTS idx_enrollments_subject ON enrollments(subject_id);
+
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS section VARCHAR(30) NULL;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS semester VARCHAR(20) NULL;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS academic_year VARCHAR(20) NULL;
+ALTER TABLE subjects ADD COLUMN IF NOT EXISTS instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL;
+
+ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL;
+ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS grade VARCHAR(20) NULL;
+ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP;
+
+CREATE OR REPLACE VIEW student_enrollments AS
+SELECT 
+    e.enrollment_id,
+    e.student_id,
+    st.student_number,
+    e.subject_id,
+    COALESCE(e.instructor_id, s.instructor_id) AS instructor_id,
+    e.grade,
+    e.status,
+    e.enrolled_at,
+    e.academic_year,
+    e.semester,
+    s.subject_code,
+    s.subject_name,
+    s.subject_name AS subject_title,
+    s.units,
+    s.section
+FROM enrollments e
+JOIN students st ON st.student_id = e.student_id
+JOIN subjects s ON s.subject_id = e.subject_id;
 
 CREATE TABLE IF NOT EXISTS grades (
     grade_id SERIAL PRIMARY KEY,
@@ -229,6 +280,7 @@ CREATE TABLE IF NOT EXISTS applications (
     application_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     status VARCHAR(30) NOT NULL,
     remarks TEXT NULL,
+    reviewed_at TIMESTAMPTZ NULL,
     CONSTRAINT uq_application UNIQUE (opportunity_id, student_id)
 );
 CREATE INDEX IF NOT EXISTS idx_applications_opportunity ON applications(opportunity_id);
@@ -299,4 +351,143 @@ CREATE INDEX IF NOT EXISTS idx_rec_instructor ON recommendation_letters(instruct
 CREATE INDEX IF NOT EXISTS idx_rec_opportunity ON recommendation_letters(opportunity_id);
 CREATE INDEX IF NOT EXISTS idx_rec_application ON recommendation_letters(application_id);
 CREATE INDEX IF NOT EXISTS idx_rec_status ON recommendation_letters(status);
+
+-- ==============================================================================
+-- SECURITY DEFINER RPC: lookup_account_for_recovery
+-- Safely looks up user for password recovery across username, email, and
+-- institutional/work emails (even when anonymous/unauthenticated and RLS is enabled).
+-- Returns minimal account info needed for OTP dispatch without exposing password hash.
+-- ==============================================================================
+-- ==============================================================================
+-- SECURITY DEFINER RPC: lookup_account_for_recovery
+-- Safely looks up user for password recovery across username, email, and
+-- institutional/work emails (even when anonymous/unauthenticated and RLS is enabled).
+-- Returns minimal account info needed for OTP dispatch without exposing password hash.
+-- ==============================================================================
+CREATE OR REPLACE FUNCTION lookup_account_for_recovery(identifier TEXT)
+RETURNS TABLE (
+    user_id INT,
+    username VARCHAR,
+    email VARCHAR,
+    role VARCHAR,
+    first_name VARCHAR,
+    last_name VARCHAR,
+    masked_email TEXT
+)
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    clean_id TEXT := LOWER(TRIM(identifier));
+BEGIN
+    RETURN QUERY
+    SELECT DISTINCT
+        u.user_id,
+        u.username::VARCHAR,
+        COALESCE(
+            NULLIF(TRIM(u.email), ''),
+            NULLIF(TRIM(vr.institutional_email), ''),
+            NULLIF(TRIM(ir.institutional_email), '')
+        )::VARCHAR AS email,
+        u.role::VARCHAR,
+        u.first_name::VARCHAR,
+        u.last_name::VARCHAR,
+        CONCAT(
+            SUBSTRING(
+                COALESCE(
+                    NULLIF(TRIM(u.email), ''),
+                    NULLIF(TRIM(vr.institutional_email), ''),
+                    NULLIF(TRIM(ir.institutional_email), '')
+                ), 1, 2
+            ),
+            '***',
+            SUBSTRING(
+                COALESCE(
+                    NULLIF(TRIM(u.email), ''),
+                    NULLIF(TRIM(vr.institutional_email), ''),
+                    NULLIF(TRIM(ir.institutional_email), '')
+                )
+                FROM POSITION('@' IN COALESCE(
+                    NULLIF(TRIM(u.email), ''),
+                    NULLIF(TRIM(vr.institutional_email), ''),
+                    NULLIF(TRIM(ir.institutional_email), '')
+                ))
+            )
+        )::TEXT AS masked_email
+    FROM users u
+    LEFT JOIN verification_requests vr ON vr.user_id = u.user_id
+    LEFT JOIN students s ON s.user_id = u.user_id
+    LEFT JOIN instructors i ON i.user_id = u.user_id
+    LEFT JOIN employers emp ON emp.user_id = u.user_id
+    LEFT JOIN institutional_records ir ON (
+        (s.student_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(s.student_number))) OR
+        (i.employee_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(i.employee_number))) OR
+        (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number))) OR
+        (u.username IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(u.username))) OR
+        (u.email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(u.email))) OR
+        (vr.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(vr.institutional_email)))
+    )
+    WHERE 
+        LOWER(TRIM(u.username)) = clean_id
+        OR LOWER(TRIM(u.email)) = clean_id
+        OR (vr.institutional_email IS NOT NULL AND LOWER(TRIM(vr.institutional_email)) = clean_id)
+        OR (ir.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = clean_id)
+        OR (ir.identifier_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = clean_id)
+        OR (s.student_number IS NOT NULL AND LOWER(TRIM(s.student_number)) = clean_id)
+        OR (i.employee_number IS NOT NULL AND LOWER(TRIM(i.employee_number)) = clean_id)
+        OR (vr.id_number IS NOT NULL AND LOWER(TRIM(vr.id_number)) = clean_id)
+    LIMIT 1;
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION lookup_account_for_recovery(TEXT) TO anon, authenticated, service_role, public;
+
+-- ------------------------------------------------------------------------------
+-- AUTOMATED STUDENT ID GENERATION FUNCTION (RPC) & TRIGGER
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION generate_next_student_number(p_year INT DEFAULT EXTRACT(YEAR FROM CURRENT_DATE)::INT)
+RETURNS TEXT AS $$
+DECLARE
+    v_prefix TEXT;
+    v_max_seq INT := 0;
+    v_num TEXT;
+    v_seq INT;
+BEGIN
+    v_prefix := p_year || '-';
+    FOR v_num IN 
+        SELECT student_number FROM students WHERE student_number LIKE v_prefix || '%'
+        UNION
+        SELECT id_number FROM verification_requests WHERE id_number LIKE v_prefix || '%'
+    LOOP
+        BEGIN
+            v_seq := SUBSTRING(v_num FROM LENGTH(v_prefix) + 1)::INT;
+            IF v_seq > v_max_seq THEN
+                v_max_seq := v_seq;
+            END IF;
+        EXCEPTION WHEN OTHERS THEN
+            -- Ignore non-numeric suffixes
+        END;
+    END LOOP;
+    RETURN v_prefix || LPAD((v_max_seq + 1)::TEXT, 4, '0');
+END;
+$$ LANGUAGE plpgsql;
+
+GRANT EXECUTE ON FUNCTION generate_next_student_number(INT) TO anon, authenticated, service_role, public;
+
+CREATE OR REPLACE FUNCTION trg_auto_assign_student_number()
+RETURNS TRIGGER AS $$
+BEGIN
+    IF NEW.student_number IS NULL OR TRIM(NEW.student_number) = '' THEN
+        NEW.student_number := generate_next_student_number(EXTRACT(YEAR FROM CURRENT_DATE)::INT);
+    END IF;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS trg_students_auto_number ON students;
+CREATE TRIGGER trg_students_auto_number
+BEFORE INSERT ON students
+FOR EACH ROW
+EXECUTE FUNCTION trg_auto_assign_student_number();
+
 

@@ -91,15 +91,25 @@ public class JdbcUserRepository implements UserRepository {
                         }
                     }
                 } catch (SQLException rpcEx) {
-                    // Function may not exist yet or RPC disabled, continue to query
-                    log.debug("RPC lookup_account_for_recovery not available: {}", rpcEx.getMessage());
+                    String sqlState = rpcEx.getSQLState();
+                    String msg = rpcEx.getMessage() != null ? rpcEx.getMessage().toLowerCase(Locale.ROOT) : "";
+                    boolean missingFunc = "42883".equals(sqlState) || msg.contains("does not exist");
+                    if (!missingFunc) {
+                        log.error("Database error during RPC account lookup: {}", rpcEx.getMessage());
+                        throw new AppException("Database error during account lookup: " + rpcEx.getMessage(), rpcEx);
+                    }
+                    log.debug("RPC lookup_account_for_recovery not available ({}), falling back to direct query", rpcEx.getMessage());
                 }
             }
 
             // 2. Query across users, verification_requests, students, instructors, employers, and institutional_records
             String sql = """
                 SELECT DISTINCT u.*,
-                       COALESCE(vr.institutional_email, ir.institutional_email, u.email) AS resolved_email
+                       COALESCE(
+                           NULLIF(TRIM(u.email), ''),
+                           NULLIF(TRIM(vr.institutional_email), ''),
+                           NULLIF(TRIM(ir.institutional_email), '')
+                       ) AS resolved_email
                 FROM users u
                 LEFT JOIN verification_requests vr ON vr.user_id = u.user_id
                 LEFT JOIN students s ON s.user_id = u.user_id
@@ -108,12 +118,16 @@ public class JdbcUserRepository implements UserRepository {
                 LEFT JOIN institutional_records ir ON (
                     (s.student_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(s.student_number))) OR
                     (i.employee_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(i.employee_number))) OR
-                    (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number)))
+                    (vr.id_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(vr.id_number))) OR
+                    (u.username IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(u.username))) OR
+                    (u.email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(u.email))) OR
+                    (vr.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(vr.institutional_email)))
                 )
                 WHERE LOWER(TRIM(u.username)) = LOWER(TRIM(?))
                    OR LOWER(TRIM(u.email)) = LOWER(TRIM(?))
                    OR (vr.institutional_email IS NOT NULL AND LOWER(TRIM(vr.institutional_email)) = LOWER(TRIM(?)))
                    OR (ir.institutional_email IS NOT NULL AND LOWER(TRIM(ir.institutional_email)) = LOWER(TRIM(?)))
+                   OR (ir.identifier_number IS NOT NULL AND LOWER(TRIM(ir.identifier_number)) = LOWER(TRIM(?)))
                    OR (s.student_number IS NOT NULL AND LOWER(TRIM(s.student_number)) = LOWER(TRIM(?)))
                    OR (i.employee_number IS NOT NULL AND LOWER(TRIM(i.employee_number)) = LOWER(TRIM(?)))
                    OR (vr.id_number IS NOT NULL AND LOWER(TRIM(vr.id_number)) = LOWER(TRIM(?)))
@@ -121,7 +135,7 @@ public class JdbcUserRepository implements UserRepository {
             """;
 
             try (PreparedStatement ps = c.prepareStatement(sql)) {
-                for (int i = 1; i <= 7; i++) {
+                for (int i = 1; i <= 8; i++) {
                     ps.setString(i, term);
                 }
                 try (ResultSet rs = ps.executeQuery()) {
@@ -129,15 +143,54 @@ public class JdbcUserRepository implements UserRepository {
                         User user = map(rs);
                         try {
                             String resolved = rs.getString("resolved_email");
-                            if ((user.getEmail() == null || user.getEmail().isBlank()) && resolved != null && !resolved.isBlank()) {
-                                user.setEmail(resolved.trim());
+                            if (resolved != null && !resolved.isBlank()) {
+                                if (term.contains("@") || user.getEmail() == null || user.getEmail().isBlank()) {
+                                    user.setEmail(resolved.trim());
+                                }
                             }
                         } catch (Exception ignored) {}
                         return Optional.of(user);
                     }
                 }
             } catch (SQLException ex) {
+                String sqlState = ex.getSQLState();
+                String msg = ex.getMessage() != null ? ex.getMessage().toLowerCase(Locale.ROOT) : "";
+                boolean permissionOrConn = "42501".equals(sqlState)
+                        || (sqlState != null && sqlState.startsWith("08"))
+                        || msg.contains("permission denied")
+                        || msg.contains("access denied")
+                        || msg.contains("connection refused")
+                        || msg.contains("closed");
+                if (permissionOrConn) {
+                    throw new AppException("Database access error during account lookup: " + ex.getMessage(), ex);
+                }
                 log.warn("Cross-table lookup failed ({}), checking users table directly", ex.getMessage());
+            }
+
+            // 2b. Check separate profile tables / views (student_profiles, instructor_profiles, employer_profiles) if available
+            if (term.contains("@")) {
+                String[] profileQueries = new String[]{
+                    "SELECT u.* FROM users u JOIN student_profiles sp ON sp.user_id = u.user_id WHERE LOWER(TRIM(sp.institutional_email)) = LOWER(TRIM(?)) LIMIT 1",
+                    "SELECT u.* FROM users u JOIN instructor_profiles ip ON ip.user_id = u.user_id WHERE LOWER(TRIM(ip.institutional_email)) = LOWER(TRIM(?)) OR LOWER(TRIM(ip.work_email)) = LOWER(TRIM(?)) LIMIT 1",
+                    "SELECT u.* FROM users u JOIN employer_profiles ep ON ep.user_id = u.user_id WHERE LOWER(TRIM(ep.work_email)) = LOWER(TRIM(?)) OR LOWER(TRIM(ep.institutional_email)) = LOWER(TRIM(?)) LIMIT 1"
+                };
+                for (String pQuery : profileQueries) {
+                    try (PreparedStatement pPs = c.prepareStatement(pQuery)) {
+                        pPs.setString(1, term);
+                        if (pQuery.contains("? OR")) {
+                            pPs.setString(2, term);
+                        }
+                        try (ResultSet pRs = pPs.executeQuery()) {
+                            if (pRs.next()) {
+                                User u = map(pRs);
+                                u.setEmail(term);
+                                return Optional.of(u);
+                            }
+                        }
+                    } catch (SQLException ignored) {
+                        // Profile table or optional column might not exist on this schema; safely continue
+                    }
+                }
             }
 
             // 3. Fallback direct query on users table

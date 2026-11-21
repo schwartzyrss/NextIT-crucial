@@ -179,6 +179,8 @@ public class LoginController {
         Label title = new Label("Account Password Recovery");
         title.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #9E0B0F;");
         Label subtitle = new Label("Follow the 3 steps to verify your identity and set a new password.");
+        subtitle.setWrapText(true);
+        subtitle.setMinHeight(Region.USE_PREF_SIZE);
         subtitle.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
         bannerTitles.getChildren().addAll(title, subtitle);
         bannerHeader.getChildren().addAll(modalLogo, bannerTitles);
@@ -218,6 +220,7 @@ public class LoginController {
             Label stepDesc = new Label("Enter your registered username or institutional email address:");
             stepDesc.setWrapText(true);
             stepDesc.setMaxWidth(Double.MAX_VALUE);
+            stepDesc.setMinHeight(Region.USE_PREF_SIZE);
             stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
 
             TextField accountField = new TextField();
@@ -229,11 +232,15 @@ public class LoginController {
             Label helperNote = new Label("We will resolve your verified account and dispatch a 6-digit confirmation code to your email address.");
             helperNote.setWrapText(true);
             helperNote.setMaxWidth(Double.MAX_VALUE);
+            helperNote.setMinHeight(Region.USE_PREF_SIZE);
+            helperNote.setPrefWidth(470);
+            helperNote.setTextOverrun(OverrunStyle.CLIP);
             helperNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A; -fx-line-spacing: 2px;");
 
             Label step1Msg = new Label();
             step1Msg.setWrapText(true);
             step1Msg.setMaxWidth(Double.MAX_VALUE);
+            step1Msg.setMinHeight(Region.USE_PREF_SIZE);
             step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
 
             HBox buttons = new HBox(10);
@@ -310,11 +317,13 @@ public class LoginController {
             Label stepDesc = new Label("Verification code dispatched to " + masked);
             stepDesc.setWrapText(true);
             stepDesc.setMaxWidth(Double.MAX_VALUE);
+            stepDesc.setMinHeight(Region.USE_PREF_SIZE);
             stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
 
             Label expireNote = new Label("The 6-digit code is valid for 10 minutes. Enter it below to verify your identity:");
             expireNote.setWrapText(true);
             expireNote.setMaxWidth(Double.MAX_VALUE);
+            expireNote.setMinHeight(Region.USE_PREF_SIZE);
             expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
 
             TextField otpField = new TextField();
@@ -445,6 +454,9 @@ public class LoginController {
             pill3.getStyleClass().setAll("badge-pill", "badge-pill-pink");
 
             Label stepDesc = new Label("Set a new password for account @" + targetUser[0].getUsername() + ":");
+            stepDesc.setWrapText(true);
+            stepDesc.setMaxWidth(Double.MAX_VALUE);
+            stepDesc.setMinHeight(Region.USE_PREF_SIZE);
             stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
 
             Label newPassLabel = new Label("NEW PASSWORD");

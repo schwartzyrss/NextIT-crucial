@@ -27,14 +27,148 @@ public class AcademicService {
     public List<Attendance> attendanceForStudent(int studentId) { return attendanceRepo.findByStudentId(studentId); }
     public List<Attendance> allAttendance() { return attendanceRepo.findAll(); }
     public List<Enrollment> enrollmentsForStudent(int studentId) { return enrollmentRepo.findByStudentId(studentId); }
+    public List<Enrollment> enrollmentsForInstructor(int instructorId) { return enrollmentRepo.findByInstructorId(instructorId); }
+    public List<Enrollment> enrollmentsForSubject(int subjectId) { return enrollmentRepo.findBySubjectId(subjectId); }
+    public List<Enrollment> enrollmentsForInstructorAndSubject(int instructorId, int subjectId) {
+        return enrollmentRepo.findByInstructorAndSubject(instructorId, subjectId);
+    }
     public List<Enrollment> allEnrollments() { return enrollmentRepo.findAll(); }
+
+    public List<Subject> enrolledSubjectsForStudent(int studentId) {
+        List<Enrollment> enrollments = enrollmentRepo.findByStudentId(studentId);
+        List<Subject> all = subjectRepo.findAll();
+        java.util.Map<Integer, Subject> map = all.stream()
+                .collect(java.util.stream.Collectors.toMap(Subject::getSubjectId, s -> s, (a, b) -> a));
+        List<Subject> result = new java.util.ArrayList<>();
+        for (Enrollment e : enrollments) {
+            Subject s = map.get(e.getSubjectId());
+            if (s != null) {
+                // If enrollment assigns instructor, preserve it
+                if (e.getInstructorId() != null && s.getInstructorId() == null) {
+                    s.setInstructorId(e.getInstructorId());
+                }
+                result.add(s);
+            }
+        }
+        return result;
+    }
+
+    public List<Instructor> instructorsForStudent(int studentId) {
+        List<Enrollment> enrollments = enrollmentRepo.findByStudentId(studentId);
+        List<Subject> allSubjects = subjectRepo.findAll();
+        java.util.Map<Integer, Subject> subjectMap = allSubjects.stream()
+                .collect(java.util.stream.Collectors.toMap(Subject::getSubjectId, s -> s, (a, b) -> a));
+        java.util.Map<Integer, Instructor> instructorMap = instructorRepo.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(Instructor::getInstructorId, i -> i, (a, b) -> a));
+        Set<Integer> instructorIds = new java.util.LinkedHashSet<>();
+        for (Enrollment e : enrollments) {
+            if (e.getInstructorId() != null) {
+                instructorIds.add(e.getInstructorId());
+            }
+            Subject s = subjectMap.get(e.getSubjectId());
+            if (s != null && s.getInstructorId() != null) {
+                instructorIds.add(s.getInstructorId());
+            }
+        }
+        List<Instructor> result = new java.util.ArrayList<>();
+        for (Integer id : instructorIds) {
+            Instructor inst = instructorMap.get(id);
+            if (inst != null) result.add(inst);
+        }
+        return result;
+    }
+
+    public List<Student> studentsForInstructor(int instructorId) {
+        List<Enrollment> enrollments = enrollmentRepo.findByInstructorId(instructorId);
+        java.util.Map<Integer, Student> studentMap = studentRepo.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(Student::getStudentId, s -> s, (a, b) -> a));
+        Set<Integer> studentIds = new java.util.LinkedHashSet<>();
+        for (Enrollment e : enrollments) {
+            studentIds.add(e.getStudentId());
+        }
+        List<Student> result = new java.util.ArrayList<>();
+        for (Integer id : studentIds) {
+            Student s = studentMap.get(id);
+            if (s != null) result.add(s);
+        }
+        return result;
+    }
+
+    public List<Student> studentsForInstructorAndSubject(int instructorId, int subjectId) {
+        List<Enrollment> enrollments = enrollmentRepo.findByInstructorAndSubject(instructorId, subjectId);
+        java.util.Map<Integer, Student> studentMap = studentRepo.findAll().stream()
+                .collect(java.util.stream.Collectors.toMap(Student::getStudentId, s -> s, (a, b) -> a));
+        Set<Integer> studentIds = new java.util.LinkedHashSet<>();
+        for (Enrollment e : enrollments) {
+            studentIds.add(e.getStudentId());
+        }
+        List<Student> result = new java.util.ArrayList<>();
+        for (Integer id : studentIds) {
+            Student s = studentMap.get(id);
+            if (s != null) result.add(s);
+        }
+        return result;
+    }
+
+    public Enrollment enrollStudentInSubject(int studentId, int subjectId, String academicYear, String semester, Integer instructorId) {
+        Subject subject = subjectRepo.findById(subjectId)
+                .orElseThrow(() -> new AppException("Subject not found."));
+        if (studentRepo.findById(studentId).isEmpty()) {
+            throw new AppException("Student not found.");
+        }
+        String ay = (academicYear != null && !academicYear.isBlank()) ? academicYear.trim()
+                : (subject.getAcademicYear() != null && !subject.getAcademicYear().isBlank() ? subject.getAcademicYear() : "2025-2026");
+        String sem = (semester != null && !semester.isBlank()) ? semester.trim()
+                : (subject.getSemester() != null && !subject.getSemester().isBlank() ? subject.getSemester() : "1st Semester");
+        Integer instId = instructorId != null ? instructorId : subject.getInstructorId();
+
+        boolean alreadyEnrolled = enrollmentRepo.findByStudentId(studentId).stream()
+                .anyMatch(e -> e.getSubjectId() == subjectId
+                        && !"Dropped".equalsIgnoreCase(e.getStatus())
+                        && ay.equalsIgnoreCase(e.getAcademicYear())
+                        && sem.equalsIgnoreCase(e.getSemester()));
+        if (alreadyEnrolled) {
+            throw new AppException("Student is already enrolled in " + subject.getSubjectCode() + " - " + subject.getSubjectName() + " for " + ay + " (" + sem + ").");
+        }
+
+        Enrollment e = new Enrollment();
+        e.setStudentId(studentId);
+        e.setSubjectId(subjectId);
+        e.setAcademicYear(ay);
+        e.setSemester(sem);
+        e.setStatus("Enrolled");
+        e.setInstructorId(instId);
+        e.setEnrolledAt(java.time.LocalDateTime.now());
+        saveEnrollment(e);
+        return e;
+    }
+
+    public Enrollment enrollStudentInSubject(int studentId, int subjectId) {
+        return enrollStudentInSubject(studentId, subjectId, null, null, null);
+    }
+
+    public java.util.concurrent.CompletableFuture<Enrollment> enrollStudentInSubjectAsync(int studentId, int subjectId) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> enrollStudentInSubject(studentId, subjectId));
+    }
+
+    public java.util.concurrent.CompletableFuture<List<Enrollment>> enrollmentsForStudentAsync(int studentId) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> enrollmentsForStudent(studentId));
+    }
+
+    public java.util.concurrent.CompletableFuture<List<Subject>> enrolledSubjectsForStudentAsync(int studentId) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> enrolledSubjectsForStudent(studentId));
+    }
+
+    public java.util.concurrent.CompletableFuture<List<Instructor>> instructorsForStudentAsync(int studentId) {
+        return java.util.concurrent.CompletableFuture.supplyAsync(() -> instructorsForStudent(studentId));
+    }
 
     public int studentIdForUser(int userId) {
         return studentRepo.findByUserId(userId).map(Student::getStudentId)
             .orElseGet(() -> {
                 Student s = new Student();
                 s.setUserId(userId);
-                s.setStudentNumber("STU-" + String.format("%04d", userId));
+                s.setStudentNumber(studentRepo.generateNextStudentNumber(java.time.Year.now().getValue()));
                 s.setProgram("BS Information Technology");
                 s.setYearLevel(1);
                 s.setSection("A");

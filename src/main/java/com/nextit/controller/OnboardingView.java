@@ -85,6 +85,15 @@ public class OnboardingView {
             return java.time.Year.now().getValue();
         }
 
+        public String getGeneratedStudentId() {
+            int year = getCurrentYear();
+            return new JdbcStudentRepository().generateNextStudentNumber(year);
+        }
+
+        public String getGeneratedStudentIdForYear(int year) {
+            return new JdbcStudentRepository().generateNextStudentNumber(year > 2000 ? year : getCurrentYear());
+        }
+
         public String getGraduationYearsJson() {
             int current = java.time.Year.now().getValue();
             StringBuilder sb = new StringBuilder("[");
@@ -185,21 +194,22 @@ public class OnboardingView {
                     // Run Anti-Fake Identity Protection Engine
                     AntiFakeIdentityService antiFake = new AntiFakeIdentityService();
                     AntiFakeIdentityService.AnalysisResult analysis;
+                    String finalIdNumber = (detail3 != null) ? detail3.trim() : "";
                     if (role == Role.STUDENT) {
-                        if (detail3 == null || detail3.isBlank()) {
-                            throw new AppException("Student ID number is required for institutional student verification.");
+                        if (finalIdNumber.isBlank()) {
+                            finalIdNumber = new JdbcStudentRepository().generateNextStudentNumber(java.time.Year.now().getValue());
                         }
-                        analysis = antiFake.analyzeStudent(detail3, cleanEmail, firstName, lastName, detail1);
+                        analysis = antiFake.analyzeStudent(finalIdNumber, cleanEmail, firstName, lastName, detail1);
                     } else if (role == Role.INSTRUCTOR) {
-                        if (detail3 == null || detail3.isBlank()) {
+                        if (finalIdNumber.isBlank()) {
                             throw new AppException("Faculty employee identification number is required.");
                         }
-                        analysis = antiFake.analyzeInstructor(detail3, cleanEmail, firstName, lastName, detail1);
+                        analysis = antiFake.analyzeInstructor(finalIdNumber, cleanEmail, firstName, lastName, detail1);
                     } else if (role == Role.EMPLOYER) {
                         if (detail1 == null || detail1.isBlank()) {
                             throw new AppException("Legitimate business or organization name is required.");
                         }
-                        analysis = antiFake.analyzeEmployer(detail1, detail3, cleanEmail, firstName + " " + lastName);
+                        analysis = antiFake.analyzeEmployer(detail1, finalIdNumber, cleanEmail, firstName + " " + lastName);
                     } else {
                         throw new AppException("Unsupported role selection.");
                     }
@@ -219,7 +229,6 @@ public class OnboardingView {
                         JdbcStudentRepository studentRepo = new JdbcStudentRepository();
                         Student s = new Student();
                         s.setUserId(user.getUserId());
-                        s.setStudentNumber(detail3.trim());
                         s.setProgram((detail1 != null && !detail1.isBlank()) ? detail1.trim() : "BS Information Technology");
                         int yr = 1;
                         try {
@@ -230,12 +239,27 @@ public class OnboardingView {
                         s.setYearLevel(yr > 0 ? yr : 1);
                         s.setSection("A");
                         s.setEnrollmentStatus("Enrolled");
-                        studentRepo.save(s);
+
+                        // Atomic retry loop for collision-safe student ID assignment
+                        boolean saved = false;
+                        int attempts = 0;
+                        int currentYear = java.time.Year.now().getValue();
+                        while (!saved && attempts < 10) {
+                            attempts++;
+                            try {
+                                s.setStudentNumber(finalIdNumber);
+                                studentRepo.save(s);
+                                saved = true;
+                            } catch (Exception ex) {
+                                if (attempts >= 10) throw ex;
+                                finalIdNumber = studentRepo.generateNextStudentNumber(currentYear);
+                            }
+                        }
                     } else if (role == Role.INSTRUCTOR) {
                         JdbcInstructorRepository instRepo = new JdbcInstructorRepository();
                         Instructor inst = new Instructor();
                         inst.setUserId(user.getUserId());
-                        inst.setEmployeeNumber(detail3.trim());
+                        inst.setEmployeeNumber(finalIdNumber);
                         inst.setDepartment((detail1 != null && !detail1.isBlank()) ? detail1.trim() : "Computer Studies");
                         inst.setSpecialization((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Information Technology");
                         instRepo.save(inst);
@@ -246,7 +270,7 @@ public class OnboardingView {
                         emp.setCompanyName(detail1.trim());
                         emp.setIndustry((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Technology");
                         emp.setContactPerson(user.getFullName());
-                        emp.setContactNumber((detail3 != null && !detail3.isBlank()) ? detail3.trim() : "");
+                        emp.setContactNumber((finalIdNumber != null && !finalIdNumber.isBlank()) ? finalIdNumber : "");
                         emp.setAddress("Technology Campus");
                         empRepo.save(emp);
                     }
@@ -255,7 +279,7 @@ public class OnboardingView {
                     VerificationRequest req = new VerificationRequest();
                     req.setUserId(user.getUserId());
                     req.setRole(role);
-                    req.setIdNumber(detail3 != null ? detail3.trim() : null);
+                    req.setIdNumber(finalIdNumber);
                     req.setInstitutionalEmail(cleanEmail);
                     req.setOrganizationName(detail1 != null ? detail1.trim() : null);
                     req.setBusinessRegistrationNumber(role == Role.EMPLOYER && detail3 != null ? detail3.trim() : null);

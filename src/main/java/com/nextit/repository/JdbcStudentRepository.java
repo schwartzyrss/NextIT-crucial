@@ -32,6 +32,48 @@ public class JdbcStudentRepository {
         } catch (SQLException e) { throw new AppException("Failed to load student", e); }
     }
 
+    public Optional<Student> findByStudentNumber(String studentNumber) {
+        if (studentNumber == null || studentNumber.isBlank()) return Optional.empty();
+        String sql = "SELECT * FROM students WHERE LOWER(TRIM(student_number))=LOWER(TRIM(?))";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, studentNumber.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        } catch (SQLException e) { throw new AppException("Failed to load student by student number", e); }
+    }
+
+    public String generateNextStudentNumber(int year) {
+        String prefix = year + "-";
+        int maxSeq = 0;
+        String sql = "SELECT student_number FROM students WHERE student_number LIKE ? "
+                + "UNION "
+                + "SELECT id_number FROM verification_requests WHERE id_number LIKE ?";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, prefix + "%");
+            ps.setString(2, prefix + "%");
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String num = rs.getString(1);
+                    if (num != null && num.startsWith(prefix)) {
+                        String suffix = num.substring(prefix.length()).trim();
+                        try {
+                            int seq = Integer.parseInt(suffix);
+                            if (seq > maxSeq) {
+                                maxSeq = seq;
+                            }
+                        } catch (NumberFormatException ignored) {}
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            // fallback gracefully
+        }
+        return String.format("%04d-%04d", year, maxSeq + 1);
+    }
+
     public List<Student> findAll() {
         List<Student> list = new ArrayList<>();
         try (Connection c = DatabaseConfig.getConnection();
