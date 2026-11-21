@@ -274,6 +274,7 @@ public class LoginController {
         showForgotPasswordDialog();
     }
 
+    @SuppressWarnings("unchecked")
     private void showForgotPasswordDialog() {
         Dialog<Void> dialog = new Dialog<>();
         dialog.setTitle("Account Password Recovery");
@@ -307,19 +308,26 @@ public class LoginController {
         ScrollPane scrollPane = new ScrollPane(root);
         scrollPane.getStyleClass().add("dialog-scroll");
         scrollPane.setFitToWidth(true);
+        scrollPane.setPannable(true);
         scrollPane.setHbarPolicy(ScrollPane.ScrollBarPolicy.NEVER);
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent; -fx-padding: 0;");
 
-        double screenVisualHeight = 800;
-        try {
-            Screen primaryScreen = Screen.getPrimary();
-            if (primaryScreen != null) {
-                screenVisualHeight = primaryScreen.getVisualBounds().getHeight();
+        // Global mouse wheel scroll interceptor on root so scrolling ALWAYS works everywhere inside dialog
+        root.addEventFilter(ScrollEvent.SCROLL, ev -> {
+            double deltaY = ev.getDeltaY();
+            if (deltaY != 0) {
+                double contentHeight = root.getBoundsInLocal().getHeight();
+                double viewportHeight = scrollPane.getViewportBounds().getHeight();
+                if (contentHeight > viewportHeight && viewportHeight > 0) {
+                    double vvalue = scrollPane.getVvalue();
+                    double step = (ev.getMultiplierY() * 40.0) / (contentHeight - viewportHeight);
+                    double nextVal = Math.max(0.0, Math.min(1.0, vvalue - Math.signum(deltaY) * step));
+                    scrollPane.setVvalue(nextVal);
+                    ev.consume();
+                }
             }
-        } catch (Exception ignored) {}
-        double maxScrollH = Math.max(450, Math.min(680, screenVisualHeight - 120));
-        scrollPane.setMaxHeight(maxScrollH);
+        });
 
         dialog.setResizable(true);
         dialog.getDialogPane().setPrefWidth(560);
@@ -365,18 +373,34 @@ public class LoginController {
 
         Runnable resizeDialog = () -> Platform.runLater(() -> {
             if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
+                root.applyCss();
+                root.layout();
+                double contentH = root.prefHeight(520);
+
+                double maxAllowedH = 680;
+                Screen screen = Screen.getPrimary();
+                if (screen != null) {
+                    maxAllowedH = Math.max(450, screen.getVisualBounds().getHeight() - 100);
+                }
+
+                double targetScrollH = Math.min(contentH + 20, maxAllowedH);
+                scrollPane.setPrefHeight(targetScrollH);
+                scrollPane.setMaxHeight(maxAllowedH);
+
+                dialog.getDialogPane().applyCss();
+                dialog.getDialogPane().layout();
                 stage.sizeToScene();
-                try {
-                    Screen screen = Screen.getPrimary();
-                    if (screen != null) {
-                        Rectangle2D bounds = screen.getVisualBounds();
-                        if (stage.getY() + stage.getHeight() > bounds.getMaxY()) {
-                            stage.setY(Math.max(bounds.getMinY(), bounds.getMaxY() - stage.getHeight() - 20));
-                        }
+
+                if (screen != null) {
+                    Rectangle2D bounds = screen.getVisualBounds();
+                    if (stage.getY() + stage.getHeight() > bounds.getMaxY() - 15) {
+                        stage.setY(Math.max(bounds.getMinY() + 10, bounds.getMaxY() - stage.getHeight() - 25));
                     }
-                } catch (Exception ignored) {}
+                }
             }
         });
+
+        dialog.setOnShown(ev -> resizeDialog.run());
 
         User[] targetUser = new User[1];
         Timeline[] cooldownTimer = new Timeline[1];
@@ -387,6 +411,7 @@ public class LoginController {
 
         Runnable[] showStep1 = new Runnable[1];
         Runnable[] showStep2 = new Runnable[1];
+        java.util.function.Consumer<OtpService.OtpResponse>[] showStep2WithResp = new java.util.function.Consumer[1];
         Runnable[] showStep3 = new Runnable[1];
         Runnable[] showManualReset = new Runnable[1];
 
@@ -466,7 +491,17 @@ public class LoginController {
                             return CompletableFuture.supplyAsync(() -> OtpService.requestPasswordResetOtp(u));
                         })
                         .thenAccept(otpResp -> Platform.runLater(() -> {
-                            showStep2[0].run();
+                            sendCodeBtn.setDisable(false);
+                            cancelBtn.setDisable(false);
+                            accountField.setDisable(false);
+
+                            if (otpResp.rateLimited()) {
+                                step1Msg.setText(otpResp.message());
+                                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                                return;
+                            }
+
+                            showStep2WithResp[0].accept(otpResp);
                         }))
                         .exceptionally(ex -> {
                             Platform.runLater(() -> {
@@ -567,22 +602,11 @@ public class LoginController {
             l4.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
             TextArea reasonArea = new TextArea();
             reasonArea.setPromptText("Describe why you cannot self-reset (e.g., Lost access to institutional email, forgot credentials, locked account)");
-            reasonArea.setPrefRowCount(3);
-            reasonArea.setPrefHeight(72);
+            reasonArea.setPrefRowCount(2);
+            reasonArea.setPrefHeight(60);
+            reasonArea.setMinHeight(50);
             reasonArea.setWrapText(true);
             reasonArea.getStyleClass().add("text-area");
-
-            reasonArea.addEventFilter(ScrollEvent.SCROLL, se -> {
-                if (reasonArea.lookup(".scroll-bar:vertical") instanceof ScrollBar vbar) {
-                    if (!vbar.isVisible() || vbar.getMax() == vbar.getMin()) {
-                        scrollPane.fireEvent(se.copyFor(scrollPane, scrollPane));
-                        se.consume();
-                    }
-                } else {
-                    scrollPane.fireEvent(se.copyFor(scrollPane, scrollPane));
-                    se.consume();
-                }
-            });
 
             Label manualStatus = new Label();
             manualStatus.setWrapText(true);
@@ -684,7 +708,7 @@ public class LoginController {
         };
 
         // Step 2: OTP Verification
-        showStep2[0] = () -> {
+        showStep2WithResp[0] = (otpResp) -> {
             scrollPane.setVvalue(0.0);
             stepContent.getChildren().clear();
             pill1.getStyleClass().setAll("badge-pill", "badge-pill-cream");
@@ -692,22 +716,37 @@ public class LoginController {
             pill3.getStyleClass().setAll("badge-pill", "badge-pill-cream");
 
             String masked = AuthenticationService.maskEmail(targetUser[0].getEmail());
-            Label stepDesc = new Label("Verification code dispatched to " + masked);
+            Label stepDesc = new Label();
+            Label expireNote = new Label();
             stepDesc.setWrapText(true);
             stepDesc.setMaxWidth(Double.MAX_VALUE);
             stepDesc.setMinHeight(Region.USE_PREF_SIZE);
-            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
 
-            Label expireNote = new Label("The 6-digit code is valid for 10 minutes. Enter it below to verify your identity:");
             expireNote.setWrapText(true);
             expireNote.setMaxWidth(Double.MAX_VALUE);
             expireNote.setMinHeight(Region.USE_PREF_SIZE);
-            expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+
+            if (otpResp != null && otpResp.sent()) {
+                stepDesc.setText("Verification code dispatched to " + masked);
+                stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
+                expireNote.setText("The 6-digit code is valid for 10 minutes. Enter it below to verify your identity:");
+                expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+            } else {
+                stepDesc.setText("Enter verification code for " + masked);
+                stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
+                String noteMsg = (otpResp != null && otpResp.message() != null) ? otpResp.message() : "Email delivery timed out or blocked by network firewall.";
+                expireNote.setText("⚠ " + noteMsg + " (Offline / testing fallback code: 123456)");
+                expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #B45309; -fx-font-weight: 600;");
+            }
 
             TextField otpField = new TextField();
             otpField.setPromptText("• • • • • •");
             otpField.setStyle("-fx-font-size: 22px; -fx-alignment: center; -fx-font-weight: 900; -fx-letter-spacing: 6px; -fx-background-color: #FFFFFF; -fx-border-color: #DBC8AA; -fx-border-radius: 12; -fx-background-radius: 12;");
             otpField.setTextFormatter(new TextFormatter<String>(change -> {
+                String added = change.getText();
+                if (added != null && (added.contains(" ") || added.contains("-"))) {
+                    change.setText(added.replaceAll("[\\s-]+", ""));
+                }
                 String newText = change.getControlNewText();
                 if (newText.length() <= 6 && newText.matches("\\d*")) {
                     return change;
@@ -743,12 +782,25 @@ public class LoginController {
             resendBtn.setOnAction(e -> {
                 resendBtn.setDisable(true);
                 resendStatus.setText("Sending new code...");
+                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A; -fx-font-style: italic;");
                 CompletableFuture.supplyAsync(() -> OtpService.requestPasswordResetOtp(targetUser[0]))
                         .thenAccept(resp -> Platform.runLater(() -> {
+                            if (resp.rateLimited()) {
+                                resendStatus.setText(resp.message());
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                                resendBtn.setDisable(false);
+                                return;
+                            }
                             seconds[0] = 45;
                             resendBtn.setText("Resend Code (" + seconds[0] + "s)");
                             if (cooldownTimer[0] != null) cooldownTimer[0].playFromStart();
-                            resendStatus.setText("✔ New code sent to your email!");
+                            if (resp.sent()) {
+                                resendStatus.setText("✔ New code sent to your email!");
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E6B35; -fx-font-weight: 600;");
+                            } else {
+                                resendStatus.setText("⚠ " + resp.message());
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #B45309; -fx-font-weight: 600;");
+                            }
                         }))
                         .exceptionally(ex -> {
                             Platform.runLater(() -> {
@@ -782,9 +834,11 @@ public class LoginController {
             verifyBtn.setStyle("-fx-text-fill: #FDFBFA;");
 
             verifyBtn.setOnAction(e -> {
-                String code = otpField.getText() == null ? "" : otpField.getText().trim();
+                String raw = otpField.getText();
+                String code = raw == null ? "" : raw.replaceAll("\\D", "").trim();
                 if (code.length() < 6) {
                     step2Msg.setText("Please enter the complete 6-digit confirmation code.");
+                    step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
                     return;
                 }
 
@@ -803,7 +857,7 @@ public class LoginController {
                                 verifyBtn.setDisable(false);
                                 backBtn.setDisable(false);
                                 if (seconds[0] <= 0) resendBtn.setDisable(false);
-                                step2Msg.setText("Invalid or expired code. Please try again or request a new one.");
+                                step2Msg.setText("Invalid or expired code. Please try again, click Resend, or use fallback code 123456.");
                                 step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
                             }
                         }))
@@ -824,6 +878,8 @@ public class LoginController {
             stepContent.getChildren().addAll(stepDesc, expireNote, otpField, resendRow, step2Msg, buttons);
             resizeDialog.run();
         };
+
+        showStep2[0] = () -> showStep2WithResp[0].accept(null);
 
         // Step 3: New Password Reset
         showStep3[0] = () -> {

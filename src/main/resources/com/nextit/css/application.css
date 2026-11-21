@@ -1613,12 +1613,18 @@
 }
 
 .dialog-scroll .scroll-bar:vertical {
+    -fx-background-color: rgba(239, 226, 202, 0.35);
+    -fx-pref-width: 10;
+    -fx-background-radius: 999;
+}
+
+.dialog-scroll .scroll-bar:vertical .track {
     -fx-background-color: transparent;
-    -fx-pref-width: 6;
+    -fx-border-color: transparent;
 }
 
 .dialog-scroll .scroll-bar:vertical .thumb {
-    -fx-background-color: rgba(74, 90, 106, 0.35);
+    -fx-background-color: rgba(74, 90, 106, 0.55);
     -fx-background-radius: 999;
 }
 

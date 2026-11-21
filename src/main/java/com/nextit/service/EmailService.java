@@ -45,8 +45,8 @@ public final class EmailService {
     public static boolean isConfigured() {
         String enabled = getSetting("SMTP_ENABLED", "true");
         if ("false".equalsIgnoreCase(enabled) || "0".equals(enabled)) return false;
-        String user = getSetting("SMTP_USER", "");
-        String pass = getSetting("SMTP_PASSWORD", getSetting("SMTP_PASS", ""));
+        String user = getSetting("SMTP_USER", getSetting("SMTP_USERNAME", ""));
+        String pass = getSetting("SMTP_PASSWORD", getSetting("SMTP_APP_PASSWORD", getSetting("SMTP_PASS", "")));
         return user != null && !user.isBlank() && pass != null && !pass.isBlank();
     }
 
@@ -96,8 +96,8 @@ public final class EmailService {
 
         String host = getSetting("SMTP_HOST", "smtp.gmail.com").trim();
         String port = getSetting("SMTP_PORT", "587").trim();
-        String mailUser = getSetting("SMTP_USER", "").trim();
-        String rawPassword = getSetting("SMTP_PASSWORD", getSetting("SMTP_PASS", ""));
+        String mailUser = getSetting("SMTP_USER", getSetting("SMTP_USERNAME", "")).trim();
+        String rawPassword = getSetting("SMTP_PASSWORD", getSetting("SMTP_APP_PASSWORD", getSetting("SMTP_PASS", "")));
         String password = rawPassword != null ? rawPassword.replace(" ", "").trim() : "";
         String fromAddress = getSetting("SMTP_FROM", "NextIT Security <" + mailUser + ">").trim();
 
@@ -110,6 +110,11 @@ public final class EmailService {
         } catch (Exception exPrimary) {
             log.warn("Primary SMTP delivery failed for password reset on {}:{} (ssl={}): {}", host, port, primarySsl, exPrimary.getMessage());
 
+            String pErr = exPrimary.getMessage() != null ? exPrimary.getMessage() : exPrimary.toString();
+            if (pErr.contains("535") || pErr.toLowerCase().contains("authentication failed") || pErr.toLowerCase().contains("bad credentials")) {
+                return new SmtpResult(false, "SMTP authentication failed. Check your Gmail App Password.", otpCode);
+            }
+
             String altPort = "587".equals(port) ? "465" : "587";
             boolean altSsl = "465".equals(altPort);
             try {
@@ -119,6 +124,10 @@ public final class EmailService {
                 return new SmtpResult(true, "Password reset code sent to " + toEmail + " (via port " + altPort + ")", otpCode);
             } catch (Exception exAlt) {
                 log.warn("Secondary SMTP delivery also failed: {}", exAlt.getMessage());
+                String aErr = exAlt.getMessage() != null ? exAlt.getMessage() : exAlt.toString();
+                if (aErr.contains("535") || aErr.toLowerCase().contains("authentication failed") || aErr.toLowerCase().contains("bad credentials")) {
+                    return new SmtpResult(false, "SMTP authentication failed. Check your Gmail App Password.", otpCode);
+                }
                 String err = "Network/Firewall Block: Outbound SMTP timed out. Use test code " + otpCode + " or 123456.";
                 return new SmtpResult(false, err, otpCode);
             }
