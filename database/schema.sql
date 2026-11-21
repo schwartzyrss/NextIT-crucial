@@ -51,12 +51,30 @@ CREATE TABLE IF NOT EXISTS employers (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
+-- Profile views for compatibility with profile-based lookup queries
+CREATE OR REPLACE VIEW student_profiles AS 
+    SELECT s.*, u.email, u.username, u.first_name, u.last_name 
+    FROM students s JOIN users u ON u.user_id = s.user_id;
+
+CREATE OR REPLACE VIEW instructor_profiles AS 
+    SELECT i.*, u.email, u.username, u.first_name, u.last_name 
+    FROM instructors i JOIN users u ON u.user_id = i.user_id;
+
+CREATE OR REPLACE VIEW employer_profiles AS 
+    SELECT e.*, u.email, u.username, u.first_name, u.last_name 
+    FROM employers e JOIN users u ON u.user_id = e.user_id;
+
 CREATE TABLE IF NOT EXISTS subjects (
     subject_id INT AUTO_INCREMENT PRIMARY KEY,
     subject_code VARCHAR(30) NOT NULL UNIQUE,
     subject_name VARCHAR(150) NOT NULL,
     units DECIMAL(3,1) NOT NULL,
-    description TEXT NULL
+    description TEXT NULL,
+    section VARCHAR(30) NULL,
+    semester VARCHAR(20) NULL,
+    academic_year VARCHAR(20) NULL,
+    instructor_id INT NULL,
+    FOREIGN KEY (instructor_id) REFERENCES instructors(instructor_id) ON DELETE SET NULL
 );
 
 CREATE TABLE IF NOT EXISTS enrollments (
@@ -66,11 +84,36 @@ CREATE TABLE IF NOT EXISTS enrollments (
     academic_year VARCHAR(20) NOT NULL,
     semester VARCHAR(20) NOT NULL,
     status VARCHAR(30) NOT NULL,
+    instructor_id INT NULL,
+    grade VARCHAR(20) NULL,
+    enrolled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     FOREIGN KEY (subject_id) REFERENCES subjects(subject_id) ON DELETE RESTRICT,
+    FOREIGN KEY (instructor_id) REFERENCES instructors(instructor_id) ON DELETE SET NULL,
     INDEX idx_enrollments_student (student_id),
     INDEX idx_enrollments_subject (subject_id)
 );
+
+CREATE OR REPLACE VIEW student_enrollments AS
+SELECT 
+    e.enrollment_id,
+    e.student_id,
+    st.student_number,
+    e.subject_id,
+    COALESCE(e.instructor_id, s.instructor_id) AS instructor_id,
+    e.grade,
+    e.status,
+    e.enrolled_at,
+    e.academic_year,
+    e.semester,
+    s.subject_code,
+    s.subject_name,
+    s.subject_name AS subject_title,
+    s.units,
+    s.section
+FROM enrollments e
+JOIN students st ON st.student_id = e.student_id
+JOIN subjects s ON s.subject_id = e.subject_id;
 
 CREATE TABLE IF NOT EXISTS grades (
     grade_id INT AUTO_INCREMENT PRIMARY KEY,

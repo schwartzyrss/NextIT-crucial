@@ -36,7 +36,7 @@ public class ProfileService {
         if (user != null && user.getRole() == com.nextit.model.Role.STUDENT) {
             Student s = new Student();
             s.setUserId(userId);
-            s.setStudentNumber("STU-" + String.format("%04d", userId));
+            s.setStudentNumber(studentRepo.generateNextStudentNumber(java.time.Year.now().getValue()));
             s.setProgram("BS Information Technology");
             s.setYearLevel(1);
             s.setSection("A");

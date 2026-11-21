@@ -23,6 +23,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -656,14 +658,74 @@ public final class StudentViews {
             Subject s = subjectMap.get(e.getSubjectId());
             return s != null ? s.getSubjectName() : "Subject #" + e.getSubjectId();
         });
+        Ui.addColumn(subjectTable, "Assigned Instructor / Faculty", e -> {
+            Integer instId = e.getInstructorId();
+            if (instId == null) {
+                Subject s = subjectMap.get(e.getSubjectId());
+                if (s != null) instId = s.getInstructorId();
+            }
+            return instId != null ? instructors.getOrDefault(instId, "Prof. #" + instId) : "Unassigned";
+        });
+        Ui.addColumn(subjectTable, "Section", e -> {
+            Subject s = subjectMap.get(e.getSubjectId());
+            return (s != null && s.getSection() != null) ? s.getSection() : "A";
+        });
+        Ui.addColumn(subjectTable, "Semester", Enrollment::getSemester);
         Ui.addColumn(subjectTable, "Units", e -> {
             Subject s = subjectMap.get(e.getSubjectId());
             return s != null ? String.valueOf(s.getUnits()) : "3.0";
         });
-        Ui.addColumn(subjectTable, "Academic Year", Enrollment::getAcademicYear);
-        Ui.addColumn(subjectTable, "Semester", Enrollment::getSemester);
-        Ui.addColumn(subjectTable, "Status", Enrollment::getStatus);
-        subjectTable.setItems(FXCollections.observableArrayList(academic.enrollmentsForStudent(sid)));
+        Ui.addColumn(subjectTable, "Status / Grade", e -> {
+            if (e.getGrade() != null && !e.getGrade().isBlank()) {
+                return e.getStatus() + " (" + e.getGrade() + ")";
+            }
+            return e.getStatus() != null ? e.getStatus() : "Enrolled";
+        });
+
+        TextField subjectSearch = Ui.field("Search subjects by code, title, instructor or section...");
+        Runnable refreshSubjectTable = () -> {
+            List<Enrollment> list = academic.enrollmentsForStudent(sid);
+            subjectMap.clear();
+            subjectMap.putAll(directory.subjectMap());
+            instructors.clear();
+            instructors.putAll(directory.instructorNames());
+            String q = subjectSearch.getText() == null ? "" : subjectSearch.getText().toLowerCase(Locale.ROOT).trim();
+            subjectTable.setItems(FXCollections.observableArrayList(list.stream().filter(e -> {
+                if (q.isBlank()) return true;
+                Subject s = subjectMap.get(e.getSubjectId());
+                String code = s != null ? String.valueOf(s.getSubjectCode()).toLowerCase(Locale.ROOT) : "";
+                String title = s != null ? String.valueOf(s.getSubjectName()).toLowerCase(Locale.ROOT) : "";
+                Integer instId = e.getInstructorId() != null ? e.getInstructorId() : (s != null ? s.getInstructorId() : null);
+                String instName = instId != null ? instructors.getOrDefault(instId, "").toLowerCase(Locale.ROOT) : "";
+                String sec = (s != null && s.getSection() != null) ? s.getSection().toLowerCase(Locale.ROOT) : "";
+                String sem = e.getSemester() != null ? e.getSemester().toLowerCase(Locale.ROOT) : "";
+                return code.contains(q) || title.contains(q) || instName.contains(q) || sec.contains(q) || sem.contains(q);
+            }).toList()));
+        };
+        subjectSearch.textProperty().addListener((obs, old, val) -> refreshSubjectTable.run());
+        refreshSubjectTable.run();
+
+        Button enrollBtn = Ui.button("➕ Enroll / Add Subject", "primary-button");
+        enrollBtn.setOnAction(ev -> showEnrollSubjectDialog(sid, refreshSubjectTable));
+
+        Button refreshSubjectBtn = new Button("Refresh");
+        refreshSubjectBtn.setOnAction(ev -> refreshSubjectTable.run());
+
+        Button exportSubjectCsv = Ui.button("📥 Export CSV", "clay-btn-secondary");
+        exportSubjectCsv.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToCsv(subjectTable, "enrolled_subjects.csv", "Enrolled Subjects", exportSubjectCsv.getScene().getWindow()));
+        Button exportSubjectReport = Ui.button("📄 Print / PDF", "clay-btn-secondary");
+        exportSubjectReport.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToHtmlReport(subjectTable, "enrolled_subjects.html", "Enrolled Subjects", exportSubjectReport.getScene().getWindow()));
+
+        Region subjectSpacer = new Region();
+        HBox.setHgrow(subjectSpacer, Priority.ALWAYS);
+        HBox subjectToolbar = new HBox(8, new Label("Search:"), subjectSearch, enrollBtn, refreshSubjectBtn, subjectSpacer, exportSubjectCsv, exportSubjectReport);
+        subjectToolbar.setAlignment(Pos.CENTER_LEFT);
+        subjectToolbar.setStyle("-fx-padding: 0 0 10 0;");
+        VBox subjectTabContent = new VBox(8, subjectToolbar, subjectTable);
+        VBox.setVgrow(subjectTable, Priority.ALWAYS);
+        subjectTabContent.setStyle("-fx-padding: 12 0 0 0;");
+        Tab subjectTab = new Tab("Subjects", subjectTabContent);
+        subjectTab.setClosable(false);
 
         TableView<Grade> gradeTable = Ui.table();
         Ui.addColumn(gradeTable, "Subject", g -> enrollments.getOrDefault(g.getEnrollmentId(), "Enrollment #" + g.getEnrollmentId()));
@@ -708,12 +770,107 @@ public final class StudentViews {
 
         TabPane tabs = new TabPane();
         tabs.getTabs().addAll(
-                tab("Subjects", subjectTable),
+                subjectTab,
                 tab("Grades", gradeTable),
                 tab("Attendance", attendanceTable),
                 tab("Project Performance", projectTable),
                 tab("Academic Support", supportTable));
         return Ui.page("Academic Progress", "Review your subjects, grades, attendance, project performance and instructor remarks. These records are maintained by your instructors.", tabs);
+    }
+
+    private static void showEnrollSubjectDialog(int studentId, Runnable onComplete) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle("Enroll / Add Subject");
+        dialog.setHeaderText("Course & Subject Enrollment");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        VBox content = new VBox(12);
+        content.setPrefWidth(540);
+        content.setPadding(new Insets(10));
+
+        Label infoLabel = new Label("Select a subject from the academic catalog to enroll for this term. A student can enroll in multiple subjects under different faculty members simultaneously.");
+        infoLabel.setWrapText(true);
+        infoLabel.setStyle("-fx-text-fill: #6E6862; -fx-font-size: 12px;");
+
+        // Filter out already actively enrolled subjects
+        Set<Integer> alreadyEnrolledSubjectIds = academic.enrollmentsForStudent(studentId).stream()
+                .filter(e -> !"Dropped".equalsIgnoreCase(e.getStatus()))
+                .map(Enrollment::getSubjectId)
+                .collect(java.util.stream.Collectors.toSet());
+
+        List<Subject> availableSubjects = directory.subjects().stream()
+                .filter(s -> !alreadyEnrolledSubjectIds.contains(s.getSubjectId()))
+                .toList();
+
+        Map<Integer, String> instNames = directory.instructorNames();
+        ComboBox<Subject> catalogPicker = Ui.combo(availableSubjects, s -> {
+            String inst = s.getInstructorId() != null ? "Prof. " + instNames.getOrDefault(s.getInstructorId(), "Faculty") : "Unassigned";
+            String sec = s.getSection() != null ? "Sec " + s.getSection() : "Sec A";
+            return String.format("[%s] %s (%.1f units • %s • %s)", s.getSubjectCode(), s.getSubjectName(), s.getUnits(), sec, inst);
+        });
+        catalogPicker.setMaxWidth(Double.MAX_VALUE);
+        if (!availableSubjects.isEmpty()) catalogPicker.getSelectionModel().selectFirst();
+
+        TextField codeField = Ui.field("Or enter subject code directly (e.g. IT301, IT-311)");
+        TextField termField = Ui.field("Academic Year (e.g. 2025-2026)");
+        termField.setText("2025-2026");
+        ComboBox<String> semCombo = Ui.combo(List.of("1st Semester", "2nd Semester", "Summer Term"), s -> s);
+        semCombo.getSelectionModel().selectFirst();
+
+        content.getChildren().addAll(
+                infoLabel,
+                new Label("Available Subject Catalog:"), catalogPicker,
+                new Label("Manual Subject Code (Optional Override):"), codeField,
+                new Label("Academic Year:"), termField,
+                new Label("Semester:"), semCombo
+        );
+
+        dialog.getDialogPane().setContent(content);
+        Button okButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        okButton.setText("Enroll Now");
+        okButton.getStyleClass().add("primary-button");
+
+        okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            event.consume();
+            Subject chosen = catalogPicker.getValue();
+            String manualCode = codeField.getText() != null ? codeField.getText().trim() : "";
+            if (!manualCode.isBlank()) {
+                Optional<Subject> found = new com.nextit.repository.JdbcSubjectRepository().findBySubjectCode(manualCode);
+                if (found.isPresent()) {
+                    chosen = found.get();
+                } else {
+                    Alerts.error("No subject found matching code: " + manualCode);
+                    return;
+                }
+            }
+            if (chosen == null) {
+                Alerts.error("Please select a subject from the catalog or enter a valid subject code.");
+                return;
+            }
+
+            final Subject toEnroll = chosen;
+            String ay = termField.getText() != null && !termField.getText().isBlank() ? termField.getText().trim() : "2025-2026";
+            String sem = semCombo.getValue() != null ? semCombo.getValue() : "1st Semester";
+
+            okButton.setDisable(true);
+            CompletableFuture.runAsync(() -> {
+                academic.enrollStudentInSubject(studentId, toEnroll.getSubjectId(), ay, sem, toEnroll.getInstructorId());
+            }).thenRun(() -> Platform.runLater(() -> {
+                dialog.setResult(ButtonType.OK);
+                dialog.close();
+                Alerts.info("Successfully enrolled in " + toEnroll.getSubjectCode() + " - " + toEnroll.getSubjectName() + "!");
+                if (onComplete != null) onComplete.run();
+            })).exceptionally(ex -> {
+                Platform.runLater(() -> {
+                    okButton.setDisable(false);
+                    Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                    Alerts.error(cause.getMessage() != null ? cause.getMessage() : "Failed to enroll in subject.");
+                });
+                return null;
+            });
+        });
+
+        dialog.showAndWait();
     }
 
     private static String score(Double value) {
@@ -980,12 +1137,19 @@ public final class StudentViews {
 
     private static void editProject(int studentId, Project existing, Runnable refresh) {
         Project p = existing == null ? new Project() : existing;
-        List<Subject> subjectList = directory.subjects();
+        List<Subject> enrolledSubjects = academic.enrolledSubjectsForStudent(studentId);
+        List<Subject> subjectList = new ArrayList<>(enrolledSubjects.isEmpty() ? directory.subjects() : enrolledSubjects);
+        if (p.getSubjectId() != null && subjectList.stream().noneMatch(s -> s.getSubjectId() == p.getSubjectId())) {
+            directory.subjects().stream().filter(s -> s.getSubjectId() == p.getSubjectId()).findFirst().ifPresent(subjectList::add);
+        }
         TextField title = Ui.field("Project title");
         title.setText(p.getProjectTitle());
         ComboBox<String> type = Ui.combo(List.of("Laboratory", "Academic Project", "Programming", "Capstone", "Personal", "Research", "Other"), s -> s);
         type.getSelectionModel().select(p.getProjectType() == null ? "Academic Project" : p.getProjectType());
-        ComboBox<Subject> subject = Ui.combo(subjectList, s -> s.getSubjectCode() + " - " + s.getSubjectName());
+        ComboBox<Subject> subject = Ui.combo(subjectList, s -> {
+            String sec = s.getSection() != null ? " (" + s.getSection() + ")" : "";
+            return s.getSubjectCode() + " - " + s.getSubjectName() + sec;
+        });
         if (p.getSubjectId() != null) {
             subjectList.stream().filter(s -> s.getSubjectId() == p.getSubjectId()).findFirst()
                     .ifPresent(subject.getSelectionModel()::select);
@@ -2109,12 +2273,25 @@ public final class StudentViews {
         form.getChildren().add(banner);
 
         // Instructor ComboBox
-        List<Instructor> instructors = directory.instructors();
+        List<Instructor> associated = academic.instructorsForStudent(sid);
+        Set<Integer> associatedIds = associated.stream().map(Instructor::getInstructorId).collect(java.util.stream.Collectors.toSet());
+        List<Instructor> instructors = new ArrayList<>(directory.instructors());
+        instructors.sort((a, b) -> {
+            boolean aAssoc = associatedIds.contains(a.getInstructorId());
+            boolean bAssoc = associatedIds.contains(b.getInstructorId());
+            if (aAssoc && !bAssoc) return -1;
+            if (!aAssoc && bAssoc) return 1;
+            return Integer.compare(a.getInstructorId(), b.getInstructorId());
+        });
         Map<Integer, String> instNames = directory.instructorNames();
-        ComboBox<Instructor> instPicker = Ui.combo(instructors, i -> String.format("Prof. %s (%s • %s)",
-                instNames.getOrDefault(i.getInstructorId(), "Instructor #" + i.getInstructorId()),
-                i.getDepartment() == null ? "CS/IT" : i.getDepartment(),
-                i.getSpecialization() == null ? "Software" : i.getSpecialization()));
+        ComboBox<Instructor> instPicker = Ui.combo(instructors, i -> {
+            boolean isCourseFaculty = associatedIds.contains(i.getInstructorId());
+            return String.format("Prof. %s%s (%s • %s)",
+                    instNames.getOrDefault(i.getInstructorId(), "Instructor #" + i.getInstructorId()),
+                    isCourseFaculty ? " [Course Faculty]" : "",
+                    i.getDepartment() == null ? "CS/IT" : i.getDepartment(),
+                    i.getSpecialization() == null ? "Software" : i.getSpecialization());
+        });
         instPicker.getSelectionModel().selectFirst();
 
         // Opportunity ComboBox

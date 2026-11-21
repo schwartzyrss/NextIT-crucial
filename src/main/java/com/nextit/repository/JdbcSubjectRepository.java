@@ -21,6 +21,17 @@ public class JdbcSubjectRepository {
         } catch (SQLException e) { throw new AppException("Failed to load subject", e); }
     }
 
+    public Optional<Subject> findBySubjectCode(String subjectCode) {
+        if (subjectCode == null || subjectCode.isBlank()) return Optional.empty();
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT * FROM subjects WHERE LOWER(TRIM(subject_code))=LOWER(TRIM(?))")) {
+            ps.setString(1, subjectCode.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        } catch (SQLException e) { throw new AppException("Failed to lookup subject by code", e); }
+    }
+
     public List<Subject> findAll() {
         List<Subject> list = new ArrayList<>();
         try (Connection c = DatabaseConfig.getConnection();
@@ -31,27 +42,47 @@ public class JdbcSubjectRepository {
         } catch (SQLException e) { throw new AppException("Failed to load subjects", e); }
     }
 
+    public List<Subject> findByInstructorId(int instructorId) {
+        List<Subject> list = new ArrayList<>();
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement("SELECT * FROM subjects WHERE instructor_id=? ORDER BY subject_code")) {
+            ps.setInt(1, instructorId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(map(rs));
+                return list;
+            }
+        } catch (SQLException e) { throw new AppException("Failed to load subjects for instructor", e); }
+    }
+
     public void save(Subject s) {
-        String sql = "INSERT INTO subjects (subject_code, subject_name, units, description) VALUES (?,?,?,?)";
+        String sql = "INSERT INTO subjects (subject_code, subject_name, units, description, instructor_id, section, semester, academic_year) VALUES (?,?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, s.getSubjectCode());
             ps.setString(2, s.getSubjectName());
             ps.setDouble(3, s.getUnits());
             ps.setString(4, s.getDescription());
+            if (s.getInstructorId() != null) ps.setInt(5, s.getInstructorId()); else ps.setNull(5, Types.INTEGER);
+            ps.setString(6, s.getSection());
+            ps.setString(7, s.getSemester());
+            ps.setString(8, s.getAcademicYear());
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) s.setSubjectId(k.getInt(1)); }
         } catch (SQLException e) { throw new AppException("Failed to save subject", e); }
     }
 
     public void update(Subject s) {
-        String sql = "UPDATE subjects SET subject_code=?, subject_name=?, units=?, description=? WHERE subject_id=?";
+        String sql = "UPDATE subjects SET subject_code=?, subject_name=?, units=?, description=?, instructor_id=?, section=?, semester=?, academic_year=? WHERE subject_id=?";
         try (Connection c = DatabaseConfig.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, s.getSubjectCode());
             ps.setString(2, s.getSubjectName());
             ps.setDouble(3, s.getUnits());
             ps.setString(4, s.getDescription());
-            ps.setInt(5, s.getSubjectId());
+            if (s.getInstructorId() != null) ps.setInt(5, s.getInstructorId()); else ps.setNull(5, Types.INTEGER);
+            ps.setString(6, s.getSection());
+            ps.setString(7, s.getSemester());
+            ps.setString(8, s.getAcademicYear());
+            ps.setInt(9, s.getSubjectId());
             ps.executeUpdate();
         } catch (SQLException e) { throw new AppException("Failed to update subject", e); }
     }
@@ -73,6 +104,13 @@ public class JdbcSubjectRepository {
         s.setSubjectName(rs.getString("subject_name"));
         s.setUnits(rs.getDouble("units"));
         s.setDescription(rs.getString("description"));
+        try {
+            int instId = rs.getInt("instructor_id");
+            if (!rs.wasNull()) s.setInstructorId(instId);
+        } catch (SQLException ignored) {}
+        try { s.setSection(rs.getString("section")); } catch (SQLException ignored) {}
+        try { s.setSemester(rs.getString("semester")); } catch (SQLException ignored) {}
+        try { s.setAcademicYear(rs.getString("academic_year")); } catch (SQLException ignored) {}
         return s;
     }
 }

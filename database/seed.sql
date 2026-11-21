@@ -11,16 +11,19 @@ INSERT INTO users (username, password_hash, email, role, first_name, last_name, 
 ('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
-('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE);
+('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
+('25-16522',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', '25-16522@g.bastate-u.edu.ph', 'STUDENT', 'BatStateU', 'Scholar', 'VERIFIED', CURRENT_TIMESTAMP, FALSE);
 
 SET @student_user    = (SELECT user_id FROM users WHERE username = 'student1');
 SET @student2_user   = (SELECT user_id FROM users WHERE username = 'student2');
+SET @batstate_user   = (SELECT user_id FROM users WHERE username = '25-16522');
 SET @instructor_user = (SELECT user_id FROM users WHERE username = 'instructor1');
 SET @employer_user   = (SELECT user_id FROM users WHERE username = 'employer1');
 
 INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status) VALUES
 (@student_user, '2023-0001', 'BS Information Technology', 3, 'A', 'Enrolled'),
-(@student2_user, '2023-0002', 'BS Information Technology', 3, 'A', 'Enrolled');
+(@student2_user, '2023-0002', 'BS Information Technology', 3, 'A', 'Enrolled'),
+(@batstate_user, '25-16522', 'BS Information Technology', 3, 'A', 'Enrolled');
 
 INSERT INTO instructors (user_id, employee_number, department, specialization) VALUES
 (@instructor_user, 'EMP-1001', 'Computer Science', 'Software Engineering');
@@ -33,19 +36,19 @@ SET @student2_id   = (SELECT student_id FROM students WHERE user_id = @student2_
 SET @instructor_id = (SELECT instructor_id FROM instructors WHERE user_id = @instructor_user);
 SET @employer_id   = (SELECT employer_id FROM employers WHERE user_id = @employer_user);
 
-INSERT INTO subjects (subject_code, subject_name, units, description) VALUES
-('IT301', 'Object-Oriented Programming', 3.0, 'OOP concepts with Java'),
-('IT302', 'Database Management Systems', 3.0, 'Relational databases and SQL'),
-('IT303', 'Web Development', 3.0, 'Modern web application development');
+INSERT INTO subjects (subject_code, subject_name, units, description, section, semester, academic_year, instructor_id) VALUES
+('IT301', 'Object-Oriented Programming', 3.0, 'OOP concepts with Java', 'A', '1st Semester', '2025-2026', @instructor_id),
+('IT302', 'Database Management Systems', 3.0, 'Relational databases and SQL', 'A', '1st Semester', '2025-2026', @instructor_id),
+('IT303', 'Web Development', 3.0, 'Modern web application development', 'B', '1st Semester', '2025-2026', @instructor_id);
 
 SET @subject_301 = (SELECT subject_id FROM subjects WHERE subject_code = 'IT301');
 SET @subject_302 = (SELECT subject_id FROM subjects WHERE subject_code = 'IT302');
 SET @subject_303 = (SELECT subject_id FROM subjects WHERE subject_code = 'IT303');
 
-INSERT INTO enrollments (student_id, subject_id, academic_year, semester, status) VALUES
-(@student_id, @subject_301, '2025-2026', '1st Semester', 'Enrolled'),
-(@student_id, @subject_302, '2025-2026', '1st Semester', 'Enrolled'),
-(@student_id, @subject_303, '2025-2026', '1st Semester', 'Enrolled');
+INSERT INTO enrollments (student_id, subject_id, academic_year, semester, status, instructor_id, grade) VALUES
+(@student_id, @subject_301, '2025-2026', '1st Semester', 'Enrolled', @instructor_id, '84.00'),
+(@student_id, @subject_302, '2025-2026', '1st Semester', 'Enrolled', @instructor_id, '88.50'),
+(@student_id, @subject_303, '2025-2026', '1st Semester', 'Enrolled', @instructor_id, '91.00');
 
 SET @enrollment_301 = (SELECT enrollment_id FROM enrollments
                        WHERE student_id = @student_id AND subject_id = @subject_301);
@@ -119,6 +122,7 @@ INSERT INTO institutional_records (record_type, identifier_number, institutional
 ('STUDENT', '2023-0002', 'student2@nextit.edu', 'Bianca Cruz', 'BS Information Technology', TRUE),
 ('STUDENT', '2026-0042', 'carlos.mendoza@nextit.edu', 'Carlos Mendoza', 'BS Computer Science', TRUE),
 ('STUDENT', '2026-0099', 'diane.tan@dlsu.edu.ph', 'Diane Tan', 'BS Information Systems', TRUE),
+('STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'BatStateU Scholar', 'BS Information Technology', TRUE),
 ('INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'Maria Santos', 'Computer Science', TRUE),
 ('INSTRUCTOR', 'EMP-1002', 'roberto.garcia@nextit.edu', 'Roberto Garcia', 'Information Technology', TRUE);
 
@@ -126,6 +130,7 @@ INSERT INTO institutional_records (record_type, identifier_number, institutional
 INSERT INTO verification_requests (user_id, role, id_number, institutional_email, organization_name, business_registration_number, document_reference, submission_notes, status, risk_score, risk_flags, reviewed_at) VALUES
 (@student_user, 'STUDENT', '2023-0001', 'student@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
 (@student2_user, 'STUDENT', '2023-0002', 'student2@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
+(@batstate_user, 'STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'Batangas State University', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
 (@instructor_user, 'INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'College of Computer Studies', NULL, 'Faculty Appointment Form CS-2024', 'Faculty credentials confirmed against institutional records.', 'VERIFIED', 5, 'REGISTRAR_FACULTY_CONFIRMED', CURRENT_TIMESTAMP),
 (@employer_user, 'EMPLOYER', NULL, 'employer@techcorp.com', 'TechCorp Solutions', 'SEC-CS2021008891-TIN009', 'SEC Certificate of Incorporation & DTI Permit', 'Corporate registration verified.', 'VERIFIED', 10, 'CORPORATE_DOMAIN_DETECTED', CURRENT_TIMESTAMP);
 

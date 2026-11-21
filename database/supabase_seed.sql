@@ -6,6 +6,7 @@ DO $$
 DECLARE
     v_student_user    INT;
     v_student2_user   INT;
+    v_batstate_user   INT;
     v_instructor_user INT;
     v_employer_user   INT;
     v_admin_user      INT;
@@ -51,6 +52,12 @@ BEGIN
     ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_employer_user;
 
+    -- Seed BatStateU Scholar student user
+    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+    ('25-16522',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', '25-16522@g.bastate-u.edu.ph', 'STUDENT', 'BatStateU', 'Scholar', 'VERIFIED', NOW(), FALSE)
+    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
+    RETURNING user_id INTO v_batstate_user;
+
     -- 2. Students
     INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status)
     VALUES (v_student_user, '2023-0001', 'BS Information Technology', 3, 'A', 'Enrolled')
@@ -61,6 +68,10 @@ BEGIN
     VALUES (v_student2_user, '2023-0002', 'BS Information Technology', 3, 'A', 'Enrolled')
     ON CONFLICT (student_number) DO UPDATE SET program = EXCLUDED.program
     RETURNING student_id INTO v_student2_id;
+
+    INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status)
+    VALUES (v_batstate_user, '25-16522', 'BS Information Technology', 3, 'A', 'Enrolled')
+    ON CONFLICT (student_number) DO UPDATE SET program = EXCLUDED.program;
 
     -- 3. Instructors
     INSERT INTO instructors (user_id, employee_number, department, specialization)
@@ -197,6 +208,7 @@ BEGIN
     ('STUDENT', '2023-0002', 'student2@nextit.edu', 'Bianca Cruz', 'BS Information Technology', TRUE),
     ('STUDENT', '2026-0042', 'carlos.mendoza@nextit.edu', 'Carlos Mendoza', 'BS Computer Science', TRUE),
     ('STUDENT', '2026-0099', 'diane.tan@dlsu.edu.ph', 'Diane Tan', 'BS Information Systems', TRUE),
+    ('STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'BatStateU Scholar', 'BS Information Technology', TRUE),
     ('INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'Maria Santos', 'Computer Science', TRUE),
     ('INSTRUCTOR', 'EMP-1002', 'roberto.garcia@nextit.edu', 'Roberto Garcia', 'Information Technology', TRUE)
     ON CONFLICT (identifier_number) DO NOTHING;
@@ -205,6 +217,7 @@ BEGIN
     INSERT INTO verification_requests (user_id, role, id_number, institutional_email, organization_name, business_registration_number, document_reference, submission_notes, status, risk_score, risk_flags, reviewed_at) VALUES
     (v_student_user, 'STUDENT', '2023-0001', 'student@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
     (v_student2_user, 'STUDENT', '2023-0002', 'student2@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
+    (v_batstate_user, 'STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'Batangas State University', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', NOW()),
     (v_instructor_user, 'INSTRUCTOR', 'EMP-1001', 'instructor@nextit.edu', 'College of Computer Studies', NULL, 'Faculty Appointment Form CS-2024', 'Faculty credentials confirmed against institutional records.', 'VERIFIED', 5, 'REGISTRAR_FACULTY_CONFIRMED', NOW()),
     (v_employer_user, 'EMPLOYER', NULL, 'employer@techcorp.com', 'TechCorp Solutions', 'SEC-CS2021008891-TIN009', 'SEC Certificate of Incorporation & DTI Permit', 'Corporate registration verified.', 'VERIFIED', 10, 'CORPORATE_DOMAIN_DETECTED', NOW());
 

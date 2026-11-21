@@ -78,9 +78,17 @@ class PasswordResetWorkflowTest {
         assertTrue(foundPadded.isPresent());
         assertEquals(99, foundPadded.get().getUserId());
 
+        // Username lookup for the same student
+        Optional<User> foundByUsername = authService.findUserForPasswordReset("25-16522");
+        assertTrue(foundByUsername.isPresent());
+        assertEquals(99, foundByUsername.get().getUserId());
+
         // Full 3-step workflow end-to-end with institutional email
         // Step 1: Account Lookup succeeded (found.get())
         User recoveredUser = found.get();
+
+        // Masked email for institutional address
+        assertEquals("25***2@g.bastate-u.edu.ph", AuthenticationService.maskEmail(recoveredUser.getEmail()));
         // Step 2: Request & Verify OTP
         OtpService.OtpResponse otpResp = OtpService.requestPasswordResetOtp(recoveredUser);
         assertNotNull(otpResp);
@@ -98,6 +106,20 @@ class PasswordResetWorkflowTest {
         assertTrue(authService.findUserForPasswordReset("   ").isEmpty());
         assertTrue(authService.findUserForPasswordReset(null).isEmpty());
         assertTrue(authService.findUserForPasswordReset("non_existent_user").isEmpty());
+    }
+
+    @Test
+    void findUserForPasswordReset_propagatesDatabaseExceptions() {
+        UserRepository failingRepo = new InMemoryUserRepository() {
+            @Override
+            public Optional<User> findByIdentifier(String identifier) {
+                throw new AppException("Database connection refused during account lookup");
+            }
+        };
+        AuthenticationService failingAuthService = new AuthenticationService(failingRepo);
+        AppException ex = assertThrows(AppException.class, () ->
+                failingAuthService.findUserForPasswordReset("25-16522@g.bastate-u.edu.ph"));
+        assertTrue(ex.getMessage().contains("Database connection refused"));
     }
 
     @Test

@@ -449,7 +449,29 @@
           this.role = r;
           this.roleDetail = '';
           this.formError = '';
+          if (r === 'student') {
+            this.fetchStudentIdPreview();
+          } else {
+            this.idNumber = '';
+          }
         }
+      },
+
+      fetchStudentIdPreview() {
+        if (this.role !== 'student') return;
+        if (window.javaBridge && window.javaBridge.getGeneratedStudentId) {
+          try {
+            const preview = window.javaBridge.getGeneratedStudentId();
+            if (preview && preview.trim()) {
+              this.idNumber = preview.trim();
+              return;
+            }
+          } catch (e) {
+            console.error('Error querying generated student ID:', e);
+          }
+        }
+        const yr = this.getCurrentYear();
+        this.idNumber = yr + '-0001';
       },
 
       gradYearsList: [],
@@ -634,11 +656,17 @@
           this.username = this.email.split('@')[0].replace(/[^a-zA-Z0-9_]/g, '');
         }
         this.step = 2;
+        if (this.role === 'student') {
+          this.fetchStudentIdPreview();
+        }
       },
 
       validateStep2() {
         this.formError = '';
         if (this.role === 'student') {
+          if (!this.idNumber || !this.idNumber.trim()) {
+            this.fetchStudentIdPreview();
+          }
           if (!this.orgName || !this.orgName.trim()) {
             this.formError = 'Please specify your degree program or course.';
             return false;
@@ -648,7 +676,7 @@
             return false;
           }
           if (!this.idNumber || !this.idNumber.trim()) {
-            this.formError = 'Please provide your institutional student ID number.';
+            this.formError = 'Auto-generated student ID could not be assigned. Please retry.';
             return false;
           }
         } else if (this.role === 'instructor') {
@@ -1463,7 +1491,27 @@
                 <span x-show="role === 'instructor'">Faculty Employee ID</span>
                 <span x-show="role === 'employer'">Corporate Contact / Title</span>
               </label>
-              <input type="text" x-model="idNumber" placeholder="e.g. 2026-0091" class="clay-input-pill" />
+
+              <!-- STUDENT: Auto-generated read-only display field -->
+              <div x-show="role === 'student'" class="relative">
+                <div class="clay-input-pill flex items-center justify-between cursor-default select-none bg-[#FAF8F5]/90 border border-[#C6A75E]">
+                  <span class="font-mono font-bold text-[#414141] text-sm tracking-wider" x-text="idNumber || 'Assigning Student ID...'"></span>
+                  <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                    <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#FAF4EE] border border-[#C6A75E] text-[#9E0B0F]">Auto-Generated</span>
+                  </div>
+                </div>
+                <p class="text-[11px] text-[#6E6862] font-medium mt-1.5 pl-3 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 text-[#C6A75E] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>Automatically assigned upon registration</span>
+                </p>
+              </div>
+
+              <!-- INSTRUCTOR & EMPLOYER: Manual text input -->
+              <div x-show="role !== 'student'">
+                <input type="text" x-model="idNumber" :placeholder="role === 'instructor' ? 'e.g. EMP-1042' : 'e.g. HR Director / SEC-1234'" class="clay-input-pill" />
+              </div>
             </div>
           </div>
 

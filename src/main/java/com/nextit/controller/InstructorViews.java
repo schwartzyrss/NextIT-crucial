@@ -15,10 +15,13 @@ import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import javafx.application.Platform;
 import java.util.Map;
+import java.util.Set;
+import javafx.application.Platform;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -141,21 +144,67 @@ public final class InstructorViews {
     }
 
     public static Node students() {
+        int iid = instructorId();
         Map<Integer, String> names = directory.studentNames();
+        Map<Integer, Subject> subjectMap = directory.subjectMap();
+        List<Subject> mySubjects = directory.subjects().stream()
+                .filter(s -> s.getInstructorId() != null && s.getInstructorId() == iid)
+                .toList();
+
         TableView<Student> table = Ui.table();
         Ui.addColumn(table, "Student No.", Student::getStudentNumber);
         Ui.addColumn(table, "Name", s -> names.getOrDefault(s.getStudentId(), "Student #" + s.getStudentId()));
         Ui.addColumn(table, "Program", Student::getProgram);
         Ui.addColumn(table, "Year", s -> String.valueOf(s.getYearLevel()));
         Ui.addColumn(table, "Section", Student::getSection);
+        Ui.addColumn(table, "Enrolled Subjects", s -> {
+            List<Enrollment> enrs = academic.enrollmentsForStudent(s.getStudentId());
+            return enrs.stream()
+                    .map(e -> {
+                        Subject sub = subjectMap.get(e.getSubjectId());
+                        return sub != null ? sub.getSubjectCode() : "SUBJ-" + e.getSubjectId();
+                    })
+                    .collect(Collectors.joining(", "));
+        });
         Ui.addColumn(table, "Status", Student::getEnrollmentStatus);
+
+        ComboBox<String> subjectFilter = new ComboBox<>();
+        subjectFilter.getItems().add("All Enrolled Students");
+        subjectFilter.getItems().add("My Enrolled Students (All My Subjects)");
+        Map<String, Integer> subjectFilterMap = new HashMap<>();
+        List<Subject> filterSubjects = mySubjects.isEmpty() ? directory.subjects() : mySubjects;
+        for (Subject s : filterSubjects) {
+            String label = s.getSubjectCode() + " - " + s.getSubjectName() + (s.getSection() != null ? " (" + s.getSection() + ")" : "");
+            subjectFilter.getItems().add(label);
+            subjectFilterMap.put(label, s.getSubjectId());
+        }
+        subjectFilter.getSelectionModel().selectFirst();
 
         TextField search = Ui.field("Search by name, student number, program or section...");
         Runnable filter = () -> {
             names.clear();
             names.putAll(directory.studentNames());
+            subjectMap.clear();
+            subjectMap.putAll(directory.subjectMap());
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(directory.students().stream().filter(s ->
+            String selectedFilter = subjectFilter.getValue();
+            Integer filterSubjectId = subjectFilterMap.get(selectedFilter);
+
+            List<Student> baseList;
+            if (filterSubjectId != null) {
+                baseList = academic.studentsForInstructorAndSubject(iid, filterSubjectId);
+                if (baseList.isEmpty()) {
+                    Set<Integer> sids = academic.enrollmentsForSubject(filterSubjectId).stream().map(Enrollment::getStudentId).collect(Collectors.toSet());
+                    baseList = directory.students().stream().filter(s -> sids.contains(s.getStudentId())).toList();
+                }
+            } else if ("My Enrolled Students (All My Subjects)".equals(selectedFilter)) {
+                baseList = academic.studentsForInstructor(iid);
+                if (baseList.isEmpty()) baseList = directory.students();
+            } else {
+                baseList = directory.students();
+            }
+
+            table.setItems(FXCollections.observableArrayList(baseList.stream().filter(s ->
                     names.getOrDefault(s.getStudentId(), "").toLowerCase(Locale.ROOT).contains(q)
                             || String.valueOf(s.getStudentNumber()).toLowerCase(Locale.ROOT).contains(q)
                             || String.valueOf(s.getProgram()).toLowerCase(Locale.ROOT).contains(q)
@@ -163,6 +212,8 @@ public final class InstructorViews {
         };
         filter.run();
         search.textProperty().addListener((obs, old, value) -> filter.run());
+        subjectFilter.valueProperty().addListener((obs, old, value) -> filter.run());
+
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
         Button recommendBtn = Ui.button("✍ Recommend Student", "primary-button");
@@ -178,8 +229,8 @@ public final class InstructorViews {
         exportCsv.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToCsv(table, "students_roster.csv", "Enrolled Students Roster", exportCsv.getScene().getWindow()));
         Button exportReport = Ui.button("📄 Print / PDF", "clay-btn-secondary");
         exportReport.setOnAction(e -> com.nextit.util.ExportService.exportTableViewToHtmlReport(table, "students_roster_report.html", "Enrolled Students Roster", exportReport.getScene().getWindow()));
-        return Ui.page("Students", "Browse the students enrolled in the program and their academic profile details.",
-                Ui.toolbar(new Label("Search:"), search, recommendBtn, refresh, exportCsv, exportReport), table);
+        return Ui.page("Students & Roster", "Browse students enrolled across your subjects with section and multi-course tracking.",
+                Ui.toolbar(new Label("Filter by Subject:"), subjectFilter, new Label("Search:"), search, recommendBtn, refresh, exportCsv, exportReport), table);
     }
 
     public static Node portfolios() {
@@ -221,25 +272,136 @@ public final class InstructorViews {
     }
 
     public static Node subjects() {
+        int iid = instructorId();
+        Map<Integer, String> instructors = directory.instructorNames();
         TableView<Subject> table = Ui.table();
         Ui.addColumn(table, "Code", Subject::getSubjectCode);
         Ui.addColumn(table, "Subject", Subject::getSubjectName);
         Ui.addColumn(table, "Units", s -> String.valueOf(s.getUnits()));
-        Ui.addColumn(table, "Description", Subject::getDescription);
+        Ui.addColumn(table, "Section", s -> s.getSection() != null ? s.getSection() : "A");
+        Ui.addColumn(table, "Semester", s -> s.getSemester() != null ? s.getSemester() : "1st Semester");
+        Ui.addColumn(table, "Academic Year", s -> s.getAcademicYear() != null ? s.getAcademicYear() : "2025-2026");
+        Ui.addColumn(table, "Assigned Instructor", s -> s.getInstructorId() != null ? instructors.getOrDefault(s.getInstructorId(), "Instructor #" + s.getInstructorId()) : "Unassigned");
+        Ui.addColumn(table, "Enrolled Roster", s -> String.valueOf(academic.enrollmentsForSubject(s.getSubjectId()).size()) + " students");
 
-        TextField search = Ui.field("Search by code or subject name...");
+        TextField search = Ui.field("Search by code, subject name, section or instructor...");
+        ComboBox<String> viewScope = Ui.combo(List.of("All Subjects", "My Assigned Subjects"), s -> s);
+        viewScope.getSelectionModel().select("My Assigned Subjects");
+
         Runnable filter = () -> {
+            instructors.clear();
+            instructors.putAll(directory.instructorNames());
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(directory.subjects().stream().filter(s ->
-                    String.valueOf(s.getSubjectCode()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(s.getSubjectName()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+            String scope = viewScope.getValue();
+            boolean onlyMine = "My Assigned Subjects".equals(scope);
+
+            table.setItems(FXCollections.observableArrayList(directory.subjects().stream()
+                    .filter(s -> !onlyMine || (s.getInstructorId() != null && s.getInstructorId() == iid))
+                    .filter(s -> q.isBlank()
+                            || String.valueOf(s.getSubjectCode()).toLowerCase(Locale.ROOT).contains(q)
+                            || String.valueOf(s.getSubjectName()).toLowerCase(Locale.ROOT).contains(q)
+                            || (s.getSection() != null && s.getSection().toLowerCase(Locale.ROOT).contains(q))
+                            || (s.getInstructorId() != null && instructors.getOrDefault(s.getInstructorId(), "").toLowerCase(Locale.ROOT).contains(q)))
+                    .toList()));
         };
         filter.run();
         search.textProperty().addListener((obs, old, value) -> filter.run());
+        viewScope.valueProperty().addListener((obs, old, value) -> filter.run());
+
+        Button addSubjectBtn = Ui.button("➕ Add Subject / Section", "primary-button");
+        addSubjectBtn.setOnAction(e -> showSubjectDialog(null, iid, filter));
+
+        Button editSubjectBtn = new Button("Edit Subject");
+        editSubjectBtn.setOnAction(e -> {
+            Subject sel = table.getSelectionModel().getSelectedItem();
+            if (sel == null) { Alerts.error("Select a subject to edit."); return; }
+            showSubjectDialog(sel, sel.getInstructorId() != null ? sel.getInstructorId() : iid, filter);
+        });
+
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> filter.run());
-        return Ui.page("Subjects", "Reference information for the subjects used by grades, attendance and projects.",
-                Ui.toolbar(new Label("Search:"), search, refresh), table);
+
+        return Ui.page("Subjects & Course Management", "Manage your assigned subjects, sections, academic terms, and student rosters.",
+                Ui.toolbar(new Label("Scope:"), viewScope, new Label("Search:"), search, addSubjectBtn, editSubjectBtn, refresh), table);
+    }
+
+    private static void showSubjectDialog(Subject existing, int defaultInstructorId, Runnable onComplete) {
+        Dialog<ButtonType> dialog = new Dialog<>();
+        dialog.setTitle(existing == null ? "Add Subject / Section" : "Edit Subject / Section");
+        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+
+        TextField code = Ui.field("Subject code (e.g. IT301, IT-311)");
+        code.setText(existing == null ? "" : existing.getSubjectCode());
+        TextField name = Ui.field("Subject name / title");
+        name.setText(existing == null ? "" : existing.getSubjectName());
+        TextField units = Ui.field("Units (e.g. 3.0)");
+        units.setText(existing == null ? "3.0" : String.valueOf(existing.getUnits()));
+        TextField section = Ui.field("Section (e.g. A, B, CS-3A)");
+        section.setText(existing == null ? "A" : (existing.getSection() != null ? existing.getSection() : "A"));
+        TextField academicYear = Ui.field("Academic year (e.g. 2025-2026)");
+        academicYear.setText(existing == null || existing.getAcademicYear() == null ? "2025-2026" : existing.getAcademicYear());
+        ComboBox<String> semester = Ui.combo(List.of("1st Semester", "2nd Semester", "Summer Term"), s -> s);
+        if (existing != null && existing.getSemester() != null) semester.getSelectionModel().select(existing.getSemester());
+        else semester.getSelectionModel().selectFirst();
+
+        List<Instructor> instructorList = directory.instructors();
+        Map<Integer, String> instNames = directory.instructorNames();
+        ComboBox<Instructor> instPicker = Ui.combo(instructorList, i -> "Prof. " + instNames.getOrDefault(i.getInstructorId(), "Instructor #" + i.getInstructorId()));
+        instructorList.stream().filter(i -> i.getInstructorId() == defaultInstructorId).findFirst().ifPresent(instPicker.getSelectionModel()::select);
+
+        TextArea description = Ui.area("Course description");
+        description.setText(existing == null ? "" : existing.getDescription());
+        description.setPrefRowCount(3);
+
+        Node form = Ui.form(
+                new String[]{"Subject code", "Subject title", "Units", "Section", "Academic year", "Semester", "Assigned instructor", "Description"},
+                new Node[]{code, name, units, section, academicYear, semester, instPicker, description});
+
+        dialog.getDialogPane().setContent(form);
+        Button ok = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
+        ok.setText(existing == null ? "Create Subject" : "Update Subject");
+        ok.getStyleClass().add("primary-button");
+
+        ok.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+            event.consume();
+            String codeVal = code.getText() == null ? "" : code.getText().trim();
+            String nameVal = name.getText() == null ? "" : name.getText().trim();
+            if (codeVal.isBlank() || nameVal.isBlank()) {
+                Alerts.error("Subject code and title are required.");
+                return;
+            }
+            double u;
+            try {
+                u = Double.parseDouble(units.getText().trim());
+            } catch (Exception ex) {
+                Alerts.error("Invalid units value.");
+                return;
+            }
+
+            Subject s = existing == null ? new Subject() : existing;
+            s.setSubjectCode(codeVal);
+            s.setSubjectName(nameVal);
+            s.setUnits(u);
+            s.setSection(section.getText() != null ? section.getText().trim() : "A");
+            s.setAcademicYear(academicYear.getText() != null ? academicYear.getText().trim() : "2025-2026");
+            s.setSemester(semester.getValue());
+            if (instPicker.getValue() != null) s.setInstructorId(instPicker.getValue().getInstructorId());
+            s.setDescription(description.getText());
+
+            try {
+                com.nextit.repository.JdbcSubjectRepository repo = new com.nextit.repository.JdbcSubjectRepository();
+                if (existing == null) repo.save(s);
+                else repo.update(s);
+                dialog.setResult(ButtonType.OK);
+                dialog.close();
+                Alerts.info("Subject " + s.getSubjectCode() + " saved.");
+                if (onComplete != null) onComplete.run();
+            } catch (Exception ex) {
+                Alerts.error("Failed to save subject: " + ex.getMessage());
+            }
+        });
+
+        dialog.showAndWait();
     }
 
     public static Node skills() {
@@ -1111,6 +1273,7 @@ public final class InstructorViews {
     }
 
     public static Node grades() {
+        int iid = instructorId();
         Map<Integer, Enrollment> enrollments = enrollmentIndex();
         Map<Integer, String> students = directory.studentNames();
         Map<Integer, String> subjects = directory.subjectNames();
@@ -1129,6 +1292,16 @@ public final class InstructorViews {
         Ui.addColumn(table, "Recorded", g -> g.getRecordedAt() == null ? "" : g.getRecordedAt().toLocalDate().toString());
         table.setItems(FXCollections.observableArrayList(all));
 
+        ComboBox<String> subjectFilter = new ComboBox<>();
+        subjectFilter.getItems().add("All Subjects");
+        Map<String, Integer> subjectFilterMap = new HashMap<>();
+        for (Subject s : directory.subjects()) {
+            String label = s.getSubjectCode() + " - " + s.getSubjectName() + (s.getSection() != null ? " (" + s.getSection() + ")" : "");
+            subjectFilter.getItems().add(label);
+            subjectFilterMap.put(label, s.getSubjectId());
+        }
+        subjectFilter.getSelectionModel().selectFirst();
+
         TextField search = Ui.field("Search by student, subject or activity...");
         Runnable applyFilter = () -> {
             enrollments.clear();
@@ -1140,12 +1313,23 @@ public final class InstructorViews {
             instructors.clear();
             instructors.putAll(directory.instructorNames());
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(academic.allGrades().stream().filter(g ->
-                    studentLabel(g.getEnrollmentId(), enrollments, students).toLowerCase(Locale.ROOT).contains(q)
-                            || subjectLabel(g.getEnrollmentId(), enrollments, subjects).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(g.getActivityName()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+            Integer filterSubjectId = subjectFilterMap.get(subjectFilter.getValue());
+
+            table.setItems(FXCollections.observableArrayList(academic.allGrades().stream()
+                    .filter(g -> {
+                        if (filterSubjectId != null) {
+                            Enrollment enr = enrollments.get(g.getEnrollmentId());
+                            if (enr == null || enr.getSubjectId() != filterSubjectId) return false;
+                        }
+                        return true;
+                    })
+                    .filter(g ->
+                            studentLabel(g.getEnrollmentId(), enrollments, students).toLowerCase(Locale.ROOT).contains(q)
+                                    || subjectLabel(g.getEnrollmentId(), enrollments, subjects).toLowerCase(Locale.ROOT).contains(q)
+                                    || String.valueOf(g.getActivityName()).toLowerCase(Locale.ROOT).contains(q)).toList()));
         };
         search.textProperty().addListener((obs, old, value) -> applyFilter.run());
+        subjectFilter.valueProperty().addListener((obs, old, val) -> applyFilter.run());
 
         Button add = new Button("Record Grade");
         add.getStyleClass().add("primary-button");
@@ -1170,11 +1354,16 @@ public final class InstructorViews {
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> applyFilter.run());
         return Ui.page("Grade Management", "Record activity scores for students enrolled in your subjects. Grades are calculated automatically from score and maximum score.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, delete, refresh), table);
+                Ui.toolbar(new Label("Filter by Subject:"), subjectFilter, new Label("Search:"), search, add, edit, delete, refresh), table);
     }
 
     private static void editGrade(Grade existing, Runnable refresh) {
-        List<Enrollment> enrollmentList = academic.allEnrollments();
+        int iid = instructorId();
+        List<Enrollment> myEnrollments = academic.enrollmentsForInstructor(iid);
+        List<Enrollment> enrollmentList = new ArrayList<>(myEnrollments.isEmpty() ? academic.allEnrollments() : myEnrollments);
+        if (existing != null && enrollmentList.stream().noneMatch(e -> e.getEnrollmentId() == existing.getEnrollmentId())) {
+            academic.allEnrollments().stream().filter(e -> e.getEnrollmentId() == existing.getEnrollmentId()).findFirst().ifPresent(enrollmentList::add);
+        }
         Map<Integer, String> students = directory.studentNames();
         Map<Integer, String> subjects = directory.subjectNames();
         ComboBox<Enrollment> enrollment = enrollmentCombo(enrollmentList, students, subjects);
@@ -1222,6 +1411,7 @@ public final class InstructorViews {
     }
 
     public static Node attendance() {
+        int iid = instructorId();
         Map<Integer, Enrollment> enrollments = enrollmentIndex();
         Map<Integer, String> students = directory.studentNames();
         Map<Integer, String> subjects = directory.subjectNames();
@@ -1237,6 +1427,16 @@ public final class InstructorViews {
         Ui.addColumn(table, "Recorded By", a -> instructors.getOrDefault(a.getRecordedBy(), "Instructor #" + a.getRecordedBy()));
         table.setItems(FXCollections.observableArrayList(all));
 
+        ComboBox<String> subjectFilter = new ComboBox<>();
+        subjectFilter.getItems().add("All Subjects");
+        Map<String, Integer> subjectFilterMap = new HashMap<>();
+        for (Subject s : directory.subjects()) {
+            String label = s.getSubjectCode() + " - " + s.getSubjectName() + (s.getSection() != null ? " (" + s.getSection() + ")" : "");
+            subjectFilter.getItems().add(label);
+            subjectFilterMap.put(label, s.getSubjectId());
+        }
+        subjectFilter.getSelectionModel().selectFirst();
+
         TextField search = Ui.field("Search by student, subject, date, status or remarks...");
         Runnable applyFilter = () -> {
             enrollments.clear();
@@ -1248,14 +1448,25 @@ public final class InstructorViews {
             instructors.clear();
             instructors.putAll(directory.instructorNames());
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(academic.allAttendance().stream().filter(a ->
-                    studentLabel(a.getEnrollmentId(), enrollments, students).toLowerCase(Locale.ROOT).contains(q)
-                            || subjectLabel(a.getEnrollmentId(), enrollments, subjects).toLowerCase(Locale.ROOT).contains(q)
-                            || Ui.formatDate(a.getAttendanceDate()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(a.getStatus()).toLowerCase(Locale.ROOT).contains(q)
-                            || String.valueOf(a.getRemarks()).toLowerCase(Locale.ROOT).contains(q)).toList()));
+            Integer filterSubjectId = subjectFilterMap.get(subjectFilter.getValue());
+
+            table.setItems(FXCollections.observableArrayList(academic.allAttendance().stream()
+                    .filter(a -> {
+                        if (filterSubjectId != null) {
+                            Enrollment enr = enrollments.get(a.getEnrollmentId());
+                            if (enr == null || enr.getSubjectId() != filterSubjectId) return false;
+                        }
+                        return true;
+                    })
+                    .filter(a ->
+                            studentLabel(a.getEnrollmentId(), enrollments, students).toLowerCase(Locale.ROOT).contains(q)
+                                    || subjectLabel(a.getEnrollmentId(), enrollments, subjects).toLowerCase(Locale.ROOT).contains(q)
+                                    || Ui.formatDate(a.getAttendanceDate()).toLowerCase(Locale.ROOT).contains(q)
+                                    || String.valueOf(a.getStatus()).toLowerCase(Locale.ROOT).contains(q)
+                                    || String.valueOf(a.getRemarks()).toLowerCase(Locale.ROOT).contains(q)).toList()));
         };
         search.textProperty().addListener((obs, old, value) -> applyFilter.run());
+        subjectFilter.valueProperty().addListener((obs, old, val) -> applyFilter.run());
 
         Button add = new Button("Record Attendance");
         add.getStyleClass().add("primary-button");
@@ -1280,11 +1491,16 @@ public final class InstructorViews {
         Button refresh = new Button("Refresh");
         refresh.setOnAction(e -> applyFilter.run());
         return Ui.page("Attendance", "Record attendance for enrolled students and keep an auditable history of each class.",
-                Ui.toolbar(new Label("Search:"), search, add, edit, delete, refresh), table);
+                Ui.toolbar(new Label("Filter by Subject:"), subjectFilter, new Label("Search:"), search, add, edit, delete, refresh), table);
     }
 
     private static void editAttendance(Attendance existing, Runnable refresh) {
-        List<Enrollment> enrollmentList = academic.allEnrollments();
+        int iid = instructorId();
+        List<Enrollment> myEnrollments = academic.enrollmentsForInstructor(iid);
+        List<Enrollment> enrollmentList = new ArrayList<>(myEnrollments.isEmpty() ? academic.allEnrollments() : myEnrollments);
+        if (existing != null && enrollmentList.stream().noneMatch(e -> e.getEnrollmentId() == existing.getEnrollmentId())) {
+            academic.allEnrollments().stream().filter(e -> e.getEnrollmentId() == existing.getEnrollmentId()).findFirst().ifPresent(enrollmentList::add);
+        }
         Map<Integer, String> students = directory.studentNames();
         Map<Integer, String> subjects = directory.subjectNames();
         ComboBox<Enrollment> enrollment = enrollmentCombo(enrollmentList, students, subjects);
