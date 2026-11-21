@@ -395,6 +395,11 @@ public final class Ui {
         return value == null ? "" : value.toString();
     }
 
+    /** Blank-safe display for date-time values. */
+    public static String formatDateTime(java.time.LocalDateTime value) {
+        return value == null ? "" : value.format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm"));
+    }
+
     public static <T> ComboBox<T> combo(List<T> items, Function<T, String> labeler) {
         ComboBox<T> combo = new ComboBox<>(FXCollections.observableArrayList(items));
         combo.setMaxWidth(Double.MAX_VALUE);

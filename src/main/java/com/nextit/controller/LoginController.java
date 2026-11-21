@@ -6,6 +6,7 @@ import com.nextit.model.Role;
 import com.nextit.model.User;
 import com.nextit.service.AuthenticationService;
 import com.nextit.service.OtpService;
+import com.nextit.service.PasswordResetService;
 import com.nextit.util.Alerts;
 import com.nextit.util.Ui;
 import com.nextit.util.WindowBoundsManager;
@@ -337,10 +338,16 @@ public class LoginController {
         Runnable[] showStep1 = new Runnable[1];
         Runnable[] showStep2 = new Runnable[1];
         Runnable[] showStep3 = new Runnable[1];
+        Runnable[] showManualReset = new Runnable[1];
 
         // Step 1: Account Lookup & Code Dispatch
         showStep1[0] = () -> {
             stepContent.getChildren().clear();
+            title.setText("Account Password Recovery");
+            subtitle.setText("Follow the 3 steps to verify your identity and set a new password.");
+            pill1.setText("1. Account Lookup");
+            pill2.setText("2. Verify OTP");
+            pill3.setText("3. New Password");
             pill1.getStyleClass().setAll("badge-pill", "badge-pill-pink");
             pill2.getStyleClass().setAll("badge-pill", "badge-pill-cream");
             pill3.getStyleClass().setAll("badge-pill", "badge-pill-cream");
@@ -431,7 +438,180 @@ public class LoginController {
             });
 
             buttons.getChildren().addAll(cancelBtn, sendCodeBtn);
-            stepContent.getChildren().addAll(stepDesc, accountField, helperNote, step1Msg, buttons);
+
+            // Secondary fallback option for administrative / manual reset request
+            HBox manualHelpRow = new HBox(6);
+            manualHelpRow.setAlignment(Pos.CENTER);
+            manualHelpRow.setPadding(new Insets(8, 0, 0, 0));
+            Label helpNoteLbl = new Label("Can't access your registered email?");
+            helpNoteLbl.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A;");
+            Hyperlink requestManualLink = new Hyperlink("Request a manual password reset");
+            requestManualLink.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F; -fx-font-weight: 700; -fx-underline: true; -fx-cursor: hand; -fx-padding: 0;");
+            requestManualLink.setOnAction(e -> showManualReset[0].run());
+            manualHelpRow.getChildren().addAll(helpNoteLbl, requestManualLink);
+
+            stepContent.getChildren().addAll(stepDesc, accountField, helperNote, step1Msg, buttons, manualHelpRow);
+        };
+
+        // Manual / Administrative Reset Request Form
+        showManualReset[0] = () -> {
+            stepContent.getChildren().clear();
+            title.setText("Request Administrative Password Reset");
+            subtitle.setText("Submit a manual recovery assistance request to department coordinators.");
+            pill1.setText("1. Account Lookup");
+            pill2.setText("2. Verify OTP");
+            pill3.setText("Manual Reset Request");
+            pill1.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+            pill2.getStyleClass().setAll("badge-pill", "badge-pill-cream");
+            pill3.getStyleClass().setAll("badge-pill", "badge-pill-pink");
+
+            Label desc = new Label("If you cannot access your registered email or are locked out, complete this form for coordinator assistance:");
+            desc.setWrapText(true);
+            desc.setStyle("-fx-font-size: 11.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
+
+            VBox f1 = new VBox(2);
+            Label l1 = new Label("USERNAME, STUDENT NUMBER, OR EMPLOYEE ID *");
+            l1.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+            TextField idField = new TextField();
+            idField.setPromptText("Enter your username, student ID, or employee number");
+            idField.getStyleClass().add("text-field");
+            String currUsername = usernameField.getText();
+            if (currUsername != null && !currUsername.isBlank()) {
+                idField.setText(currUsername.trim());
+            }
+
+            VBox f2 = new VBox(2);
+            Label l2 = new Label("REGISTERED / CONTACT EMAIL ADDRESS *");
+            l2.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+            TextField emailField = new TextField();
+            emailField.setPromptText("Enter your institutional or recovery email address");
+            emailField.getStyleClass().add("text-field");
+
+            VBox f3 = new VBox(2);
+            Label l3 = new Label("ACCOUNT ROLE *");
+            l3.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+            ComboBox<Role> roleCombo = new ComboBox<>();
+            roleCombo.getItems().addAll(Role.STUDENT, Role.INSTRUCTOR, Role.EMPLOYER);
+            roleCombo.setValue(Role.STUDENT);
+            roleCombo.setMaxWidth(Double.MAX_VALUE);
+            roleCombo.setConverter(new javafx.util.StringConverter<>() {
+                @Override
+                public String toString(Role r) {
+                    if (r == null) return "";
+                    return switch (r) {
+                        case STUDENT -> "Student Scholar";
+                        case INSTRUCTOR -> "Faculty Instructor / Coordinator";
+                        case EMPLOYER -> "Industry Employer Partner";
+                    };
+                }
+                @Override
+                public Role fromString(String string) { return Role.valueOf(string); }
+            });
+
+            VBox f4 = new VBox(2);
+            Label l4 = new Label("REASON / VERIFICATION NOTE *");
+            l4.setStyle("-fx-font-size: 10px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+            TextArea reasonArea = new TextArea();
+            reasonArea.setPromptText("Describe why you cannot self-reset (e.g., Lost access to institutional email, forgot credentials, locked account)");
+            reasonArea.setPrefRowCount(3);
+            reasonArea.setWrapText(true);
+            reasonArea.getStyleClass().add("text-area");
+
+            Label manualStatus = new Label();
+            manualStatus.setWrapText(true);
+            manualStatus.setMaxWidth(Double.MAX_VALUE);
+            manualStatus.setMinHeight(Region.USE_PREF_SIZE);
+
+            HBox btnRow = new HBox(10);
+            btnRow.setAlignment(Pos.CENTER_RIGHT);
+
+            Button backBtn = new Button("◀ Back to Self-Service");
+            backBtn.getStyleClass().add("secondary-button");
+            backBtn.setOnAction(e -> showStep1[0].run());
+
+            Button submitReqBtn = new Button("Submit Assistance Request");
+            submitReqBtn.getStyleClass().add("primary-button");
+            submitReqBtn.setStyle("-fx-text-fill: #FDFBFA;");
+
+            submitReqBtn.setOnAction(e -> {
+                String idVal = idField.getText() == null ? "" : idField.getText().trim();
+                String emailVal = emailField.getText() == null ? "" : emailField.getText().trim();
+                Role roleVal = roleCombo.getValue();
+                String reasonVal = reasonArea.getText() == null ? "" : reasonArea.getText().trim();
+
+                if (idVal.isBlank() || emailVal.isBlank() || roleVal == null || reasonVal.isBlank()) {
+                    manualStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    manualStatus.setText("Please complete all fields before submitting.");
+                    return;
+                }
+
+                submitReqBtn.setDisable(true);
+                backBtn.setDisable(true);
+                idField.setDisable(true);
+                emailField.setDisable(true);
+                roleCombo.setDisable(true);
+                reasonArea.setDisable(true);
+
+                manualStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #4A5A6A; -fx-font-style: italic;");
+                manualStatus.setText("⏳ Submitting password recovery assistance request...");
+
+                CompletableFuture.supplyAsync(() ->
+                        PasswordResetService.getInstance().submitResetRequest(idVal, emailVal, roleVal, reasonVal)
+                ).thenAccept(savedReq -> Platform.runLater(() -> {
+                    stepContent.getChildren().clear();
+
+                    VBox successCard = new VBox(12);
+                    successCard.setStyle("-fx-background-color: #FAF5E8; -fx-border-color: #10B981; -fx-border-radius: 12; -fx-background-radius: 12; -fx-padding: 16;");
+                    successCard.setAlignment(Pos.CENTER_LEFT);
+
+                    HBox okHeader = new HBox(10);
+                    okHeader.setAlignment(Pos.CENTER_LEFT);
+                    Label okIcon = new Label("✔");
+                    okIcon.setStyle("-fx-font-size: 20px; -fx-text-fill: #10B981; -fx-font-weight: 900;");
+                    Label okTitle = new Label("Assistance Request Submitted");
+                    okTitle.setStyle("-fx-font-size: 13.5px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+                    okHeader.getChildren().addAll(okIcon, okTitle);
+
+                    Label okDesc = new Label("Your password recovery assistance request has been submitted with status PENDING. A department coordinator or system handler will review your identity and dispatch a recovery OTP code to your registered email.");
+                    okDesc.setWrapText(true);
+                    okDesc.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #4A5A6A;");
+
+                    Label refLabel = new Label("Request ID: " + savedReq.getRequestId());
+                    refLabel.setStyle("-fx-font-size: 10.5px; -fx-font-family: monospace; -fx-text-fill: #1A2634; -fx-font-weight: 700;");
+
+                    Button doneBtn = new Button("Done & Return to Login");
+                    doneBtn.getStyleClass().add("primary-button");
+                    doneBtn.setOnAction(ev -> dialog.close());
+
+                    successCard.getChildren().addAll(okHeader, okDesc, refLabel, doneBtn);
+                    stepContent.getChildren().add(successCard);
+                })).exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        submitReqBtn.setDisable(false);
+                        backBtn.setDisable(false);
+                        idField.setDisable(false);
+                        emailField.setDisable(false);
+                        roleCombo.setDisable(false);
+                        reasonArea.setDisable(false);
+
+                        Throwable cause = ex;
+                        while (cause.getCause() != null && cause.getCause() != cause) {
+                            cause = cause.getCause();
+                        }
+                        manualStatus.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                        manualStatus.setText(cause.getMessage() != null ? cause.getMessage() : "Failed to submit request.");
+                    });
+                    return null;
+                });
+            });
+
+            f1.getChildren().addAll(l1, idField);
+            f2.getChildren().addAll(l2, emailField);
+            f3.getChildren().addAll(l3, roleCombo);
+            f4.getChildren().addAll(l4, reasonArea);
+            btnRow.getChildren().addAll(backBtn, submitReqBtn);
+
+            stepContent.getChildren().addAll(desc, f1, f2, f3, f4, manualStatus, btnRow);
         };
 
         // Step 2: OTP Verification
