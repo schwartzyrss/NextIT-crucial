@@ -1864,3 +1864,42 @@
     -fx-background-color: rgba(26, 38, 52, 0.08);
     -fx-text-fill: #1A2634;
 }
+
+/* Dialog ScrollPane & Modern ScrollBar */
+.dialog-scroll {
+    -fx-background-color: transparent;
+    -fx-background: transparent;
+    -fx-border-color: transparent;
+}
+
+.dialog-scroll .viewport {
+    -fx-background-color: transparent;
+}
+
+.dialog-scroll .scroll-bar:vertical {
+    -fx-background-color: transparent;
+    -fx-pref-width: 9px;
+    -fx-padding: 0 1px;
+}
+
+.dialog-scroll .scroll-bar:vertical .track {
+    -fx-background-color: rgba(26, 38, 52, 0.06);
+    -fx-background-radius: 4px;
+    -fx-border-color: transparent;
+}
+
+.dialog-scroll .scroll-bar:vertical .thumb {
+    -fx-background-color: rgba(26, 38, 52, 0.40);
+    -fx-background-radius: 4px;
+}
+
+.dialog-scroll .scroll-bar:vertical .thumb:hover {
+    -fx-background-color: #9E0B0F;
+}
+
+.dialog-scroll .scroll-bar:vertical .increment-button,
+.dialog-scroll .scroll-bar:vertical .decrement-button {
+    -fx-pref-height: 0;
+    -fx-padding: 0;
+    -fx-opacity: 0;
+}
