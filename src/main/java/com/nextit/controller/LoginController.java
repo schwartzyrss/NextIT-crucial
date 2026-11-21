@@ -13,6 +13,7 @@ import com.nextit.util.WindowBoundsManager;
 import javafx.animation.KeyFrame;
 import javafx.animation.Timeline;
 import javafx.application.Platform;
+import javafx.event.EventHandler;
 import javafx.fxml.FXML;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
@@ -313,25 +314,36 @@ public class LoginController {
         scrollPane.setVbarPolicy(ScrollPane.ScrollBarPolicy.AS_NEEDED);
         scrollPane.setStyle("-fx-background-color: transparent; -fx-background: transparent; -fx-border-color: transparent; -fx-padding: 0;");
 
-        // Global mouse wheel scroll interceptor on root so scrolling ALWAYS works everywhere inside dialog
-        root.addEventFilter(ScrollEvent.SCROLL, ev -> {
+        // Comprehensive mouse wheel & trackpad scroll handler everywhere inside dialog
+        EventHandler<ScrollEvent> globalScrollHandler = ev -> {
             double deltaY = ev.getDeltaY();
-            if (deltaY != 0) {
-                double contentHeight = root.getBoundsInLocal().getHeight();
-                double viewportHeight = scrollPane.getViewportBounds().getHeight();
-                if (contentHeight > viewportHeight && viewportHeight > 0) {
-                    double vvalue = scrollPane.getVvalue();
-                    double step = (ev.getMultiplierY() * 40.0) / (contentHeight - viewportHeight);
-                    double nextVal = Math.max(0.0, Math.min(1.0, vvalue - Math.signum(deltaY) * step));
-                    scrollPane.setVvalue(nextVal);
-                    ev.consume();
+            if (deltaY == 0) return;
+
+            double contentH = Math.max(root.getBoundsInLocal().getHeight(), root.prefHeight(520));
+            double viewportH = scrollPane.getViewportBounds().getHeight();
+            if (viewportH <= 0) viewportH = scrollPane.getHeight();
+
+            double scrollableRange = contentH - viewportH;
+            if (scrollableRange > 1) {
+                double mult = (ev.getMultiplierY() > 0) ? ev.getMultiplierY() : 1.0;
+                double scrollDelta = (Math.abs(deltaY) >= 1.0) ? deltaY : Math.signum(deltaY) * 30.0;
+                double pixels = scrollDelta * mult;
+                if (Math.abs(pixels) < 25) {
+                    pixels = Math.signum(deltaY) * 30;
                 }
+                double vstep = pixels / scrollableRange;
+                double nextVal = Math.max(0.0, Math.min(1.0, scrollPane.getVvalue() - vstep));
+                scrollPane.setVvalue(nextVal);
+                ev.consume();
             }
-        });
+        };
+        dialog.getDialogPane().addEventFilter(ScrollEvent.SCROLL, globalScrollHandler);
+        scrollPane.addEventFilter(ScrollEvent.SCROLL, globalScrollHandler);
 
         dialog.setResizable(true);
         dialog.getDialogPane().setPrefWidth(560);
         dialog.getDialogPane().setMinWidth(480);
+        dialog.getDialogPane().setMinHeight(500);
 
         // Top Banner Emblem & Steps
         VBox topBanner = new VBox(10);
@@ -375,27 +387,39 @@ public class LoginController {
             if (dialog.getDialogPane().getScene() != null && dialog.getDialogPane().getScene().getWindow() instanceof Stage stage) {
                 root.applyCss();
                 root.layout();
-                double contentH = root.prefHeight(520);
-
-                double maxAllowedH = 680;
-                Screen screen = Screen.getPrimary();
-                if (screen != null) {
-                    maxAllowedH = Math.max(450, screen.getVisualBounds().getHeight() - 100);
+                double contentH = Math.max(root.prefHeight(520), root.getBoundsInLocal().getHeight());
+                if (contentH < 400) {
+                    contentH = 540;
                 }
 
-                double targetScrollH = Math.min(contentH + 20, maxAllowedH);
-                scrollPane.setPrefHeight(targetScrollH);
-                scrollPane.setMaxHeight(maxAllowedH);
+                Screen screen = Screen.getPrimary();
+                Rectangle2D bounds = (screen != null) ? screen.getVisualBounds() : new Rectangle2D(0, 0, 1920, 1080);
+
+                // OS window trim: title bar (~32-40px) + window border padding (~16px) + DialogPane padding (~32px)
+                double windowTrimH = 80;
+                double desiredStageH = contentH + windowTrimH;
+                double maxAllowedStageH = Math.max(520, bounds.getHeight() - 60);
+
+                double targetStageH = Math.min(desiredStageH, maxAllowedStageH);
+                double availableScrollH = targetStageH - windowTrimH;
+
+                scrollPane.setPrefHeight(availableScrollH);
+                scrollPane.setMaxHeight(availableScrollH);
+
+                stage.setHeight(targetStageH);
+                dialog.getDialogPane().setPrefHeight(targetStageH);
 
                 dialog.getDialogPane().applyCss();
                 dialog.getDialogPane().layout();
                 stage.sizeToScene();
 
-                if (screen != null) {
-                    Rectangle2D bounds = screen.getVisualBounds();
-                    if (stage.getY() + stage.getHeight() > bounds.getMaxY() - 15) {
-                        stage.setY(Math.max(bounds.getMinY() + 10, bounds.getMaxY() - stage.getHeight() - 25));
-                    }
+                // Re-enforce targetStageH in case sizeToScene shrank it below what is needed
+                if (stage.getHeight() < targetStageH) {
+                    stage.setHeight(targetStageH);
+                }
+
+                if (stage.getY() + targetStageH > bounds.getMaxY() - 15) {
+                    stage.setY(Math.max(bounds.getMinY() + 15, bounds.getMaxY() - targetStageH - 25));
                 }
             }
         });
@@ -607,6 +631,11 @@ public class LoginController {
             reasonArea.setMinHeight(50);
             reasonArea.setWrapText(true);
             reasonArea.getStyleClass().add("text-area");
+            reasonArea.focusedProperty().addListener((obs, wasFocused, isFocused) -> {
+                if (isFocused) {
+                    Platform.runLater(() -> scrollPane.setVvalue(1.0));
+                }
+            });
 
             Label manualStatus = new Label();
             manualStatus.setWrapText(true);
