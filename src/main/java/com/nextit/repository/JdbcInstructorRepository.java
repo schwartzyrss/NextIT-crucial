@@ -31,6 +31,52 @@ public class JdbcInstructorRepository {
         } catch (SQLException e) { throw new AppException("Failed to load instructor", e); }
     }
 
+    public Optional<Instructor> findByEmployeeNumber(String employeeNumber) {
+        if (employeeNumber == null || employeeNumber.isBlank()) return Optional.empty();
+        String sql = "SELECT * FROM instructors WHERE LOWER(TRIM(employee_number))=LOWER(TRIM(?))";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, employeeNumber.trim());
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? Optional.of(map(rs)) : Optional.empty();
+            }
+        } catch (SQLException e) { throw new AppException("Failed to load instructor by employee number", e); }
+    }
+
+    public String generateNextFacultyNumber(int year) {
+        int fullYear = year >= 1000 ? year : (year > 0 ? 2000 + year : java.time.Year.now().getValue());
+        String prefix = "FAC-" + fullYear + "-";
+        int maxSeq = 0;
+        String sql = "SELECT employee_number FROM instructors WHERE UPPER(employee_number) LIKE ? "
+                + "UNION "
+                + "SELECT id_number FROM verification_requests WHERE UPPER(id_number) LIKE ? AND role = 'INSTRUCTOR'";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, prefix + "%");
+            ps.setString(2, prefix + "%");
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String num = rs.getString(1);
+                    if (num != null) {
+                        String clean = num.trim().toUpperCase();
+                        if (clean.startsWith(prefix)) {
+                            String suffix = clean.substring(prefix.length()).trim();
+                            try {
+                                int seq = Integer.parseInt(suffix);
+                                if (seq > maxSeq) {
+                                    maxSeq = seq;
+                                }
+                            } catch (NumberFormatException ignored) {}
+                        }
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            // fallback gracefully
+        }
+        return String.format("FAC-%04d-%04d", fullYear, maxSeq + 1);
+    }
+
     public List<Instructor> findAll() {
         List<Instructor> list = new ArrayList<>();
         try (Connection c = DatabaseConfig.getConnection();

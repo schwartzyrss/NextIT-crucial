@@ -82,6 +82,7 @@ public final class InstructorViews {
         badges.getChildren().addAll(
                 Ui.badge("@" + account.getUsername(), "badge-pill-cream"),
                 Ui.badge(String.valueOf(account.getRole()), "badge-pill-mint"),
+                Ui.badge(value(instructor.getEmployeeNumber()), "badge-pill-cream"),
                 Ui.badge(value(instructor.getDepartment()), "badge-pill-lavender")
         );
         identityDetails.getChildren().addAll(nameLabel, badges);
@@ -123,7 +124,7 @@ public final class InstructorViews {
         deptGrid.setVgap(14);
         deptGrid.getColumnConstraints().addAll(col1, col2);
 
-        deptGrid.add(Ui.propertyTile("Employee Number", value(instructor.getEmployeeNumber())), 0, 0);
+        deptGrid.add(Ui.propertyTile("Faculty Employee ID", value(instructor.getEmployeeNumber())), 0, 0);
         deptGrid.add(Ui.propertyTile("Department", value(instructor.getDepartment())), 1, 0);
         deptGrid.add(Ui.propertyTile("Specialization", value(instructor.getSpecialization())), 0, 1);
         deptGrid.add(Ui.propertyTile("Status", Ui.badge("Active Faculty", "badge-pill-mint")), 1, 1);
