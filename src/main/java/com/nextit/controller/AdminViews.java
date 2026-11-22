@@ -31,10 +31,14 @@ public final class AdminViews {
     private AdminViews() {}
 
     public static Node dashboard() {
-        return verificationWorkspace();
+        return verificationWorkspace("All Pending");
     }
 
     public static Node verificationWorkspace() {
+        return verificationWorkspace("All Pending");
+    }
+
+    public static Node verificationWorkspace(String initialFilter) {
         VBox layout = new VBox(20);
         layout.setPadding(new Insets(24));
         layout.setStyle("-fx-background-color: #FAF7F2;");
@@ -76,19 +80,55 @@ public final class AdminViews {
         verifiedInstValLbl.getStyleClass().add("metric-value");
         Label verifiedEmpValLbl = new Label("...");
         verifiedEmpValLbl.getStyleClass().add("metric-value");
+        Label resetValLbl = new Label("...");
+        resetValLbl.getStyleClass().add("metric-value");
         Label rejectedValLbl = new Label("...");
         rejectedValLbl.getStyleClass().add("metric-value");
 
-        VBox c1 = buildMetricCard("Pending Verifications", pendingValLbl, "card-pink", "Awaiting administrator decision");
-        VBox c2 = buildMetricCard("Verified Instructors", verifiedInstValLbl, "card-mint", "Active verified academic faculty");
-        VBox c3 = buildMetricCard("Verified Employers", verifiedEmpValLbl, "card-blue", "Accredited industry partners");
-        VBox c4 = buildMetricCard("Rejected / Flagged", rejectedValLbl, "card-yellow", "Denied or suspicious submissions");
+        // Filter Pills & Search Bar state
+        String[] tabLabels = new String[]{"All Pending", "Instructors", "Employers", "Approved", "Rejected", "All Records"};
+        String startTab = (initialFilter != null && !initialFilter.isBlank()) ? initialFilter : "All Pending";
+        String[] currentFilter = new String[]{startTab};
+        List<Button> tabButtons = new ArrayList<>();
+        Runnable[] updateFilteredListHolder = new Runnable[1];
+
+        java.util.function.Consumer<String> selectFilter = tabLabel -> {
+            currentFilter[0] = tabLabel;
+            for (Button b : tabButtons) {
+                b.setStyle("-fx-font-size: 11.5px; -fx-padding: 5 12;");
+                if (b.getText().equalsIgnoreCase(tabLabel)) {
+                    b.setStyle("-fx-font-size: 11.5px; -fx-padding: 5 12; -fx-background-color: #1A2634; -fx-text-fill: #FFFFFF; -fx-border-color: #1A2634;");
+                }
+            }
+            if (AppController.getInstance() != null) {
+                AppController.getInstance().navigateTo(null, "Verification Queue");
+            }
+            if (updateFilteredListHolder[0] != null) {
+                updateFilteredListHolder[0].run();
+            }
+        };
+
+        VBox c1 = buildMetricCard("Pending Verifications", pendingValLbl, "card-pink", "Awaiting administrator decision",
+                () -> selectFilter.accept("All Pending"));
+        VBox c2 = buildMetricCard("Verified Instructors", verifiedInstValLbl, "card-mint", "Active verified academic faculty",
+                () -> selectFilter.accept("Instructors"));
+        VBox c3 = buildMetricCard("Verified Employers", verifiedEmpValLbl, "card-blue", "Accredited industry partners",
+                () -> selectFilter.accept("Employers"));
+        VBox c4 = buildMetricCard("Password Reset Requests", resetValLbl, "card-yellow", "Account recovery submissions",
+                () -> {
+                    if (AppController.getInstance() != null) {
+                        AppController.getInstance().navigateTo(AdminViews.passwordResetRequests(), "Password Reset Queue");
+                    }
+                });
+        VBox c5 = buildMetricCard("Rejected / Flagged", rejectedValLbl, "card-cream", "Denied or suspicious submissions",
+                () -> selectFilter.accept("Rejected"));
 
         HBox.setHgrow(c1, Priority.ALWAYS);
         HBox.setHgrow(c2, Priority.ALWAYS);
         HBox.setHgrow(c3, Priority.ALWAYS);
         HBox.setHgrow(c4, Priority.ALWAYS);
-        metricRow.getChildren().addAll(c1, c2, c3, c4);
+        HBox.setHgrow(c5, Priority.ALWAYS);
+        metricRow.getChildren().addAll(c1, c2, c3, c4, c5);
 
         // 3. Main Verification Queue Tray
         VBox queueTray = new VBox(14);
@@ -112,10 +152,6 @@ public final class AdminViews {
 
         HBox tabPills = new HBox(6);
         tabPills.setAlignment(Pos.CENTER_LEFT);
-
-        String[] tabLabels = new String[]{"All Pending", "Instructors", "Employers", "Approved", "Rejected", "All Records"};
-        String[] currentFilter = new String[]{"All Pending"};
-        List<Button> tabButtons = new ArrayList<>();
 
         TableView<VerificationRequest> table = Ui.table();
         table.setPlaceholder(new Label("No verification requests found matching the current filter."));
@@ -204,21 +240,17 @@ public final class AdminViews {
 
             table.setItems(FXCollections.observableArrayList(filtered));
         };
+        updateFilteredListHolder[0] = updateFilteredList;
 
         for (String label : tabLabels) {
             Button tb = new Button(label);
             tb.getStyleClass().add("secondary-button");
             tb.setStyle("-fx-font-size: 11.5px; -fx-padding: 5 12;");
-            if (label.equals(currentFilter[0])) {
+            if (label.equalsIgnoreCase(currentFilter[0])) {
                 tb.setStyle(tb.getStyle() + "; -fx-background-color: #1A2634; -fx-text-fill: #FFFFFF; -fx-border-color: #1A2634;");
             }
             tb.setOnAction(e -> {
-                currentFilter[0] = label;
-                for (Button b : tabButtons) {
-                    b.setStyle("-fx-font-size: 11.5px; -fx-padding: 5 12;");
-                }
-                tb.setStyle("-fx-font-size: 11.5px; -fx-padding: 5 12; -fx-background-color: #1A2634; -fx-text-fill: #FFFFFF; -fx-border-color: #1A2634;");
-                updateFilteredList.run();
+                selectFilter.accept(label);
             });
             tabButtons.add(tb);
             tabPills.getChildren().add(tb);
@@ -236,8 +268,9 @@ public final class AdminViews {
                 long verifiedInst = allUsers.stream().filter(u -> u.getRole() == Role.INSTRUCTOR && u.isVerified()).count();
                 long verifiedEmp = allUsers.stream().filter(u -> u.getRole() == Role.EMPLOYER && u.isVerified()).count();
                 long rejectedOrFlagged = reqs.stream().filter(r -> r.getStatus() == VerificationStatus.REJECTED || r.getRiskScore() >= 50).count();
+                long resetCount = resetRequests.listAllRequests().size();
 
-                return new Object[]{reqs, pending, verifiedInst, verifiedEmp, rejectedOrFlagged};
+                return new Object[]{reqs, pending, verifiedInst, verifiedEmp, rejectedOrFlagged, resetCount};
             }).thenAccept(result -> Platform.runLater(() -> {
                 @SuppressWarnings("unchecked")
                 List<VerificationRequest> reqs = (List<VerificationRequest>) result[0];
@@ -245,6 +278,7 @@ public final class AdminViews {
                 long verifiedInst = (long) result[2];
                 long verifiedEmp = (long) result[3];
                 long rejected = (long) result[4];
+                long resetCount = (long) result[5];
 
                 masterCache.clear();
                 masterCache.addAll(reqs);
@@ -253,6 +287,7 @@ public final class AdminViews {
                 verifiedInstValLbl.setText(String.valueOf(verifiedInst));
                 verifiedEmpValLbl.setText(String.valueOf(verifiedEmp));
                 rejectedValLbl.setText(String.valueOf(rejected));
+                resetValLbl.setText(String.valueOf(resetCount));
 
                 updateFilteredList.run();
             })).exceptionally(ex -> {
@@ -326,20 +361,44 @@ public final class AdminViews {
     }
 
     private static VBox buildMetricCard(String title, Label valLbl, String cardColorClass, String note) {
+        return buildMetricCard(title, valLbl, cardColorClass, note, null);
+    }
+
+    private static VBox buildMetricCard(String title, Label valLbl, String cardColorClass, String note, Runnable onClick) {
         VBox card = new VBox(6);
         card.getStyleClass().addAll("clay-card", cardColorClass);
         card.setPadding(new Insets(16, 20, 16, 20));
 
+        HBox topRow = new HBox(8);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
         Label t = new Label(title);
         t.getStyleClass().add("metric-title");
         t.setStyle("-fx-font-size: 13px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        topRow.getChildren().addAll(t, spacer);
+
+        Label arrowHint = null;
+        if (onClick != null) {
+            arrowHint = new Label("→");
+            arrowHint.getStyleClass().add("card-arrow-hint");
+            arrowHint.setStyle("-fx-font-size: 15px; -fx-font-weight: 900; -fx-text-fill: #9E0B0F; -fx-opacity: 0.35;");
+            topRow.getChildren().add(arrowHint);
+        }
 
         valLbl.setStyle("-fx-font-size: 26px; -fx-font-weight: 900; -fx-text-fill: #1A2634;");
 
         Label n = new Label(note);
         n.setStyle("-fx-font-size: 11px; -fx-text-fill: #6E6862;");
 
-        card.getChildren().addAll(t, valLbl, n);
+        card.getChildren().addAll(topRow, valLbl, n);
+
+        if (onClick != null) {
+            Ui.makeInteractive(card, arrowHint, onClick);
+        }
         return card;
     }
 
