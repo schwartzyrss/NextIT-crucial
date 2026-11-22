@@ -118,7 +118,7 @@ public class JdbcInstitutionalRecordRepository implements InstitutionalRecordRep
     private InstitutionalRecord map(ResultSet rs) throws SQLException {
         InstitutionalRecord r = new InstitutionalRecord();
         r.setRecordId(rs.getInt("record_id"));
-        r.setRecordType(Role.valueOf(rs.getString("record_type")));
+        r.setRecordType(Role.fromString(rs.getString("record_type")));
         r.setIdentifierNumber(rs.getString("identifier_number"));
         r.setInstitutionalEmail(rs.getString("institutional_email"));
         r.setFullName(rs.getString("full_name"));

@@ -124,6 +124,10 @@ class QuickAccessLoginTest {
         assertEquals(Role.STUDENT, Role.fromString("student"));
         assertEquals(Role.INSTRUCTOR, Role.fromString("instructor"));
         assertEquals(Role.EMPLOYER, Role.fromString("employer"));
+        assertEquals(Role.STUDENT, Role.fromString("Student Scholar"));
+        assertEquals(Role.INSTRUCTOR, Role.fromString("Faculty Instructor / Coordinator"));
+        assertEquals(Role.EMPLOYER, Role.fromString("Industry Employer Partner"));
+        assertEquals(Role.ADMIN, Role.fromString("System Administrator"));
         assertNull(Role.fromString(null));
         assertNull(Role.fromString(""));
         assertNull(Role.fromString("unknown_role"));

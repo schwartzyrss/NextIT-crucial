@@ -82,7 +82,7 @@ public class JdbcUserRepository implements UserRepository {
                             u.setEmail(rs.getString("email"));
                             String roleStr = rs.getString("role");
                             if (roleStr != null) {
-                                try { u.setRole(Role.valueOf(roleStr.toUpperCase(Locale.ROOT))); } catch (Exception ignored) {}
+                                u.setRole(Role.fromString(roleStr));
                             }
                             u.setFirstName(rs.getString("first_name"));
                             u.setLastName(rs.getString("last_name"));

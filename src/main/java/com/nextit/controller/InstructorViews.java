@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import javafx.application.Platform;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -1891,11 +1892,23 @@ public final class InstructorViews {
             remarksDialog.setTitle("Approve Password Reset");
             remarksDialog.setHeaderText("Authorize password reset for: " + selected.getIdentifierSubmitted());
             remarksDialog.setContentText("Coordinator remarks:");
-            remarksDialog.showAndWait().ifPresent(remarks -> guard(() -> {
-                resetRequests.approveAndDispatchReset(selected.getRequestId(), remarks);
-                Alerts.info("Password reset approved. 6-digit recovery OTP has been generated and dispatched.");
-                refreshData.run();
-            }));
+            remarksDialog.showAndWait().ifPresent(remarks -> {
+                approveBtn.setDisable(true);
+                CompletableFuture.supplyAsync(() -> resetRequests.approveAndDispatchReset(selected.getRequestId(), remarks))
+                        .thenAccept(res -> Platform.runLater(() -> {
+                            approveBtn.setDisable(false);
+                            Alerts.info("Password reset approved. 6-digit recovery OTP has been generated and dispatched.");
+                            refreshData.run();
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                approveBtn.setDisable(false);
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                Alerts.error("Failed to approve reset request: " + cause.getMessage());
+                            });
+                            return null;
+                        });
+            });
         });
 
         Button rejectBtn = new Button("✖ Reject Request");
@@ -1915,11 +1928,23 @@ public final class InstructorViews {
             reasonDialog.setTitle("Reject Password Reset");
             reasonDialog.setHeaderText("Reject reset request for: " + selected.getIdentifierSubmitted());
             reasonDialog.setContentText("Rejection reason / remarks:");
-            reasonDialog.showAndWait().ifPresent(rejectionRemarks -> guard(() -> {
-                resetRequests.rejectRequest(selected.getRequestId(), rejectionRemarks);
-                Alerts.info("Password reset request rejected.");
-                refreshData.run();
-            }));
+            reasonDialog.showAndWait().ifPresent(rejectionRemarks -> {
+                rejectBtn.setDisable(true);
+                CompletableFuture.supplyAsync(() -> resetRequests.rejectRequest(selected.getRequestId(), rejectionRemarks))
+                        .thenAccept(res -> Platform.runLater(() -> {
+                            rejectBtn.setDisable(false);
+                            Alerts.info("Password reset request rejected.");
+                            refreshData.run();
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                rejectBtn.setDisable(false);
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                Alerts.error("Failed to reject request: " + cause.getMessage());
+                            });
+                            return null;
+                        });
+            });
         });
 
         Button refreshBtn = new Button("Refresh");

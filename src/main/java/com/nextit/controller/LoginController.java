@@ -120,22 +120,48 @@ public class LoginController {
             if (authenticationService == null) {
                 authenticationService = new AuthenticationService();
             }
-            User user = authenticationService.login(usernameField.getText(), enteredPassword());
-            transitionToMain(user);
-        } catch (AuthenticationService.MfaRequiredException mfa) {
-            promptMfaDialog(mfa.getUser(), mfa.getMessage());
-        } catch (AppException e) {
-            com.nextit.security.Session.logout();
-            errorLabel.setStyle("");
-            errorLabel.setText(e.getMessage());
+            String username = usernameField.getText();
+            String password = enteredPassword();
+            if (username == null || username.isBlank() || password == null || password.isBlank()) {
+                errorLabel.setText("Please enter your username and password.");
+                return;
+            }
+
+            setQuickLoginBusy(true, "⏳ Authenticating...");
+
+            CompletableFuture.supplyAsync(() -> authenticationService.login(username, password))
+                    .thenAccept(user -> Platform.runLater(() -> {
+                        try {
+                            setQuickLoginBusy(false, null);
+                            transitionToMain(user);
+                        } catch (Exception ex) {
+                            log.error("Failed to transition to main view after login", ex);
+                            setQuickLoginBusy(false, "Failed to load dashboard: " + ex.getMessage());
+                        }
+                    }))
+                    .exceptionally(ex -> {
+                        Platform.runLater(() -> {
+                            setQuickLoginBusy(false, null);
+                            com.nextit.security.Session.logout();
+                            Throwable cause = ex;
+                            while (cause.getCause() != null && cause.getCause() != cause) {
+                                cause = cause.getCause();
+                            }
+                            if (cause instanceof AuthenticationService.MfaRequiredException mfa) {
+                                promptMfaDialog(mfa.getUser(), mfa.getMessage());
+                            } else if (cause instanceof AppException appEx) {
+                                errorLabel.setStyle("-fx-text-fill: #9E0B0F; -fx-font-weight: 700; -fx-font-size: 11.5px; -fx-background-color: #FDF2F2; -fx-border-color: #F5C2C7; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6 12;");
+                                errorLabel.setText(appEx.getMessage());
+                            } else {
+                                log.error("Login failed due to an unexpected error", cause);
+                                Alerts.error("Could not log in: " + (cause.getMessage() != null ? cause.getMessage() : "Please check database connection."));
+                            }
+                        });
+                        return null;
+                    });
         } catch (Exception e) {
-            log.error("Login failed due to an unexpected error", e);
-            com.nextit.security.Session.logout();
-            errorLabel.setStyle("");
-            Alert alert = new Alert(Alert.AlertType.ERROR);
-            alert.setTitle("Error");
-            alert.setContentText("Could not log in. Please check the database connection.");
-            alert.show();
+            log.error("Login initiation error", e);
+            setQuickLoginBusy(false, "Login failed: " + e.getMessage());
         }
     }
 
