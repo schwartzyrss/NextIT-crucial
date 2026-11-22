@@ -335,10 +335,18 @@ public final class Ui {
     }
 
         public static VBox card(String label, String value) {
-        return card(label, value, CLAY_VARIANTS[Math.abs(cardCounter++) % CLAY_VARIANTS.length]);
+        return card(label, value, CLAY_VARIANTS[Math.abs(cardCounter++) % CLAY_VARIANTS.length], null);
     }
 
     public static VBox card(String label, String value, String variant) {
+        return card(label, value, variant, null);
+    }
+
+    public static VBox card(String label, String value, Runnable onClick) {
+        return card(label, value, CLAY_VARIANTS[Math.abs(cardCounter++) % CLAY_VARIANTS.length], onClick);
+    }
+
+    public static VBox card(String label, String value, String variant, Runnable onClick) {
         VBox box = new VBox(6);
         box.getStyleClass().add("card");
         if (variant != null && !variant.isBlank()) {
@@ -346,12 +354,63 @@ public final class Ui {
         } else {
             box.getStyleClass().add(CLAY_VARIANTS[Math.abs(cardCounter++) % CLAY_VARIANTS.length]);
         }
+
+        HBox topRow = new HBox(8);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+
         Label val = new Label(value);
         val.getStyleClass().add("card-value");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        topRow.getChildren().addAll(val, spacer);
+
+        Label arrowHint = null;
+        if (onClick != null) {
+            arrowHint = new Label("→");
+            arrowHint.getStyleClass().add("card-arrow-hint");
+            arrowHint.setStyle("-fx-font-size: 15px; -fx-font-weight: 900; -fx-text-fill: #9E0B0F; -fx-opacity: 0.35;");
+            topRow.getChildren().add(arrowHint);
+        }
+
         Label name = new Label(label);
         name.getStyleClass().add("card-label");
-        box.getChildren().addAll(val, name);
+
+        box.getChildren().addAll(topRow, name);
+
+        if (onClick != null) {
+            makeInteractive(box, arrowHint, onClick);
+        }
+
         return box;
+    }
+
+    public static void makeInteractive(Node node, Runnable onClick) {
+        makeInteractive(node, null, onClick);
+    }
+
+    public static void makeInteractive(Node node, Label arrowHint, Runnable onClick) {
+        if (node == null || onClick == null) return;
+        node.setCursor(javafx.scene.Cursor.HAND);
+        if (!node.getStyleClass().contains("clickable-card")) {
+            node.getStyleClass().add("clickable-card");
+        }
+        node.setOnMouseClicked(e -> {
+            if (e.getButton() == javafx.scene.input.MouseButton.PRIMARY) {
+                onClick.run();
+                e.consume();
+            }
+        });
+        node.hoverProperty().addListener((obs, oldVal, hovered) -> {
+            node.setTranslateY(hovered ? -2.5 : 0.0);
+            if (arrowHint != null) {
+                arrowHint.setTranslateX(hovered ? 3.0 : 0.0);
+                arrowHint.setStyle(hovered
+                        ? "-fx-font-size: 15px; -fx-font-weight: 900; -fx-text-fill: #9E0B0F; -fx-opacity: 1.0;"
+                        : "-fx-font-size: 15px; -fx-font-weight: 900; -fx-text-fill: #9E0B0F; -fx-opacity: 0.35;");
+            }
+        });
     }
 
     public static HBox toolbar(Node... nodes) {

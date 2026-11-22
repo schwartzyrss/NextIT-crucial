@@ -1044,15 +1044,23 @@ public final class InstructorViews {
             cards1.getChildren().clear();
             cards2.getChildren().clear();
 
-            VBox c1 = Ui.card("Students", String.valueOf(directory.students().size()));
-            VBox c2 = Ui.card("Grade Records", String.valueOf(allGrades.size()));
-            VBox c3 = Ui.card("Attendance Records", String.valueOf(allAttendance.size()));
-            VBox c4 = Ui.card("Skill Evaluations", String.valueOf(skills.all().size()));
+            VBox c1 = Ui.card("Students", String.valueOf(directory.students().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.students(), "Students"); });
+            VBox c2 = Ui.card("Grade Records", String.valueOf(allGrades.size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.grades(), "Grades"); });
+            VBox c3 = Ui.card("Attendance Records", String.valueOf(allAttendance.size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.attendance(), "Attendance"); });
+            VBox c4 = Ui.card("Skill Evaluations", String.valueOf(skills.all().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.technicalEvaluations(), "Technical Evaluations"); });
 
-            VBox c5 = Ui.card("Project Evaluations", String.valueOf(projects.allEvaluations().size()));
-            VBox c6 = Ui.card("Academic Support", String.valueOf(support.all().size()));
-            VBox c7 = Ui.card("Projects", String.valueOf(projects.allProjects().size()));
-            VBox c8 = Ui.card("Catalog Subjects", String.valueOf(directory.subjects().size()));
+            VBox c5 = Ui.card("Project Evaluations", String.valueOf(projects.allEvaluations().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.evaluations(), "Project Evaluations"); });
+            VBox c6 = Ui.card("Academic Support", String.valueOf(support.all().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.support(), "Academic Support"); });
+            VBox c7 = Ui.card("Projects", String.valueOf(projects.allProjects().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.projects(), "Projects"); });
+            VBox c8 = Ui.card("Catalog Subjects", String.valueOf(directory.subjects().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.subjects(), "Subjects"); });
 
             for (VBox c : List.of(c1, c2, c3, c4, c5, c6, c7, c8)) {
                 HBox.setHgrow(c, Priority.ALWAYS);
@@ -1064,8 +1072,10 @@ public final class InstructorViews {
 
             // 2. Update Dual Charts
             chartsRow.getChildren().clear();
-            Node attendanceChart = DashboardCharts.attendanceSummary(allAttendance);
-            Node gradesChart = DashboardCharts.averageByActivityType(allGrades);
+            Node attendanceChart = DashboardCharts.attendanceSummary(allAttendance,
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.attendance(), "Attendance"); });
+            Node gradesChart = DashboardCharts.averageByActivityType(allGrades,
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.grades(), "Grades"); });
             HBox.setHgrow(attendanceChart, Priority.ALWAYS);
             HBox.setHgrow(gradesChart, Priority.ALWAYS);
             chartsRow.getChildren().addAll(attendanceChart, gradesChart);
@@ -1190,6 +1200,9 @@ public final class InstructorViews {
         HBox.setHgrow(aSp, Priority.ALWAYS);
         Node aBadge = Ui.badge(allAttendance.size() + " (" + presentCount + " Present)", "badge-pill-mint");
         attRow.getChildren().addAll(aLabel, aSp, aBadge);
+        Ui.makeInteractive(attRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.attendance(), "Attendance");
+        });
 
         HBox gradeRow = new HBox(8);
         gradeRow.setAlignment(Pos.CENTER_LEFT);
@@ -1199,6 +1212,9 @@ public final class InstructorViews {
         HBox.setHgrow(gSp, Priority.ALWAYS);
         Node gBadge = Ui.badge(allGrades.size() + " Submissions", "badge-pill-blue");
         gradeRow.getChildren().addAll(gLabel, gSp, gBadge);
+        Ui.makeInteractive(gradeRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.grades(), "Grades");
+        });
 
         HBox supRow = new HBox(8);
         supRow.setAlignment(Pos.CENTER_LEFT);
@@ -1208,6 +1224,9 @@ public final class InstructorViews {
         HBox.setHgrow(sSp, Priority.ALWAYS);
         Node sBadge = Ui.badge(support.all().size() + " Active", "badge-pill-lavender");
         supRow.getChildren().addAll(sLabel, sSp, sBadge);
+        Ui.makeInteractive(supRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.support(), "Academic Support");
+        });
 
         queueBox.getChildren().addAll(queueHeader, attRow, gradeRow, supRow);
 

@@ -414,30 +414,41 @@ public final class EmployerViews {
             opportunityTitles.clear();
             owned.forEach(o -> opportunityTitles.put(o.getOpportunityId(), o.getTitle()));
 
-            // Update 4 Full-Width Stat Cards with Pastel Clay Accents
+            // Update 5 Full-Width Stat Cards with Pastel Clay Accents
             cardsRow.getChildren().clear();
-            VBox c1 = Ui.card("Posted Opportunities", String.valueOf(owned.size()), "card-yellow");
-            VBox c2 = Ui.card("Open Positions", String.valueOf(open), "card-blue");
-            VBox c3 = Ui.card("Candidate Applications", String.valueOf(apps.size()), "card-cream");
-            VBox c4 = Ui.card("Shared Portfolios", String.valueOf(sharedPortfoliosCount), "card-mint");
+            long shortlistedCount = apps.stream().filter(a -> "Shortlisted".equalsIgnoreCase(a.getStatus())).count();
+            int recommendedCount = directory.students().size();
 
-            for (VBox c : List.of(c1, c2, c3, c4)) {
+            VBox c1 = Ui.card("Active Opportunities", open + " Open (" + owned.size() + " Total)", "card-yellow",
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.opportunities(), "Opportunities"); });
+            VBox c2 = Ui.card("Applications", String.valueOf(apps.size()), "card-cream",
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.applications(), "Applications"); });
+            VBox c3 = Ui.card("Shortlisted Candidates", String.valueOf(shortlistedCount), "card-blue",
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.applications(), "Applications"); });
+            VBox c4 = Ui.card("Recommended Students", String.valueOf(recommendedCount), "card-pink",
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.recommendedStudents(), "Recommended Students"); });
+            VBox c5 = Ui.card("Shared Portfolios", String.valueOf(sharedPortfoliosCount), "card-mint",
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.portfolioSearch(), "Portfolio Search"); });
+
+            for (VBox c : List.of(c1, c2, c3, c4, c5)) {
                 HBox.setHgrow(c, Priority.ALWAYS);
                 c.setMaxWidth(Double.MAX_VALUE);
             }
-            cardsRow.getChildren().addAll(c1, c2, c3, c4);
+            cardsRow.getChildren().addAll(c1, c2, c3, c4, c5);
 
             // Update Dual Charts Row
             chartsRow.getChildren().clear();
             Map<String, Long> appStatusCounts = DashboardCharts.countByStatus(
                     apps.stream().map(Application::getStatus).toList(),
                     List.of("Pending", "Reviewed", "Shortlisted", "Accepted", "Rejected"));
-            Node appStatusChart = DashboardCharts.statusSummary("Application Status", appStatusCounts);
+            Node appStatusChart = DashboardCharts.statusSummary("Application Status", appStatusCounts,
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.applications(), "Applications"); });
 
             Map<String, Long> roleTypeCounts = DashboardCharts.countByStatus(
                     owned.stream().map(JobOpportunity::getOpportunityType).toList(),
                     List.of("Internship", "Employment"));
-            Node roleTypeChart = DashboardCharts.statusSummary("Role Types Offered", roleTypeCounts);
+            Node roleTypeChart = DashboardCharts.statusSummary("Role Types Offered", roleTypeCounts,
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.opportunities(), "Opportunities"); });
 
             HBox.setHgrow(appStatusChart, Priority.ALWAYS);
             HBox.setHgrow(roleTypeChart, Priority.ALWAYS);
@@ -573,6 +584,9 @@ public final class EmployerViews {
                 ? Ui.badge(pendingReviewCount + " Need Review", "badge-pill-pink")
                 : Ui.badge("All Reviewed (0)", "badge-pill-mint");
         pendingRow.getChildren().addAll(pLabel, pSp, pBadge);
+        Ui.makeInteractive(pendingRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.applications(), "Applications");
+        });
 
         HBox openRow = new HBox(8);
         openRow.setAlignment(Pos.CENTER_LEFT);
@@ -582,6 +596,9 @@ public final class EmployerViews {
         HBox.setHgrow(oSp, Priority.ALWAYS);
         Node oBadge = Ui.badge(openPositions + " Active", "badge-pill-blue");
         openRow.getChildren().addAll(oLabel, oSp, oBadge);
+        Ui.makeInteractive(openRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.opportunities(), "Opportunities");
+        });
 
         HBox totalRow = new HBox(8);
         totalRow.setAlignment(Pos.CENTER_LEFT);
@@ -591,6 +608,9 @@ public final class EmployerViews {
         HBox.setHgrow(tSp, Priority.ALWAYS);
         Node tBadge = Ui.badge(apps.size() + " Candidates", "badge-pill-lavender");
         totalRow.getChildren().addAll(tLabel, tSp, tBadge);
+        Ui.makeInteractive(totalRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.applications(), "Applications");
+        });
 
         queueBox.getChildren().addAll(queueHeader, pendingRow, openRow, totalRow);
 

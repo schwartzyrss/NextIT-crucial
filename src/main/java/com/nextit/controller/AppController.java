@@ -50,11 +50,24 @@ public class AppController {
             setView(view);
         }
         if (sidebar != null && sidebarMatch != null) {
+            String target = sidebarMatch.replaceAll("[^a-zA-Z0-9 ]", "").trim().toLowerCase(Locale.ROOT);
+            Button exactMatch = null;
+            Button partialMatch = null;
             for (javafx.scene.Node n : sidebar.getChildren()) {
-                if (n instanceof Button b && b.getText().toLowerCase(Locale.ROOT).contains(sidebarMatch.toLowerCase(Locale.ROOT))) {
-                    setActiveButton(b);
-                    break;
+                if (n instanceof Button b) {
+                    String clean = b.getText().replaceAll("[^a-zA-Z0-9 ]", "").trim().toLowerCase(Locale.ROOT);
+                    if (clean.equals(target)) {
+                        exactMatch = b;
+                        break;
+                    }
+                    if (partialMatch == null && clean.contains(target)) {
+                        partialMatch = b;
+                    }
                 }
+            }
+            Button bestMatch = exactMatch != null ? exactMatch : partialMatch;
+            if (bestMatch != null) {
+                setActiveButton(bestMatch);
             }
         }
     }

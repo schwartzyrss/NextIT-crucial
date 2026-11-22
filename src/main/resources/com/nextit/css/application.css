@@ -663,6 +663,32 @@
 }
 
 /* --------------------------------------------------------------------------
+   Interactive Metric Cards & Dashboard Click-through
+   -------------------------------------------------------------------------- */
+.clickable-card {
+    -fx-cursor: hand;
+}
+
+.clickable-card:hover {
+    -fx-cursor: hand;
+    -fx-border-color: #9E0B0F;
+    -fx-border-width: 1.5;
+    -fx-effect: dropshadow(gaussian, rgba(158, 11, 15, 0.22), 16, 0.12, 0, 4);
+}
+
+.card-arrow-hint {
+    -fx-font-size: 15px;
+    -fx-font-weight: 900;
+    -fx-text-fill: #9E0B0F;
+    -fx-opacity: 0.35;
+}
+
+.clickable-card:hover .card-arrow-hint {
+    -fx-opacity: 1.0;
+    -fx-text-fill: #9E0B0F;
+}
+
+/* --------------------------------------------------------------------------
    Chart Cards & Palette
    -------------------------------------------------------------------------- */
 .chart-card {
