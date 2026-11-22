@@ -45,7 +45,8 @@ public class JdbcStudentRepository {
     }
 
     public String generateNextStudentNumber(int year) {
-        String prefix = year + "-";
+        int fullYear = year >= 1000 ? year : (year > 0 ? 2000 + year : java.time.Year.now().getValue());
+        String prefix = fullYear + "-";
         int maxSeq = 0;
         String sql = "SELECT student_number FROM students WHERE student_number LIKE ? "
                 + "UNION "
@@ -71,7 +72,7 @@ public class JdbcStudentRepository {
         } catch (SQLException e) {
             // fallback gracefully
         }
-        return String.format("%04d-%04d", year, maxSeq + 1);
+        return String.format("%04d-%04d", fullYear, maxSeq + 1);
     }
 
     public List<Student> findAll() {
