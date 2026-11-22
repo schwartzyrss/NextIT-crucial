@@ -94,6 +94,15 @@ public class OnboardingView {
             return new JdbcStudentRepository().generateNextStudentNumber(year > 2000 ? year : getCurrentYear());
         }
 
+        public String getGeneratedFacultyId() {
+            int year = getCurrentYear();
+            return new JdbcInstructorRepository().generateNextFacultyNumber(year);
+        }
+
+        public String getGeneratedFacultyIdForYear(int year) {
+            return new JdbcInstructorRepository().generateNextFacultyNumber(year > 2000 ? year : getCurrentYear());
+        }
+
         public String getGraduationYearsJson() {
             int current = java.time.Year.now().getValue();
             StringBuilder sb = new StringBuilder("[");
@@ -199,7 +208,7 @@ public class OnboardingView {
                         analysis = antiFake.analyzeStudent(finalIdNumber, cleanEmail, firstName, lastName, detail1);
                     } else if (role == Role.INSTRUCTOR) {
                         if (finalIdNumber.isBlank()) {
-                            throw new AppException("Faculty employee identification number is required.");
+                            finalIdNumber = new JdbcInstructorRepository().generateNextFacultyNumber(java.time.Year.now().getValue());
                         }
                         analysis = antiFake.analyzeInstructor(finalIdNumber, cleanEmail, firstName, lastName, detail1);
                     } else if (role == Role.EMPLOYER) {
@@ -256,10 +265,24 @@ public class OnboardingView {
                         JdbcInstructorRepository instRepo = new JdbcInstructorRepository();
                         Instructor inst = new Instructor();
                         inst.setUserId(user.getUserId());
-                        inst.setEmployeeNumber(finalIdNumber);
                         inst.setDepartment((detail1 != null && !detail1.isBlank()) ? detail1.trim() : "Computer Studies");
                         inst.setSpecialization((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Information Technology");
-                        instRepo.save(inst);
+
+                        // Atomic retry loop for collision-safe faculty employee ID assignment
+                        boolean saved = false;
+                        int attempts = 0;
+                        int currentYear = java.time.Year.now().getValue();
+                        while (!saved && attempts < 10) {
+                            attempts++;
+                            try {
+                                inst.setEmployeeNumber(finalIdNumber);
+                                instRepo.save(inst);
+                                saved = true;
+                            } catch (Exception ex) {
+                                if (attempts >= 10) throw ex;
+                                finalIdNumber = instRepo.generateNextFacultyNumber(currentYear);
+                            }
+                        }
                     } else if (role == Role.EMPLOYER) {
                         JdbcEmployerRepository empRepo = new JdbcEmployerRepository();
                         Employer emp = new Employer();
