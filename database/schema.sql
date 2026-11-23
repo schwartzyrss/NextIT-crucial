@@ -382,19 +382,3 @@ CREATE TABLE IF NOT EXISTS recommendation_letters (
     INDEX idx_rec_status (status)
 );
 
-CREATE TABLE IF NOT EXISTS password_reset_requests (
-    request_id VARCHAR(36) PRIMARY KEY,
-    user_id INT NULL,
-    identifier_submitted VARCHAR(255) NOT NULL,
-    role VARCHAR(20) NOT NULL,
-    reason TEXT NOT NULL,
-    status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
-    requested_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    resolved_at DATETIME NULL,
-    admin_remarks TEXT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE SET NULL,
-    INDEX idx_pwd_reset_user (user_id),
-    INDEX idx_pwd_reset_status (status),
-    INDEX idx_pwd_reset_role (role)
-);
-

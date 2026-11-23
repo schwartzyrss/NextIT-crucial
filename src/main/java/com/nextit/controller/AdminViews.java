@@ -25,7 +25,6 @@ public final class AdminViews {
     private static final Logger log = LoggerFactory.getLogger(AdminViews.class);
     private static final AdminService admin = new AdminService();
     private static final ProfileService profiles = new ProfileService();
-    private static final PasswordResetService resetRequests = PasswordResetService.getInstance();
     private static final AntiFakeIdentityService antiFake = new AntiFakeIdentityService();
 
     private AdminViews() {}
@@ -80,8 +79,6 @@ public final class AdminViews {
         verifiedInstValLbl.getStyleClass().add("metric-value");
         Label verifiedEmpValLbl = new Label("...");
         verifiedEmpValLbl.getStyleClass().add("metric-value");
-        Label resetValLbl = new Label("...");
-        resetValLbl.getStyleClass().add("metric-value");
         Label rejectedValLbl = new Label("...");
         rejectedValLbl.getStyleClass().add("metric-value");
 
@@ -114,21 +111,14 @@ public final class AdminViews {
                 () -> selectFilter.accept("Instructors"));
         VBox c3 = buildMetricCard("Verified Employers", verifiedEmpValLbl, "card-blue", "Accredited industry partners",
                 () -> selectFilter.accept("Employers"));
-        VBox c4 = buildMetricCard("Password Reset Requests", resetValLbl, "card-yellow", "Account recovery submissions",
-                () -> {
-                    if (AppController.getInstance() != null) {
-                        AppController.getInstance().navigateTo(AdminViews.passwordResetRequests(), "Password Reset Queue");
-                    }
-                });
         VBox c5 = buildMetricCard("Rejected / Flagged", rejectedValLbl, "card-cream", "Denied or suspicious submissions",
                 () -> selectFilter.accept("Rejected"));
 
         HBox.setHgrow(c1, Priority.ALWAYS);
         HBox.setHgrow(c2, Priority.ALWAYS);
         HBox.setHgrow(c3, Priority.ALWAYS);
-        HBox.setHgrow(c4, Priority.ALWAYS);
         HBox.setHgrow(c5, Priority.ALWAYS);
-        metricRow.getChildren().addAll(c1, c2, c3, c4, c5);
+        metricRow.getChildren().addAll(c1, c2, c3, c5);
 
         // 3. Main Verification Queue Tray
         VBox queueTray = new VBox(14);
@@ -268,9 +258,8 @@ public final class AdminViews {
                 long verifiedInst = allUsers.stream().filter(u -> u.getRole() == Role.INSTRUCTOR && u.isVerified()).count();
                 long verifiedEmp = allUsers.stream().filter(u -> u.getRole() == Role.EMPLOYER && u.isVerified()).count();
                 long rejectedOrFlagged = reqs.stream().filter(r -> r.getStatus() == VerificationStatus.REJECTED || r.getRiskScore() >= 50).count();
-                long resetCount = resetRequests.listAllRequests().size();
 
-                return new Object[]{reqs, pending, verifiedInst, verifiedEmp, rejectedOrFlagged, resetCount};
+                return new Object[]{reqs, pending, verifiedInst, verifiedEmp, rejectedOrFlagged};
             }).thenAccept(result -> Platform.runLater(() -> {
                 @SuppressWarnings("unchecked")
                 List<VerificationRequest> reqs = (List<VerificationRequest>) result[0];
@@ -278,7 +267,6 @@ public final class AdminViews {
                 long verifiedInst = (long) result[2];
                 long verifiedEmp = (long) result[3];
                 long rejected = (long) result[4];
-                long resetCount = (long) result[5];
 
                 masterCache.clear();
                 masterCache.addAll(reqs);
@@ -287,7 +275,6 @@ public final class AdminViews {
                 verifiedInstValLbl.setText(String.valueOf(verifiedInst));
                 verifiedEmpValLbl.setText(String.valueOf(verifiedEmp));
                 rejectedValLbl.setText(String.valueOf(rejected));
-                resetValLbl.setText(String.valueOf(resetCount));
 
                 updateFilteredList.run();
             })).exceptionally(ex -> {
@@ -567,10 +554,6 @@ public final class AdminViews {
                 return null;
             });
         });
-    }
-
-    public static Node passwordResetRequests() {
-        return InstructorViews.passwordResetRequests();
     }
 
     public static Node profile() {
