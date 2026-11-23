@@ -3,6 +3,8 @@ package com.nextit.repository;
 import com.nextit.config.DatabaseConfig;
 import com.nextit.exception.AppException;
 import com.nextit.model.Student;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -10,6 +12,8 @@ import java.util.List;
 import java.util.Optional;
 
 public class JdbcStudentRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcStudentRepository.class);
 
     public Optional<Student> findById(int studentId) {
         String sql = "SELECT * FROM students WHERE student_id=?";
@@ -96,8 +100,18 @@ public class JdbcStudentRepository {
             ps.setString(5, s.getSection());
             ps.setString(6, s.getEnrollmentStatus());
             ps.executeUpdate();
-            try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) s.setStudentId(k.getInt(1)); }
-        } catch (SQLException e) { throw new AppException("Failed to save student", e); }
+            try (ResultSet k = ps.getGeneratedKeys()) {
+                if (k.next()) s.setStudentId(k.getInt(1));
+            }
+            if (s.getStudentId() <= 0 && s.getUserId() > 0) {
+                findByUserId(s.getUserId()).ifPresent(found -> s.setStudentId(found.getStudentId()));
+            }
+            log.info("Saved student profile [student_id={}, user_id={}, number={}]", s.getStudentId(), s.getUserId(), s.getStudentNumber());
+        } catch (SQLException e) {
+            log.error("Failed to save student profile [user_id={}, number={}, SQLState={}, ErrorCode={}]: {}",
+                    s.getUserId(), s.getStudentNumber(), e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to save student: " + e.getMessage(), e);
+        }
     }
 
     public void update(Student s) {
@@ -110,8 +124,30 @@ public class JdbcStudentRepository {
             ps.setString(4, s.getSection());
             ps.setString(5, s.getEnrollmentStatus());
             ps.setInt(6, s.getStudentId());
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new AppException("Failed to update student", e); }
+            int affected = ps.executeUpdate();
+            if (affected == 0 && s.getUserId() > 0) {
+                String sqlByUserId = "UPDATE students SET student_number=?, program=?, year_level=?, section=?, enrollment_status=? WHERE user_id=?";
+                try (PreparedStatement ps2 = c.prepareStatement(sqlByUserId)) {
+                    ps2.setString(1, s.getStudentNumber());
+                    ps2.setString(2, s.getProgram());
+                    ps2.setInt(3, s.getYearLevel());
+                    ps2.setString(4, s.getSection());
+                    ps2.setString(5, s.getEnrollmentStatus());
+                    ps2.setInt(6, s.getUserId());
+                    affected = ps2.executeUpdate();
+                }
+            }
+            if (affected == 0) {
+                log.warn("UPDATE students affected 0 rows for student_id={}, user_id={}", s.getStudentId(), s.getUserId());
+                throw new AppException("Student profile record not found in the database to update.");
+            }
+            log.info("Successfully committed student update [student_id={}, user_id={}, year={}, section={}]",
+                    s.getStudentId(), s.getUserId(), s.getYearLevel(), s.getSection());
+        } catch (SQLException e) {
+            log.error("Failed to update student profile [student_id={}, user_id={}, SQLState={}, ErrorCode={}]: {}",
+                    s.getStudentId(), s.getUserId(), e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to update student: " + e.getMessage(), e);
+        }
     }
 
     public void delete(int id) {

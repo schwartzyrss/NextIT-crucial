@@ -6,7 +6,7 @@
 -- been used before (provided the demo rows do not already exist).
 USE nextit;
 
-INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
+INSERT IGNORE INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
 ('kakonggg',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'kakonggg@nextit.edu',   'INSTRUCTOR', 'Kakong', 'Instructor', 'VERIFIED', CURRENT_TIMESTAMP, TRUE),
 ('student1',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student@nextit.edu',    'STUDENT',   'Alex',   'Reyes', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
@@ -20,15 +20,15 @@ SET @batstate_user   = (SELECT user_id FROM users WHERE username = '25-16522');
 SET @instructor_user = (SELECT user_id FROM users WHERE username = 'instructor1');
 SET @employer_user   = (SELECT user_id FROM users WHERE username = 'employer1');
 
-INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status) VALUES
+INSERT IGNORE INTO students (user_id, student_number, program, year_level, section, enrollment_status) VALUES
 (@student_user, '2023-0001', 'BS Information Technology', 3, 'A', 'Enrolled'),
 (@student2_user, '2023-0002', 'BS Information Technology', 3, 'A', 'Enrolled'),
 (@batstate_user, '25-16522', 'BS Information Technology', 3, 'A', 'Enrolled');
 
-INSERT INTO instructors (user_id, employee_number, department, specialization) VALUES
+INSERT IGNORE INTO instructors (user_id, employee_number, department, specialization) VALUES
 (@instructor_user, 'EMP-1001', 'Computer Science', 'Software Engineering');
 
-INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title) VALUES
+INSERT IGNORE INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title) VALUES
 (@employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City', 'HR Director');
 
 SET @student_id    = (SELECT student_id FROM students WHERE user_id = @student_user);
@@ -36,7 +36,7 @@ SET @student2_id   = (SELECT student_id FROM students WHERE user_id = @student2_
 SET @instructor_id = (SELECT instructor_id FROM instructors WHERE user_id = @instructor_user);
 SET @employer_id   = (SELECT employer_id FROM employers WHERE user_id = @employer_user);
 
-INSERT INTO subjects (subject_code, subject_name, units, description, section, semester, academic_year, instructor_id) VALUES
+INSERT IGNORE INTO subjects (subject_code, subject_name, units, description, section, semester, academic_year, instructor_id) VALUES
 ('IT301', 'Object-Oriented Programming', 3.0, 'OOP concepts with Java', 'A', '1st Semester', '2025-2026', @instructor_id),
 ('IT302', 'Database Management Systems', 3.0, 'Relational databases and SQL', 'A', '1st Semester', '2025-2026', @instructor_id),
 ('IT303', 'Web Development', 3.0, 'Modern web application development', 'B', '1st Semester', '2025-2026', @instructor_id);
@@ -45,7 +45,7 @@ SET @subject_301 = (SELECT subject_id FROM subjects WHERE subject_code = 'IT301'
 SET @subject_302 = (SELECT subject_id FROM subjects WHERE subject_code = 'IT302');
 SET @subject_303 = (SELECT subject_id FROM subjects WHERE subject_code = 'IT303');
 
-INSERT INTO enrollments (student_id, subject_id, academic_year, semester, status, instructor_id, grade) VALUES
+INSERT IGNORE INTO enrollments (student_id, subject_id, academic_year, semester, status, instructor_id, grade) VALUES
 (@student_id, @subject_301, '2025-2026', '1st Semester', 'Enrolled', @instructor_id, '84.00'),
 (@student_id, @subject_302, '2025-2026', '1st Semester', 'Enrolled', @instructor_id, '88.50'),
 (@student_id, @subject_303, '2025-2026', '1st Semester', 'Enrolled', @instructor_id, '91.00');
@@ -55,17 +55,17 @@ SET @enrollment_301 = (SELECT enrollment_id FROM enrollments
 SET @enrollment_302 = (SELECT enrollment_id FROM enrollments
                        WHERE student_id = @student_id AND subject_id = @subject_302);
 
-INSERT INTO grades (enrollment_id, instructor_id, activity_name, activity_type, score, max_score, grade, remarks) VALUES
+INSERT IGNORE INTO grades (enrollment_id, instructor_id, activity_name, activity_type, score, max_score, grade, remarks) VALUES
 (@enrollment_301, @instructor_id, 'Midterm Exam', 'Examination', 42.00, 50.00, 84.00, 'Good performance'),
 (@enrollment_301, @instructor_id, 'Quiz 1', 'Quiz', 18.00, 20.00, 90.00, 'Well done'),
 (@enrollment_302, @instructor_id, 'Lab 1', 'Laboratory', 45.00, 50.00, 90.00, 'Excellent queries');
 
-INSERT INTO attendance (enrollment_id, attendance_date, status, remarks, recorded_by) VALUES
+INSERT IGNORE INTO attendance (enrollment_id, attendance_date, status, remarks, recorded_by) VALUES
 (@enrollment_301, '2026-09-01', 'Present', NULL, @instructor_id),
 (@enrollment_301, '2026-09-08', 'Late', 'Arrived 10 minutes late', @instructor_id),
 (@enrollment_302, '2026-09-01', 'Present', NULL, @instructor_id);
 
-INSERT INTO technical_skills (skill_name, category, description) VALUES
+INSERT IGNORE INTO technical_skills (skill_name, category, description) VALUES
 ('Java Programming', 'Programming', 'Core Java development'),
 ('MySQL', 'Database Management', 'Relational database design and queries'),
 ('Cybersecurity Basics', 'Cybersecurity', 'Fundamental security concepts');
@@ -73,51 +73,51 @@ INSERT INTO technical_skills (skill_name, category, description) VALUES
 SET @skill_java = (SELECT skill_id FROM technical_skills WHERE skill_name = 'Java Programming');
 SET @skill_mysql = (SELECT skill_id FROM technical_skills WHERE skill_name = 'MySQL');
 
-INSERT INTO student_skills (student_id, skill_id, proficiency_level, assessment_score, assessed_by, assessed_at, remarks) VALUES
+INSERT IGNORE INTO student_skills (student_id, skill_id, proficiency_level, assessment_score, assessed_by, assessed_at, remarks) VALUES
 (@student_id, @skill_java, 'Intermediate', 85.00, @instructor_id, '2026-09-10 09:00:00', 'Solid OOP skills'),
 (@student_id, @skill_mysql, 'Beginner', 70.00, @instructor_id, '2026-09-10 09:00:00', 'Needs practice with joins');
 
-INSERT INTO projects (student_id, subject_id, project_title, project_type, description, technologies_used, repository_url, demo_url, project_date, status) VALUES
+INSERT IGNORE INTO projects (student_id, subject_id, project_title, project_type, description, technologies_used, repository_url, demo_url, project_date, status) VALUES
 (@student_id, @subject_301, 'NextIT Tracker', 'Capstone', 'Student progress tracking desktop app', 'Java, JavaFX, MySQL', 'https://github.com/alex/nextit', NULL, '2026-09-15', 'Draft');
 
 SET @project_id = (SELECT project_id FROM projects
                    WHERE student_id = @student_id AND project_title = 'NextIT Tracker');
 
-INSERT INTO project_members (project_id, student_id, role, contribution) VALUES
+INSERT IGNORE INTO project_members (project_id, student_id, role, contribution) VALUES
 (@project_id, @student2_id, 'Frontend Developer', 'Built the dashboard screens and interaction flows');
 
-INSERT INTO project_evaluations (project_id, student_id, instructor_id, contribution_score, technical_score, teamwork_score, overall_score, feedback) VALUES
+INSERT IGNORE INTO project_evaluations (project_id, student_id, instructor_id, contribution_score, technical_score, teamwork_score, overall_score, feedback) VALUES
 (@project_id, @student_id, @instructor_id, 90.00, 88.00, 85.00, 87.67, 'Strong implementation and clear documentation');
 
-INSERT INTO achievements (student_id, title, description, organization, achievement_date, verification_url) VALUES
+INSERT IGNORE INTO achievements (student_id, title, description, organization, achievement_date, verification_url) VALUES
 (@student_id, 'Dean''s Lister', 'Top of class for AY 2025-2026', 'State University', '2026-08-30', NULL);
 
-INSERT INTO certifications (student_id, certification_name, issuing_organization, issue_date, expiration_date, credential_url) VALUES
+INSERT IGNORE INTO certifications (student_id, certification_name, issuing_organization, issue_date, expiration_date, credential_url) VALUES
 (@student_id, 'Oracle Certified Java Foundations', 'Oracle', '2026-03-01', '2029-03-01', 'https://certs.example.com/java-foundations');
 
-INSERT INTO portfolios (student_id, headline, bio, career_goal, visibility) VALUES
+INSERT IGNORE INTO portfolios (student_id, headline, bio, career_goal, visibility) VALUES
 (@student_id, 'Aspiring Software Engineer', 'IT student passionate about desktop and web systems.', 'Become a full-stack developer', 'Approved');
 
 SET @portfolio_id = (SELECT portfolio_id FROM portfolios WHERE student_id = @student_id);
 
-INSERT INTO portfolio_access (portfolio_id, employer_id, access_status, granted_at) VALUES
+INSERT IGNORE INTO portfolio_access (portfolio_id, employer_id, access_status, granted_at) VALUES
 (@portfolio_id, @employer_id, 'Approved', '2026-09-05 10:00:00');
 
-INSERT INTO job_opportunities (employer_id, title, opportunity_type, description, required_skills, location, deadline, status) VALUES
+INSERT IGNORE INTO job_opportunities (employer_id, title, opportunity_type, description, required_skills, location, deadline, status) VALUES
 (@employer_id, 'Software Development Intern', 'Internship', 'Assist in building internal tools.', 'Java, MySQL, Git', 'Makati City', '2026-12-31', 'Open'),
 (@employer_id, 'Junior Java Developer', 'Employment', 'Entry-level Java developer role.', 'Java, JavaFX, SQL', 'Remote', '2026-11-30', 'Open');
 
 SET @opportunity_intern = (SELECT opportunity_id FROM job_opportunities
                            WHERE employer_id = @employer_id AND title = 'Software Development Intern');
 
-INSERT INTO applications (opportunity_id, student_id, status, remarks) VALUES
+INSERT IGNORE INTO applications (opportunity_id, student_id, status, remarks) VALUES
 (@opportunity_intern, @student_id, 'Pending', 'Interested in the internship program');
 
-INSERT INTO academic_support (student_id, instructor_id, subject_id, support_type, support_date, reason, action_taken, outcome, remarks) VALUES
+INSERT IGNORE INTO academic_support (student_id, instructor_id, subject_id, support_type, support_date, reason, action_taken, outcome, remarks) VALUES
 (@student_id, @instructor_id, @subject_302, 'Remedial', '2026-09-12', 'Difficulty with SQL joins', 'Extra exercises on joins', 'Improved', 'Follow up next week');
 
 -- Identity Verification & Institutional Registrar Pre-Enrolled Records
-INSERT INTO institutional_records (record_type, identifier_number, institutional_email, full_name, department_or_program, is_active) VALUES
+INSERT IGNORE INTO institutional_records (record_type, identifier_number, institutional_email, full_name, department_or_program, is_active) VALUES
 ('STUDENT', '2023-0001', 'student@nextit.edu', 'Alex Reyes', 'BS Information Technology', TRUE),
 ('STUDENT', '2023-0002', 'student2@nextit.edu', 'Bianca Cruz', 'BS Information Technology', TRUE),
 ('STUDENT', '2026-0042', 'carlos.mendoza@nextit.edu', 'Carlos Mendoza', 'BS Computer Science', TRUE),
@@ -127,7 +127,7 @@ INSERT INTO institutional_records (record_type, identifier_number, institutional
 ('INSTRUCTOR', 'EMP-1002', 'roberto.garcia@nextit.edu', 'Roberto Garcia', 'Information Technology', TRUE);
 
 -- Initial Verification Requests
-INSERT INTO verification_requests (user_id, role, id_number, institutional_email, organization_name, business_registration_number, document_reference, submission_notes, status, risk_score, risk_flags, reviewed_at) VALUES
+INSERT IGNORE INTO verification_requests (user_id, role, id_number, institutional_email, organization_name, business_registration_number, document_reference, submission_notes, status, risk_score, risk_flags, reviewed_at) VALUES
 (@student_user, 'STUDENT', '2023-0001', 'student@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
 (@student2_user, 'STUDENT', '2023-0002', 'student2@nextit.edu', 'NextIT Institute of Technology', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
 (@batstate_user, 'STUDENT', '25-16522', '25-16522@g.bastate-u.edu.ph', 'Batangas State University', NULL, 'Official Registrar Enrolment Card', 'Automated institutional registrar validation successful.', 'VERIFIED', 0, 'REGISTRAR_VERIFIED_EXACT_MATCH', CURRENT_TIMESTAMP),
@@ -135,7 +135,7 @@ INSERT INTO verification_requests (user_id, role, id_number, institutional_email
 (@employer_user, 'EMPLOYER', NULL, 'employer@techcorp.com', 'TechCorp Solutions', 'SEC-CS2021008891-TIN009', 'SEC Certificate of Incorporation & DTI Permit', 'Corporate registration verified.', 'VERIFIED', 10, 'CORPORATE_DOMAIN_DETECTED', CURRENT_TIMESTAMP);
 
 -- Security Audit Logs
-INSERT INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES
+INSERT IGNORE INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES
 (@instructor_user, 'instructor1', 'SYSTEM_INITIALIZED', NULL, '127.0.0.1', 'Security and identity verification system initialized.', 'INFO'),
 (@student_user, 'student1', 'LOGIN_SUCCESS', @student_user, '127.0.0.1', 'Successful authentication for verified student account.', 'INFO');
 

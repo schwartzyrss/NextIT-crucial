@@ -3,12 +3,16 @@ package com.nextit.repository;
 import com.nextit.config.DatabaseConfig;
 import com.nextit.exception.AppException;
 import com.nextit.model.SecurityAuditLog;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 
 public class JdbcSecurityAuditLogRepository implements SecurityAuditLogRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcSecurityAuditLogRepository.class);
 
     @Override
     public List<SecurityAuditLog> findAll(int limit) {
@@ -42,22 +46,32 @@ public class JdbcSecurityAuditLogRepository implements SecurityAuditLogRepositor
     }
 
     @Override
-    public void save(SecurityAuditLog log) {
+    public void save(SecurityAuditLog logEntry) {
         String sql = "INSERT INTO security_audit_logs (user_id, actor_username, action, target_user_id, ip_address, details, severity) VALUES (?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            if (log.getUserId() != null) ps.setInt(1, log.getUserId()); else ps.setNull(1, Types.INTEGER);
-            ps.setString(2, log.getActorUsername() != null ? log.getActorUsername() : "SYSTEM");
-            ps.setString(3, log.getAction());
-            if (log.getTargetUserId() != null) ps.setInt(4, log.getTargetUserId()); else ps.setNull(4, Types.INTEGER);
-            ps.setString(5, log.getIpAddress());
-            ps.setString(6, log.getDetails());
-            ps.setString(7, log.getSeverity() != null ? log.getSeverity() : "INFO");
+            if (logEntry.getUserId() != null && logEntry.getUserId() > 0) {
+                ps.setInt(1, logEntry.getUserId());
+            } else {
+                ps.setNull(1, Types.INTEGER);
+            }
+            ps.setString(2, logEntry.getActorUsername() != null ? logEntry.getActorUsername() : "SYSTEM");
+            ps.setString(3, logEntry.getAction());
+            if (logEntry.getTargetUserId() != null && logEntry.getTargetUserId() > 0) {
+                ps.setInt(4, logEntry.getTargetUserId());
+            } else {
+                ps.setNull(4, Types.INTEGER);
+            }
+            ps.setString(5, logEntry.getIpAddress());
+            ps.setString(6, logEntry.getDetails());
+            ps.setString(7, logEntry.getSeverity() != null ? logEntry.getSeverity() : "INFO");
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
-                if (keys.next()) log.setLogId(keys.getInt(1));
+                if (keys.next()) logEntry.setLogId(keys.getInt(1));
             }
         } catch (SQLException e) {
+            log.error("Failed to save security audit log [action={}, SQLState={}, ErrorCode={}]: {}",
+                    logEntry.getAction(), e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to save security audit log: " + e.getMessage(), e);
         }
     }
