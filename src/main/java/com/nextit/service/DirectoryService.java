@@ -50,7 +50,11 @@ public class DirectoryService {
         Map<Integer, String> names = userNames();
         return instructorRepo.findAll().stream().collect(Collectors.toMap(
                 Instructor::getInstructorId,
-                i -> names.getOrDefault(i.getUserId(), "Instructor #" + i.getInstructorId()),
+                i -> {
+                    String base = names.getOrDefault(i.getUserId(), "Instructor #" + i.getInstructorId());
+                    String empNo = i.getEmployeeNumber();
+                    return (empNo != null && !empNo.isBlank()) ? base + " (" + empNo.trim() + ")" : base;
+                },
                 (a, b) -> a));
     }
 

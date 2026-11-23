@@ -166,9 +166,7 @@ public class JdbcPasswordResetRequestRepository implements PasswordResetRequestR
         r.setIdentifierSubmitted(rs.getString("identifier_submitted"));
         String roleStr = rs.getString("role");
         if (roleStr != null) {
-            try {
-                r.setRole(Role.valueOf(roleStr.toUpperCase(Locale.ROOT)));
-            } catch (Exception ignored) {}
+            r.setRole(Role.fromString(roleStr));
         }
 
         r.setReason(rs.getString("reason"));

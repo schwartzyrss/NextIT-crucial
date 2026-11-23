@@ -31,40 +31,19 @@ public final class Alerts {
     }
 
     public static void error(String message) {
-        Alert a = new Alert(Alert.AlertType.ERROR);
-        a.setTitle("Error");
-        a.setHeaderText(null);
-        a.setContentText(message);
-        style(a);
-        a.showAndWait();
+        NextItDialog.showError("Error", message);
     }
 
     public static void warn(String message) {
-        Alert a = new Alert(Alert.AlertType.WARNING);
-        a.setTitle("NextIT");
-        a.setHeaderText(null);
-        a.setContentText(message);
-        style(a);
-        a.showAndWait();
+        NextItDialog.showWarning("NextIT Warning", message);
     }
 
     public static void info(String message) {
-        Alert a = new Alert(Alert.AlertType.INFORMATION);
-        a.setTitle("NextIT");
-        a.setHeaderText(null);
-        a.setContentText(message);
-        style(a);
-        a.showAndWait();
+        NextItDialog.showInfo("NextIT", message);
     }
 
     public static boolean confirm(String message) {
-        Alert a = new Alert(Alert.AlertType.CONFIRMATION);
-        a.setTitle("Confirm");
-        a.setHeaderText(null);
-        a.setContentText(message);
-        style(a);
-        Optional<ButtonType> result = a.showAndWait();
-        return result.isPresent() && (result.get() == ButtonType.OK || result.get() == ButtonType.YES);
+        return NextItDialog.showConfirm("Confirm Action", message);
     }
 
     public static boolean confirmLogout() {

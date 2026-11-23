@@ -13,6 +13,7 @@ import javafx.scene.chart.PieChart;
 import javafx.scene.control.Label;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
+import javafx.scene.layout.Region;
 import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
@@ -37,8 +38,12 @@ final class DashboardCharts {
     private DashboardCharts() {}
 
     static Node attendanceSummary(List<Attendance> records) {
+        return attendanceSummary(records, null);
+    }
+
+    static Node attendanceSummary(List<Attendance> records, Runnable onClick) {
         if (records.isEmpty()) {
-            return placeholder("Attendance Summary", "No attendance records yet.");
+            return placeholder("Attendance Summary", "No attendance records yet.", onClick);
         }
         Map<String, Long> counts = new LinkedHashMap<>();
         for (String status : ATTENDANCE_STATUSES) {
@@ -48,7 +53,7 @@ final class DashboardCharts {
             if (count > 0) counts.put(status, count);
         }
         if (counts.isEmpty()) {
-            return placeholder("Attendance Summary", "No attendance records yet.");
+            return placeholder("Attendance Summary", "No attendance records yet.", onClick);
         }
 
         PieChart chart = new PieChart();
@@ -56,10 +61,14 @@ final class DashboardCharts {
         chart.setLabelsVisible(true);
         counts.forEach((status, count) ->
                 chart.getData().add(new PieChart.Data(status + " (" + count + ")", count)));
-        return chartCard("Attendance Summary", chart);
+        return chartCard("Attendance Summary", chart, onClick);
     }
 
     static Node gradeTrend(List<Grade> grades) {
+        return gradeTrend(grades, null);
+    }
+
+    static Node gradeTrend(List<Grade> grades, Runnable onClick) {
         Map<LocalDate, double[]> perDay = new TreeMap<>();
         for (Grade grade : grades) {
             LocalDateTime recordedAt = grade.getRecordedAt();
@@ -71,7 +80,7 @@ final class DashboardCharts {
             totals[1] += 1;
         }
         if (perDay.isEmpty()) {
-            return placeholder("Grade Trend", "No graded activities yet.");
+            return placeholder("Grade Trend", "No graded activities yet.", onClick);
         }
 
         CategoryAxis xAxis = new CategoryAxis();
@@ -86,10 +95,14 @@ final class DashboardCharts {
         perDay.forEach((day, totals) -> series.getData().add(
                 new LineChart.Data<>(day.toString(), Math.round(totals[0] / totals[1] * 100.0) / 100.0)));
         chart.getData().add(series);
-        return chartCard("Grade Trend", chart);
+        return chartCard("Grade Trend", chart, onClick);
     }
 
     static Node averageByActivityType(List<Grade> grades) {
+        return averageByActivityType(grades, null);
+    }
+
+    static Node averageByActivityType(List<Grade> grades, Runnable onClick) {
         Map<String, double[]> perType = new TreeMap<>();
         for (Grade grade : grades) {
             Double value = grade.getGrade();
@@ -101,7 +114,7 @@ final class DashboardCharts {
             totals[1] += 1;
         }
         if (perType.isEmpty()) {
-            return placeholder("Average Grade by Activity Type", "No graded activities yet.");
+            return placeholder("Average Grade by Activity Type", "No graded activities yet.", onClick);
         }
 
         CategoryAxis xAxis = new CategoryAxis();
@@ -114,18 +127,22 @@ final class DashboardCharts {
         perType.forEach((type, totals) -> series.getData().add(
                 new BarChart.Data<>(type, Math.round(totals[0] / totals[1] * 100.0) / 100.0)));
         chart.getData().add(series);
-        return chartCard("Average Grade by Activity Type", chart);
+        return chartCard("Average Grade by Activity Type", chart, onClick);
     }
 
     static Node statusSummary(String title, Map<String, Long> statuses) {
+        return statusSummary(title, statuses, null);
+    }
+
+    static Node statusSummary(String title, Map<String, Long> statuses, Runnable onClick) {
         if (statuses.isEmpty()) {
-            return placeholder(title, "No records yet.");
+            return placeholder(title, "No records yet.", onClick);
         }
         PieChart chart = new PieChart();
         chart.setLegendSide(javafx.geometry.Side.BOTTOM);
         statuses.forEach((status, count) ->
                 chart.getData().add(new PieChart.Data(status + " (" + count + ")", count)));
-        return chartCard(title, chart);
+        return chartCard(title, chart, onClick);
     }
 
     /** Case-insensitive grouping helper shared by the dashboards. */
@@ -152,7 +169,26 @@ final class DashboardCharts {
     }
 
     private static Node chartCard(String title, Node chart) {
-        VBox box = new VBox(8, Ui.section(title), chart);
+        return chartCard(title, chart, null);
+    }
+
+    private static Node chartCard(String title, Node chart, Runnable onClick) {
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label titleLabel = Ui.section(title);
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+        header.getChildren().addAll(titleLabel, sp);
+
+        Label arrow = null;
+        if (onClick != null) {
+            arrow = new Label("→");
+            arrow.getStyleClass().add("card-arrow-hint");
+            arrow.setStyle("-fx-font-size: 15px; -fx-font-weight: 900; -fx-text-fill: #9E0B0F; -fx-opacity: 0.35;");
+            header.getChildren().add(arrow);
+        }
+
+        VBox box = new VBox(8, header, chart);
         box.getStyleClass().add("chart-card");
         box.setMaxWidth(Double.MAX_VALUE);
         VBox.setVgrow(chart, Priority.ALWAYS);
@@ -161,16 +197,43 @@ final class DashboardCharts {
             fxChart.setMinHeight(220);
             fxChart.setAnimated(false);
         }
+
+        if (onClick != null) {
+            Ui.makeInteractive(box, arrow, onClick);
+        }
         return box;
     }
 
     private static Node placeholder(String title, String message) {
+        return placeholder(title, message, null);
+    }
+
+    private static Node placeholder(String title, String message, Runnable onClick) {
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        Label titleLabel = Ui.section(title);
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+        header.getChildren().addAll(titleLabel, sp);
+
+        Label arrow = null;
+        if (onClick != null) {
+            arrow = new Label("→");
+            arrow.getStyleClass().add("card-arrow-hint");
+            arrow.setStyle("-fx-font-size: 15px; -fx-font-weight: 900; -fx-text-fill: #9E0B0F; -fx-opacity: 0.35;");
+            header.getChildren().add(arrow);
+        }
+
         Label label = new Label(message);
         label.getStyleClass().add("empty-state");
-        VBox box = new VBox(8, Ui.section(title), label);
+        VBox box = new VBox(8, header, label);
         box.getStyleClass().add("chart-card");
         box.setMaxWidth(Double.MAX_VALUE);
         box.setMinHeight(120);
+
+        if (onClick != null) {
+            Ui.makeInteractive(box, arrow, onClick);
+        }
         return box;
     }
 }

@@ -616,24 +616,60 @@ public final class EmailService {
 
     private static Properties loadDotEnv() {
         Properties properties = new Properties();
-        Path path = Path.of(".env");
-        if (!Files.isRegularFile(path)) return properties;
+        List<Path> candidatePaths = new ArrayList<>();
+        candidatePaths.add(Path.of(".env"));
+        candidatePaths.add(Path.of("app", ".env"));
         try {
-            for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
-                String trimmed = line.trim();
-                if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
-                int separator = trimmed.indexOf('=');
-                if (separator <= 0) continue;
-                String key = trimmed.substring(0, separator).trim();
-                String value = trimmed.substring(separator + 1).trim();
-                if (value.length() >= 2
-                        && ((value.startsWith("\"") && value.endsWith("\""))
-                        || (value.startsWith("'") && value.endsWith("'")))) {
-                    value = value.substring(1, value.length() - 1);
-                }
-                properties.setProperty(key, value);
+            String userDir = System.getProperty("user.dir");
+            if (userDir != null && !userDir.isBlank()) {
+                candidatePaths.add(Path.of(userDir, ".env"));
+                candidatePaths.add(Path.of(userDir, "app", ".env"));
             }
-        } catch (IOException ignored) {}
+        } catch (Exception ignored) {}
+        try {
+            Path codeSourcePath = Path.of(EmailService.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            Path parentDir = Files.isDirectory(codeSourcePath) ? codeSourcePath : codeSourcePath.getParent();
+            if (parentDir != null) {
+                candidatePaths.add(parentDir.resolve(".env"));
+                if (parentDir.getParent() != null) {
+                    candidatePaths.add(parentDir.getParent().resolve(".env"));
+                    candidatePaths.add(parentDir.getParent().resolve("app").resolve(".env"));
+                }
+            }
+        } catch (Exception ignored) {}
+        try {
+            String appData = System.getenv("APPDATA");
+            if (appData != null && !appData.isBlank()) {
+                candidatePaths.add(Path.of(appData, "NextIT", ".env"));
+            }
+            String userHome = System.getProperty("user.home");
+            if (userHome != null && !userHome.isBlank()) {
+                candidatePaths.add(Path.of(userHome, ".nextit", ".env"));
+            }
+        } catch (Exception ignored) {}
+
+        for (Path path : candidatePaths) {
+            if (Files.isRegularFile(path)) {
+                log.info("Loading external email/SMTP configuration from: {}", path.toAbsolutePath());
+                try {
+                    for (String line : Files.readAllLines(path, StandardCharsets.UTF_8)) {
+                        String trimmed = line.trim();
+                        if (trimmed.isEmpty() || trimmed.startsWith("#")) continue;
+                        int separator = trimmed.indexOf('=');
+                        if (separator <= 0) continue;
+                        String key = trimmed.substring(0, separator).trim();
+                        String value = trimmed.substring(separator + 1).trim();
+                        if (value.length() >= 2
+                                && ((value.startsWith("\"") && value.endsWith("\""))
+                                || (value.startsWith("'") && value.endsWith("'")))) {
+                            value = value.substring(1, value.length() - 1);
+                        }
+                        properties.setProperty(key, value);
+                    }
+                    return properties;
+                } catch (IOException ignored) {}
+            }
+        }
         return properties;
     }
 }

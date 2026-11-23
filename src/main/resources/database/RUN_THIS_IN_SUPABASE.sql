@@ -822,7 +822,7 @@ TO anon, authenticated
 WITH CHECK (
     status = 'PENDING' AND
     identifier_submitted IS NOT NULL AND TRIM(identifier_submitted) != '' AND
-    role IN ('STUDENT', 'INSTRUCTOR', 'EMPLOYER') AND
+    role IN ('STUDENT', 'INSTRUCTOR', 'EMPLOYER', 'ADMIN') AND
     reason IS NOT NULL AND TRIM(reason) != ''
 );
 

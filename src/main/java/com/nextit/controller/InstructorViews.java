@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import javafx.application.Platform;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -81,6 +82,7 @@ public final class InstructorViews {
         badges.getChildren().addAll(
                 Ui.badge("@" + account.getUsername(), "badge-pill-cream"),
                 Ui.badge(String.valueOf(account.getRole()), "badge-pill-mint"),
+                Ui.badge(value(instructor.getEmployeeNumber()), "badge-pill-cream"),
                 Ui.badge(value(instructor.getDepartment()), "badge-pill-lavender")
         );
         identityDetails.getChildren().addAll(nameLabel, badges);
@@ -122,7 +124,7 @@ public final class InstructorViews {
         deptGrid.setVgap(14);
         deptGrid.getColumnConstraints().addAll(col1, col2);
 
-        deptGrid.add(Ui.propertyTile("Employee Number", value(instructor.getEmployeeNumber())), 0, 0);
+        deptGrid.add(Ui.propertyTile("Faculty Employee ID", value(instructor.getEmployeeNumber())), 0, 0);
         deptGrid.add(Ui.propertyTile("Department", value(instructor.getDepartment())), 1, 0);
         deptGrid.add(Ui.propertyTile("Specialization", value(instructor.getSpecialization())), 0, 1);
         deptGrid.add(Ui.propertyTile("Status", Ui.badge("Active Faculty", "badge-pill-mint")), 1, 1);
@@ -762,7 +764,39 @@ public final class InstructorViews {
         HBox.setHgrow(sp, Priority.ALWAYS);
         Label dateLbl = new Label(letter.getIssuedAt() != null ? "Issued: " + Ui.formatDate(letter.getIssuedAt().toLocalDate()) : "");
         dateLbl.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
-        topRow.getChildren().addAll(seal, sp, dateLbl);
+
+        Button exportLetterBtn = Ui.button("📄 Export Letter (Print / PDF)", "clay-btn-secondary");
+        exportLetterBtn.setOnAction(ev -> {
+            javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+            chooser.setTitle("Export Recommendation Letter");
+            chooser.setInitialFileName("recommendation_" + studentName.toLowerCase(Locale.ROOT).replace(" ", "_") + ".html");
+            chooser.getExtensionFilters().addAll(
+                    new javafx.stage.FileChooser.ExtensionFilter("Printable HTML / PDF Document (*.html)", "*.html"),
+                    new javafx.stage.FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+            );
+            java.io.File f = chooser.showSaveDialog(exportLetterBtn.getScene() != null ? exportLetterBtn.getScene().getWindow() : null);
+            if (f != null) {
+                try (java.io.PrintWriter pw = new java.io.PrintWriter(f, java.nio.charset.StandardCharsets.UTF_8)) {
+                    pw.println("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Faculty Recommendation - " + studentName + "</title>");
+                    pw.println("<style>body{font-family:Georgia,serif;margin:48px;background:#FFF;color:#1A2634;line-height:1.6;} .letter-head{border-bottom:2px solid #9E0B0F;padding-bottom:12px;margin-bottom:24px;} .inst{color:#9E0B0F;font-size:22px;font-weight:bold;} .date{color:#666;font-size:12px;float:right;} .body{font-size:15px;white-space:pre-wrap;}</style></head><body>");
+                    pw.println("<div class='letter-head'><div class='date'>" + (letter.getIssuedAt() != null ? Ui.formatDate(letter.getIssuedAt().toLocalDate()) : "") + "</div>");
+                    pw.println("<div class='inst'>NextIT Academic Defense Network • Faculty Recommendation</div><div>Department of Computer Science</div></div>");
+                    pw.println("<h2>" + letter.getLetterTitle() + "</h2>");
+                    pw.println("<p><b>Candidate:</b> " + studentName + "</p>");
+                    if (letter.getEndorsementHighlights() != null && !letter.getEndorsementHighlights().isBlank()) {
+                        pw.println("<p><b>Key Competencies & Highlights:</b> " + letter.getEndorsementHighlights() + "</p>");
+                    }
+                    pw.println("<hr style='border:none;border-top:1px solid #EFE2CA;margin:18px 0;'/>");
+                    pw.println("<div class='body'>" + letter.getRecommendationBody() + "</div>");
+                    pw.println("</body></html>");
+                    com.nextit.util.ExportService.promptOpenFile(f, "Letter Exported", "Recommendation letter exported to:\n" + f.getAbsolutePath());
+                } catch (Exception ex) {
+                    Alerts.error("Failed to export recommendation letter: " + ex.getMessage());
+                }
+            }
+        });
+
+        topRow.getChildren().addAll(seal, sp, dateLbl, exportLetterBtn);
 
         Label letterTitleLbl = new Label(letter.getLetterTitle());
         letterTitleLbl.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
@@ -1044,15 +1078,23 @@ public final class InstructorViews {
             cards1.getChildren().clear();
             cards2.getChildren().clear();
 
-            VBox c1 = Ui.card("Students", String.valueOf(directory.students().size()));
-            VBox c2 = Ui.card("Grade Records", String.valueOf(allGrades.size()));
-            VBox c3 = Ui.card("Attendance Records", String.valueOf(allAttendance.size()));
-            VBox c4 = Ui.card("Skill Evaluations", String.valueOf(skills.all().size()));
+            VBox c1 = Ui.card("Students", String.valueOf(directory.students().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.students(), "Students"); });
+            VBox c2 = Ui.card("Grade Records", String.valueOf(allGrades.size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.grades(), "Grades"); });
+            VBox c3 = Ui.card("Attendance Records", String.valueOf(allAttendance.size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.attendance(), "Attendance"); });
+            VBox c4 = Ui.card("Skill Evaluations", String.valueOf(skills.all().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.technicalEvaluations(), "Technical Evaluations"); });
 
-            VBox c5 = Ui.card("Project Evaluations", String.valueOf(projects.allEvaluations().size()));
-            VBox c6 = Ui.card("Academic Support", String.valueOf(support.all().size()));
-            VBox c7 = Ui.card("Projects", String.valueOf(projects.allProjects().size()));
-            VBox c8 = Ui.card("Catalog Subjects", String.valueOf(directory.subjects().size()));
+            VBox c5 = Ui.card("Project Evaluations", String.valueOf(projects.allEvaluations().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.evaluations(), "Project Evaluations"); });
+            VBox c6 = Ui.card("Academic Support", String.valueOf(support.all().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.support(), "Academic Support"); });
+            VBox c7 = Ui.card("Projects", String.valueOf(projects.allProjects().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.projects(), "Projects"); });
+            VBox c8 = Ui.card("Catalog Subjects", String.valueOf(directory.subjects().size()),
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.subjects(), "Subjects"); });
 
             for (VBox c : List.of(c1, c2, c3, c4, c5, c6, c7, c8)) {
                 HBox.setHgrow(c, Priority.ALWAYS);
@@ -1064,8 +1106,10 @@ public final class InstructorViews {
 
             // 2. Update Dual Charts
             chartsRow.getChildren().clear();
-            Node attendanceChart = DashboardCharts.attendanceSummary(allAttendance);
-            Node gradesChart = DashboardCharts.averageByActivityType(allGrades);
+            Node attendanceChart = DashboardCharts.attendanceSummary(allAttendance,
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.attendance(), "Attendance"); });
+            Node gradesChart = DashboardCharts.averageByActivityType(allGrades,
+                    () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.grades(), "Grades"); });
             HBox.setHgrow(attendanceChart, Priority.ALWAYS);
             HBox.setHgrow(gradesChart, Priority.ALWAYS);
             chartsRow.getChildren().addAll(attendanceChart, gradesChart);
@@ -1190,6 +1234,9 @@ public final class InstructorViews {
         HBox.setHgrow(aSp, Priority.ALWAYS);
         Node aBadge = Ui.badge(allAttendance.size() + " (" + presentCount + " Present)", "badge-pill-mint");
         attRow.getChildren().addAll(aLabel, aSp, aBadge);
+        Ui.makeInteractive(attRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.attendance(), "Attendance");
+        });
 
         HBox gradeRow = new HBox(8);
         gradeRow.setAlignment(Pos.CENTER_LEFT);
@@ -1199,6 +1246,9 @@ public final class InstructorViews {
         HBox.setHgrow(gSp, Priority.ALWAYS);
         Node gBadge = Ui.badge(allGrades.size() + " Submissions", "badge-pill-blue");
         gradeRow.getChildren().addAll(gLabel, gSp, gBadge);
+        Ui.makeInteractive(gradeRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.grades(), "Grades");
+        });
 
         HBox supRow = new HBox(8);
         supRow.setAlignment(Pos.CENTER_LEFT);
@@ -1208,6 +1258,9 @@ public final class InstructorViews {
         HBox.setHgrow(sSp, Priority.ALWAYS);
         Node sBadge = Ui.badge(support.all().size() + " Active", "badge-pill-lavender");
         supRow.getChildren().addAll(sLabel, sSp, sBadge);
+        Ui.makeInteractive(supRow, () -> {
+            if (AppController.getInstance() != null) AppController.getInstance().navigateTo(InstructorViews.support(), "Academic Support");
+        });
 
         queueBox.getChildren().addAll(queueHeader, attRow, gradeRow, supRow);
 
@@ -1872,11 +1925,23 @@ public final class InstructorViews {
             remarksDialog.setTitle("Approve Password Reset");
             remarksDialog.setHeaderText("Authorize password reset for: " + selected.getIdentifierSubmitted());
             remarksDialog.setContentText("Coordinator remarks:");
-            remarksDialog.showAndWait().ifPresent(remarks -> guard(() -> {
-                resetRequests.approveAndDispatchReset(selected.getRequestId(), remarks);
-                Alerts.info("Password reset approved. 6-digit recovery OTP has been generated and dispatched.");
-                refreshData.run();
-            }));
+            remarksDialog.showAndWait().ifPresent(remarks -> {
+                approveBtn.setDisable(true);
+                CompletableFuture.supplyAsync(() -> resetRequests.approveAndDispatchReset(selected.getRequestId(), remarks))
+                        .thenAccept(res -> Platform.runLater(() -> {
+                            approveBtn.setDisable(false);
+                            Alerts.info("Password reset approved. 6-digit recovery OTP has been generated and dispatched.");
+                            refreshData.run();
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                approveBtn.setDisable(false);
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                Alerts.error("Failed to approve reset request: " + cause.getMessage());
+                            });
+                            return null;
+                        });
+            });
         });
 
         Button rejectBtn = new Button("✖ Reject Request");
@@ -1896,11 +1961,23 @@ public final class InstructorViews {
             reasonDialog.setTitle("Reject Password Reset");
             reasonDialog.setHeaderText("Reject reset request for: " + selected.getIdentifierSubmitted());
             reasonDialog.setContentText("Rejection reason / remarks:");
-            reasonDialog.showAndWait().ifPresent(rejectionRemarks -> guard(() -> {
-                resetRequests.rejectRequest(selected.getRequestId(), rejectionRemarks);
-                Alerts.info("Password reset request rejected.");
-                refreshData.run();
-            }));
+            reasonDialog.showAndWait().ifPresent(rejectionRemarks -> {
+                rejectBtn.setDisable(true);
+                CompletableFuture.supplyAsync(() -> resetRequests.rejectRequest(selected.getRequestId(), rejectionRemarks))
+                        .thenAccept(res -> Platform.runLater(() -> {
+                            rejectBtn.setDisable(false);
+                            Alerts.info("Password reset request rejected.");
+                            refreshData.run();
+                        }))
+                        .exceptionally(ex -> {
+                            Platform.runLater(() -> {
+                                rejectBtn.setDisable(false);
+                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                                Alerts.error("Failed to reject request: " + cause.getMessage());
+                            });
+                            return null;
+                        });
+            });
         });
 
         Button refreshBtn = new Button("Refresh");
