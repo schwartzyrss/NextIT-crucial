@@ -28,7 +28,9 @@ public class JdbcUserRepository implements UserRepository {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
-            throw new AppException("Failed to find user by id", e);
+            log.error("Failed to find user by id={} [SQLState={}, ErrorCode={}]: {}",
+                    id, e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to find user by id: " + e.getMessage(), e);
         }
     }
 
@@ -42,6 +44,8 @@ public class JdbcUserRepository implements UserRepository {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
+            log.error("Failed to find user by username='{}' [SQLState={}, ErrorCode={}]: {}",
+                    username, e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to find user: " + e.getMessage(), e);
         }
     }
@@ -56,6 +60,8 @@ public class JdbcUserRepository implements UserRepository {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
+            log.error("Failed to find user by email='{}' [SQLState={}, ErrorCode={}]: {}",
+                    email, e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to find user: " + e.getMessage(), e);
         }
     }
@@ -236,7 +242,9 @@ public class JdbcUserRepository implements UserRepository {
             while (rs.next()) users.add(map(rs));
             return users;
         } catch (SQLException e) {
-            throw new AppException("Failed to list users", e);
+            log.error("Failed to list all users [SQLState={}, ErrorCode={}]: {}",
+                    e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to list users: " + e.getMessage(), e);
         }
     }
 
@@ -300,6 +308,15 @@ public class JdbcUserRepository implements UserRepository {
                     if (keys.next()) user.setUserId(keys.getInt(1));
                 }
             } catch (SQLException ex) {
+                String sqlState = ex.getSQLState();
+                log.warn("INSERT into users with extended security fields failed [SQLState={}, ErrorCode={}]: {}",
+                        sqlState, ex.getErrorCode(), ex.getMessage());
+                // If the failure was an RLS violation (42501), unique constraint violation (23505), or connection failure (08xxx), fail immediately
+                if ("42501".equals(sqlState) || "23505".equals(sqlState) || (sqlState != null && sqlState.startsWith("08"))) {
+                    log.error("Critical database error inserting user into Supabase [SQLState={}, ErrorCode={}]: {}",
+                            sqlState, ex.getErrorCode(), ex.getMessage());
+                    throw ex;
+                }
                 // If the additional columns don't exist yet in an older DB, fallback to standard insert
                 try (PreparedStatement ps = c.prepareStatement(fallbackSql, Statement.RETURN_GENERATED_KEYS)) {
                     ps.setString(1, user.getUsername());
@@ -314,7 +331,17 @@ public class JdbcUserRepository implements UserRepository {
                     }
                 }
             }
+            // Verify user ID was returned; if not populated via getGeneratedKeys(), query back from DB
+            if (user.getUserId() <= 0) {
+                findByUsername(user.getUsername()).ifPresent(u -> user.setUserId(u.getUserId()));
+            }
+            if (user.getUserId() <= 0) {
+                throw new SQLException("User record could not be confirmed in the database after insert");
+            }
+            log.info("Successfully committed user '{}' with id={} to database", user.getUsername(), user.getUserId());
         } catch (SQLException e) {
+            log.error("Failed to save user '{}' to database [SQLState={}, ErrorCode={}]: {}",
+                    user.getUsername(), e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to save user: " + e.getMessage(), e);
         }
     }
@@ -329,6 +356,7 @@ public class JdbcUserRepository implements UserRepository {
         }
 
         try (Connection c = DatabaseConfig.getConnection()) {
+            int affected = 0;
             try (PreparedStatement ps = c.prepareStatement(sql)) {
                 ps.setString(1, user.getUsername());
                 ps.setString(2, user.getEmail());
@@ -339,8 +367,16 @@ public class JdbcUserRepository implements UserRepository {
                 ps.setString(7, user.getRejectionReason());
                 ps.setBoolean(8, user.isMfaEnabled());
                 ps.setInt(9, user.getUserId());
-                ps.executeUpdate();
+                affected = ps.executeUpdate();
             } catch (SQLException ex) {
+                String sqlState = ex.getSQLState();
+                log.warn("UPDATE users with extended security fields failed [SQLState={}, ErrorCode={}]: {}",
+                        sqlState, ex.getErrorCode(), ex.getMessage());
+                if ("42501".equals(sqlState) || "23505".equals(sqlState) || (sqlState != null && sqlState.startsWith("08"))) {
+                    log.error("Critical database error updating user in Supabase [SQLState={}, ErrorCode={}]: {}",
+                            sqlState, ex.getErrorCode(), ex.getMessage());
+                    throw ex;
+                }
                 try (PreparedStatement ps = c.prepareStatement(fallbackSql)) {
                     ps.setString(1, user.getUsername());
                     ps.setString(2, user.getEmail());
@@ -348,11 +384,19 @@ public class JdbcUserRepository implements UserRepository {
                     ps.setString(4, user.getFirstName());
                     ps.setString(5, user.getLastName());
                     ps.setInt(6, user.getUserId());
-                    ps.executeUpdate();
+                    affected = ps.executeUpdate();
                 }
             }
+            if (affected == 0) {
+                log.warn("UPDATE users affected 0 rows for user_id={}", user.getUserId());
+            } else {
+                log.info("Successfully committed user update for '{}' (id={}, affected rows={})",
+                        user.getUsername(), user.getUserId(), affected);
+            }
         } catch (SQLException e) {
-            throw new AppException("Failed to update user", e);
+            log.error("Failed to update user '{}' [id={}, SQLState={}, ErrorCode={}]: {}",
+                    user.getUsername(), user.getUserId(), e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to update user: " + e.getMessage(), e);
         }
     }
 
@@ -362,9 +406,16 @@ public class JdbcUserRepository implements UserRepository {
         try (Connection c = DatabaseConfig.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, passwordHash);
             ps.setInt(2, userId);
-            ps.executeUpdate();
+            int affected = ps.executeUpdate();
+            if (affected == 0) {
+                log.warn("Password update affected 0 rows for user_id={}", userId);
+            } else {
+                log.info("Successfully committed password update for user_id={} to database", userId);
+            }
         } catch (SQLException e) {
-            throw new AppException("Failed to update password", e);
+            log.error("Failed to update password for user_id={} [SQLState={}, ErrorCode={}]: {}",
+                    userId, e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to update password: " + e.getMessage(), e);
         }
     }
 
@@ -380,8 +431,15 @@ public class JdbcUserRepository implements UserRepository {
                 ps.setNull(3, Types.TIMESTAMP);
             }
             ps.setInt(4, userId);
-            ps.executeUpdate();
+            int affected = ps.executeUpdate();
+            if (affected == 0) {
+                log.warn("updateVerificationStatus affected 0 rows for user_id={}", userId);
+            } else {
+                log.info("Successfully updated verification status to {} for user_id={}", status, userId);
+            }
         } catch (SQLException e) {
+            log.error("Failed to update verification status for user_id={} [SQLState={}, ErrorCode={}]: {}",
+                    userId, e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to update verification status: " + e.getMessage(), e);
         }
     }
@@ -394,8 +452,9 @@ public class JdbcUserRepository implements UserRepository {
             if (lockedUntil != null) ps.setTimestamp(2, Timestamp.valueOf(lockedUntil)); else ps.setNull(2, Types.TIMESTAMP);
             ps.setInt(3, userId);
             ps.executeUpdate();
-        } catch (SQLException ignored) {
-            // Non-critical if schema not updated yet
+        } catch (SQLException ex) {
+            log.warn("Failed to record failed login for user_id={} [SQLState={}, ErrorCode={}]: {}",
+                    userId, ex.getSQLState(), ex.getErrorCode(), ex.getMessage());
         }
     }
 
@@ -405,7 +464,10 @@ public class JdbcUserRepository implements UserRepository {
         try (Connection c = DatabaseConfig.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, userId);
             ps.executeUpdate();
-        } catch (SQLException ignored) {}
+        } catch (SQLException ex) {
+            log.warn("Failed to reset failed logins for user_id={} [SQLState={}, ErrorCode={}]: {}",
+                    userId, ex.getSQLState(), ex.getErrorCode(), ex.getMessage());
+        }
     }
 
     @Override
@@ -415,7 +477,10 @@ public class JdbcUserRepository implements UserRepository {
             ps.setBoolean(1, enabled);
             ps.setInt(2, userId);
             ps.executeUpdate();
-        } catch (SQLException ignored) {}
+        } catch (SQLException ex) {
+            log.warn("Failed to update MFA for user_id={} [SQLState={}, ErrorCode={}]: {}",
+                    userId, ex.getSQLState(), ex.getErrorCode(), ex.getMessage());
+        }
     }
 
     @Override
@@ -423,11 +488,20 @@ public class JdbcUserRepository implements UserRepository {
         String sql = "DELETE FROM users WHERE user_id = ?";
         try (Connection c = DatabaseConfig.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, id);
-            ps.executeUpdate();
+            int affected = ps.executeUpdate();
+            if (affected == 0) {
+                log.warn("DELETE user affected 0 rows for user_id={}", id);
+            } else {
+                log.info("Successfully deleted user_id={}", id);
+            }
         } catch (SQLIntegrityConstraintViolationException e) {
+            log.error("Integrity constraint violation deleting user_id={} [SQLState={}, ErrorCode={}]: {}",
+                    id, e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("This user cannot be deleted because they are referenced by grades, attendance, evaluations or academic support records.", e);
         } catch (SQLException e) {
-            throw new AppException("Failed to delete user", e);
+            log.error("Failed to delete user_id={} [SQLState={}, ErrorCode={}]: {}",
+                    id, e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to delete user: " + e.getMessage(), e);
         }
     }
 

@@ -3,6 +3,8 @@ package com.nextit.repository;
 import com.nextit.config.DatabaseConfig;
 import com.nextit.exception.AppException;
 import com.nextit.model.Employer;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -10,6 +12,8 @@ import java.util.List;
 import java.util.Optional;
 
 public class JdbcEmployerRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcEmployerRepository.class);
 
     public Optional<Employer> findById(int employerId) {
         try (Connection c = DatabaseConfig.getConnection();
@@ -53,8 +57,19 @@ public class JdbcEmployerRepository {
             ps.setString(6, e0.getAddress());
             ps.setString(7, e0.getJobTitle());
             ps.executeUpdate();
-            try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) e0.setEmployerId(k.getInt(1)); }
-        } catch (SQLException e) { throw new AppException("Failed to save employer", e); }
+            try (ResultSet k = ps.getGeneratedKeys()) {
+                if (k.next()) e0.setEmployerId(k.getInt(1));
+            }
+            if (e0.getEmployerId() <= 0 && e0.getUserId() > 0) {
+                findByUserId(e0.getUserId()).ifPresent(found -> e0.setEmployerId(found.getEmployerId()));
+            }
+            log.info("Saved employer profile [employer_id={}, user_id={}, company={}]",
+                    e0.getEmployerId(), e0.getUserId(), e0.getCompanyName());
+        } catch (SQLException e) {
+            log.error("Failed to save employer profile [user_id={}, company={}, SQLState={}, ErrorCode={}]: {}",
+                    e0.getUserId(), e0.getCompanyName(), e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to save employer: " + e.getMessage(), e);
+        }
     }
 
     public void update(Employer e0) {
@@ -68,8 +83,31 @@ public class JdbcEmployerRepository {
             ps.setString(5, e0.getAddress());
             ps.setString(6, e0.getJobTitle());
             ps.setInt(7, e0.getEmployerId());
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new AppException("Failed to update employer", e); }
+            int affected = ps.executeUpdate();
+            if (affected == 0 && e0.getUserId() > 0) {
+                String sqlByUserId = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=?, job_title=? WHERE user_id=?";
+                try (PreparedStatement ps2 = c.prepareStatement(sqlByUserId)) {
+                    ps2.setString(1, e0.getCompanyName());
+                    ps2.setString(2, e0.getIndustry());
+                    ps2.setString(3, e0.getContactPerson());
+                    ps2.setString(4, e0.getContactNumber());
+                    ps2.setString(5, e0.getAddress());
+                    ps2.setString(6, e0.getJobTitle());
+                    ps2.setInt(7, e0.getUserId());
+                    affected = ps2.executeUpdate();
+                }
+            }
+            if (affected == 0) {
+                log.warn("UPDATE employers affected 0 rows for employer_id={}, user_id={}", e0.getEmployerId(), e0.getUserId());
+                throw new AppException("Employer profile record not found in the database to update.");
+            }
+            log.info("Successfully committed employer update [employer_id={}, user_id={}, company={}]",
+                    e0.getEmployerId(), e0.getUserId(), e0.getCompanyName());
+        } catch (SQLException e) {
+            log.error("Failed to update employer profile [employer_id={}, user_id={}, SQLState={}, ErrorCode={}]: {}",
+                    e0.getEmployerId(), e0.getUserId(), e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to update employer: " + e.getMessage(), e);
+        }
     }
 
     private Employer map(ResultSet rs) throws SQLException {

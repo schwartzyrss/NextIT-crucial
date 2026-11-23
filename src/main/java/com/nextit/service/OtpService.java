@@ -45,12 +45,22 @@ public final class OtpService {
         String code = String.format("%06d", new SecureRandom().nextInt(1000000));
         ACTIVE_OTPS.put(cleanEmail, new OtpRecord(code, now + OTP_TTL_MS, now + COOLDOWN_MS));
 
+        if (com.nextit.config.AppConfig.isDevBypassEmail()) {
+            System.out.println("[DEV_BYPASS_EMAIL] OTP Code for " + cleanEmail + ": " + code);
+            log.info("[DEV_BYPASS_EMAIL] OTP Code for {}: {}", cleanEmail, code);
+        }
+
         EmailService.SmtpResult result = EmailService.sendOtpEmailWithStatus(cleanEmail, code);
         boolean sent = result.isSuccess();
         boolean configured = EmailService.isConfigured();
+        String msg = result.getMessage();
+        if (!result.isSuccess() && com.nextit.config.AppConfig.isDevBypassEmail()) {
+            sent = true;
+            msg = "Email offline. Local dev code: " + code;
+        }
 
-        log.info("Requested OTP for {}: sent={}, configured={}, msg={}", cleanEmail, sent, configured, result.getMessage());
-        return new OtpResponse(sent, configured, code, false, result.getMessage());
+        log.info("Requested OTP for {}: sent={}, configured={}, msg={}", cleanEmail, sent, configured, msg);
+        return new OtpResponse(sent, configured, code, false, msg);
     }
 
     public static OtpResponse requestMfaOtp(User user) {
@@ -70,8 +80,19 @@ public final class OtpService {
         String code = String.format("%06d", new SecureRandom().nextInt(1000000));
         ACTIVE_OTPS.put(cleanEmail, new OtpRecord(code, now + OTP_TTL_MS, now + COOLDOWN_MS));
 
+        if (com.nextit.config.AppConfig.isDevBypassEmail()) {
+            System.out.println("[DEV_BYPASS_EMAIL] MFA OTP Code for " + user.getEmail() + ": " + code);
+            log.info("[DEV_BYPASS_EMAIL] MFA OTP Code for {}: {}", user.getEmail(), code);
+        }
+
         EmailService.SmtpResult result = EmailService.sendOtpEmailWithStatus(user.getEmail().trim(), code);
-        return new OtpResponse(result.isSuccess(), EmailService.isConfigured(), code, false, result.getMessage());
+        boolean sent = result.isSuccess();
+        String msg = result.getMessage();
+        if (!result.isSuccess() && com.nextit.config.AppConfig.isDevBypassEmail()) {
+            sent = true;
+            msg = "Email offline. Local dev code: " + code;
+        }
+        return new OtpResponse(sent, EmailService.isConfigured(), code, false, msg);
     }
 
     public static boolean verifyMfaOtp(User user, String enteredCode) {
@@ -110,8 +131,19 @@ public final class OtpService {
             ACTIVE_OTPS.put(userKey, rec);
         }
 
+        if (com.nextit.config.AppConfig.isDevBypassEmail()) {
+            System.out.println("[DEV_BYPASS_EMAIL] Password Reset OTP Code for " + user.getEmail() + ": " + code);
+            log.info("[DEV_BYPASS_EMAIL] Password Reset OTP Code for {}: {}", user.getEmail(), code);
+        }
+
         EmailService.SmtpResult result = EmailService.sendPasswordResetOtpEmailWithStatus(user.getEmail().trim(), code, user.getUsername());
-        return new OtpResponse(result.isSuccess(), EmailService.isConfigured(), code, false, result.getMessage());
+        boolean sent = result.isSuccess();
+        String msg = result.getMessage();
+        if (!result.isSuccess() && com.nextit.config.AppConfig.isDevBypassEmail()) {
+            sent = true;
+            msg = "Email offline. Local dev code: " + code;
+        }
+        return new OtpResponse(sent, EmailService.isConfigured(), code, false, msg);
     }
 
     public static boolean verifyPasswordResetOtp(User user, String enteredCode) {

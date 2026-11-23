@@ -5,6 +5,8 @@ import com.nextit.exception.AppException;
 import com.nextit.model.Role;
 import com.nextit.model.VerificationRequest;
 import com.nextit.model.VerificationStatus;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -12,6 +14,8 @@ import java.util.List;
 import java.util.Optional;
 
 public class JdbcVerificationRequestRepository implements VerificationRequestRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcVerificationRequestRepository.class);
 
     private static final String BASE_SELECT =
             "SELECT vr.*, u.username, u.first_name, u.last_name, u.email AS user_email " +
@@ -92,7 +96,10 @@ public class JdbcVerificationRequestRepository implements VerificationRequestRep
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) req.setRequestId(keys.getInt(1));
             }
+            log.info("Saved verification request [request_id={}, user_id={}, role={}]", req.getRequestId(), req.getUserId(), req.getRole());
         } catch (SQLException e) {
+            log.error("Failed to save verification request [user_id={}, role={}, SQLState={}, ErrorCode={}]: {}",
+                    req.getUserId(), req.getRole(), e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to save verification request: " + e.getMessage(), e);
         }
     }
@@ -115,8 +122,15 @@ public class JdbcVerificationRequestRepository implements VerificationRequestRep
             ps.setString(12, req.getReviewerNotes());
             if (req.getReviewedAt() != null) ps.setTimestamp(13, Timestamp.valueOf(req.getReviewedAt())); else ps.setNull(13, Types.TIMESTAMP);
             ps.setInt(14, req.getRequestId());
-            ps.executeUpdate();
+            int affected = ps.executeUpdate();
+            if (affected == 0) {
+                log.warn("UPDATE verification_requests affected 0 rows for request_id={}", req.getRequestId());
+            } else {
+                log.info("Successfully committed verification request update [request_id={}, status={}]", req.getRequestId(), req.getStatus());
+            }
         } catch (SQLException e) {
+            log.error("Failed to update verification request [request_id={}, SQLState={}, ErrorCode={}]: {}",
+                    req.getRequestId(), e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to update verification request: " + e.getMessage(), e);
         }
     }

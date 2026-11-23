@@ -84,4 +84,38 @@ class HttpsEmailDispatchTest {
         // Both verify cleanly with generated code or bypass when active
         assertTrue(OtpService.verifyPasswordResetOtp(user, recoveryResp.code()));
     }
+
+    @Test
+    void devBypassEmail_allowsImmediateProgressionWithoutApiKey() {
+        boolean originalBypass = AppConfig.DEV_BYPASS_EMAIL;
+        try {
+            AppConfig.DEV_BYPASS_EMAIL = true;
+            assertTrue(AppConfig.isDevBypassEmail());
+
+            String email = "devbypass-test@bastate-u.edu.ph";
+            OtpService.OtpResponse resp = OtpService.requestOtp(email);
+            assertNotNull(resp);
+            assertTrue(resp.sent(), "Dev bypass should treat email dispatch as sent");
+            assertNotNull(resp.code());
+            assertEquals(6, resp.code().length());
+
+            // User enters the generated OTP code logged to console
+            assertTrue(OtpService.verifyOtp(email, resp.code()), "Generated code should verify successfully");
+        } finally {
+            AppConfig.DEV_BYPASS_EMAIL = originalBypass;
+        }
+    }
+
+    @Test
+    void verificationDecisionHtmlBuilder_producesValidContent() {
+        String htmlApproved = EmailService.buildVerificationDecisionHtml("Juan Dela Cruz", Role.STUDENT, true, "All documents verified.");
+        assertNotNull(htmlApproved);
+        assertTrue(htmlApproved.contains("Juan Dela Cruz"));
+        assertTrue(htmlApproved.contains("Identity Verified &amp; Approved") || htmlApproved.contains("Identity Verified & Approved"));
+
+        String htmlRejected = EmailService.buildVerificationDecisionHtml("Jane Doe", Role.INSTRUCTOR, false, "Invalid institutional ID.");
+        assertNotNull(htmlRejected);
+        assertTrue(htmlRejected.contains("Jane Doe"));
+        assertTrue(htmlRejected.contains("Invalid institutional ID."));
+    }
 }

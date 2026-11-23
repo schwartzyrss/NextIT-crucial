@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
@@ -66,7 +67,12 @@ public final class EmbeddedDatabaseManager {
 
             String serverUrl = "jdbc:mysql://127.0.0.1:" + configuration.getPort() + "/";
             initializeSqlScript(serverUrl, "schema.sql");
-            initializeSqlScript(serverUrl, "seed.sql");
+            if (!isDatabasePopulated(serverUrl)) {
+                initializeSqlScript(serverUrl, "seed.sql");
+                LOG.info("Embedded database initialized with demo seed data.");
+            } else {
+                LOG.info("Embedded database already contains user data; skipping seed script to preserve state.");
+            }
 
             String fullUrl = serverUrl + DATABASE_NAME + CONNECTION_PARAMETERS;
             System.setProperty("NEXTIT_DB_URL", fullUrl);
@@ -75,7 +81,7 @@ public final class EmbeddedDatabaseManager {
 
             Runtime.getRuntime().addShutdownHook(new Thread(EmbeddedDatabaseManager::stop, "nextit-embedded-db-shutdown"));
             started = true;
-            LOG.info("Embedded database initialized successfully on port {} with demo seed data.", configuration.getPort());
+            LOG.info("Embedded database initialized successfully on port {}.", configuration.getPort());
         } catch (Exception e) {
             stop();
             throw new SQLException("Failed to start embedded database: " + e.getMessage(), e);
@@ -92,6 +98,17 @@ public final class EmbeddedDatabaseManager {
                 embeddedDatabase = null;
                 started = false;
             }
+        }
+    }
+
+    private static boolean isDatabasePopulated(String serverUrl) {
+        String testUrl = serverUrl + DATABASE_NAME + CONNECTION_PARAMETERS;
+        try (Connection c = DriverManager.getConnection(testUrl, "root", "");
+             Statement st = c.createStatement();
+             ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM users")) {
+            return rs.next() && rs.getInt(1) > 0;
+        } catch (Exception ignored) {
+            return false;
         }
     }
 
