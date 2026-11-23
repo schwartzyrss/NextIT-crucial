@@ -48,7 +48,8 @@ public final class EmbeddedDatabaseManager {
 
     public static boolean shouldFallback(String url) {
         if (started) return false;
-        return true;
+        if (url == null || url.isBlank()) return true;
+        return !url.startsWith("jdbc:postgresql:");
     }
 
     public static synchronized void ensureStarted() throws SQLException {

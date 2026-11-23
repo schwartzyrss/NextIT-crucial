@@ -799,7 +799,7 @@ public final class InstructorViews {
 
         Label letterTitleLbl = new Label(letter.getLetterTitle());
         letterTitleLbl.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
-        Label recFor = new Label("Candidate: " + studentName + (stud != null ? " (" + stud.getProgram() + " • Year " + stud.getYearLevel() + ")" : ""));
+        Label recFor = new Label("Candidate: " + studentName + (stud != null ? " (" + stud.getProgram() + " • " + com.nextit.util.Ui.formatYearDisplay(stud.getYearLevel()) + ")" : ""));
         recFor.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 600; -fx-text-fill: #414141;");
 
         Label oppLabel = new Label("Opportunity: " + (opp != null ? "[" + opp.getOpportunityType() + "] " + opp.getTitle() : "General Industry Endorsement"));

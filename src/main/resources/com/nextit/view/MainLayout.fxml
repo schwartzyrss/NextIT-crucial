@@ -16,6 +16,8 @@
             fx:controller="com.nextit.controller.AppController" styleClass="app-root">
     <top>
         <HBox spacing="12" styleClass="app-header" alignment="CENTER_LEFT">
+            <Button fx:id="toggleSidebarButton" text="☰" styleClass="sidebar-toggle-btn"
+                    onAction="#toggleSidebar"/>
             <StackPane styleClass="app-header-logo-container">
                 <ImageView fitWidth="26" fitHeight="26" preserveRatio="true" smooth="true">
                     <image>

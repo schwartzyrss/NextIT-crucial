@@ -117,8 +117,8 @@ public class OnboardingView {
         public String requestOtp(String email) {
             OtpService.OtpResponse resp = OtpService.requestOtp(email);
             String safeMsg = resp.message() != null ? resp.message().replace("\"", "\\\"").replace("\n", " ") : "";
-            return String.format("{\"sent\":%b,\"configured\":%b,\"rateLimited\":%b,\"code\":\"%s\",\"message\":\"%s\",\"delivery\":\"HTTPS (Port 443)\"}",
-                    resp.sent(), resp.configured(), resp.rateLimited(), resp.code(), safeMsg);
+            return String.format("{\"sent\":%b,\"configured\":%b,\"rateLimited\":%b,\"message\":\"%s\",\"delivery\":\"HTTPS (Port 443)\"}",
+                    resp.sent(), resp.configured(), resp.rateLimited(), safeMsg);
         }
 
         public boolean verifyOtp(String email, String enteredCode) {
@@ -136,7 +136,7 @@ public class OnboardingView {
         public String resetSmtpSettings() {
             try {
                 EmailService.clearSmtpConfig();
-                return "{\"success\":true,\"message\":\"Switched to Sandbox Mode. Verification code is 123456.\"}";
+                return "{\"success\":true,\"message\":\"Switched to Sandbox Mode. Check verification settings before requesting a code.\"}";
             } catch (Exception e) {
                 return String.format("{\"success\":false,\"message\":\"%s\"}", e.getMessage());
             }
@@ -148,11 +148,11 @@ public class OnboardingView {
                 String targetEmail = (emailToTest != null && !emailToTest.isBlank()) ? emailToTest.trim() : user.trim();
                 OtpService.OtpResponse resp = OtpService.requestOtp(targetEmail);
                 if (resp.sent()) {
-                    return String.format("{\"success\":true,\"saved\":true,\"message\":\"SMTP configured & verification email sent to %s!\",\"code\":\"%s\"}",
-                            targetEmail, resp.code());
+                    return String.format("{\"success\":true,\"saved\":true,\"message\":\"SMTP configured & verification email sent to %s!\"}",
+                            targetEmail);
                 } else {
                     String safeErr = (resp.message() != null ? resp.message() : "Failed to deliver email").replace("\"", "\\\"").replace("\n", " ");
-                    return String.format("{\"success\":false,\"saved\":true,\"message\":\"%s\",\"code\":\"%s\"}", safeErr, resp.code());
+                    return String.format("{\"success\":false,\"saved\":true,\"message\":\"%s\"}", safeErr);
                 }
             } catch (Exception e) {
                 String safeErr = (e.getMessage() != null ? e.getMessage() : e.toString()).replace("\"", "\\\"").replace("\n", " ");
@@ -227,7 +227,7 @@ public class OnboardingView {
                     user.setRole(role);
                     user.setFirstName(firstName.trim());
                     user.setLastName(lastName.trim());
-                    user.setVerificationStatus(VerificationStatus.VERIFIED);
+                    user.setVerificationStatus(analysis.status());
                     userRepo.save(user);
 
                     // Save role-specific profiles
@@ -309,7 +309,7 @@ public class OnboardingView {
                             ? " [Expected Graduation: " + detail2.trim() + "]"
                             : "";
                     req.setSubmissionNotes(analysis.reviewerNotes() + gradNote);
-                    req.setStatus(VerificationStatus.VERIFIED);
+                    req.setStatus(analysis.status());
                     req.setRiskScore(analysis.riskScore());
                     req.setRiskFlags(String.join(",", analysis.riskFlags()));
                     reqRepo.save(req);

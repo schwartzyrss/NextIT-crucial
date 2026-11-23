@@ -44,15 +44,15 @@ public class CareerService {
             throw new AppException("Employer profile not found.");
         }
         o.setEmployerId(actingEmployerId);
+        o.setStatus(normalizeOpportunityStatus(o.getStatus()));
         validate(o);
-        o.setStatus(o.getStatus() == null || o.getStatus().isBlank() ? "Open" : o.getStatus());
         oppRepo.save(o);
     }
 
     public void updateOpportunity(JobOpportunity o, int actingEmployerId) {
         requireOwned(o.getOpportunityId(), actingEmployerId);
+        o.setStatus(normalizeOpportunityStatus(o.getStatus()));
         validate(o);
-        o.setStatus(o.getStatus() == null || o.getStatus().isBlank() ? "Open" : o.getStatus());
         oppRepo.update(o);
     }
 
@@ -117,12 +117,13 @@ public class CareerService {
         if (status == null || !List.of("Pending", "Under Review", "Reviewed", "Shortlisted", "Rejected", "Accepted").contains(status)) {
             throw new AppException("Select a valid application status.");
         }
+        String canonicalStatus = "Reviewed".equals(status) ? "Under Review" : status;
         Validator.maxLength(remarks, 16000, "Remarks");
-        stored.setStatus(status);
+        stored.setStatus(canonicalStatus);
         stored.setRemarks(remarks != null && !remarks.isBlank() ? remarks.trim() : null);
         stored.setReviewedAt(LocalDateTime.now());
         appRepo.update(stored);
-        a.setStatus(status);
+        a.setStatus(canonicalStatus);
         a.setRemarks(stored.getRemarks());
         a.setReviewedAt(stored.getReviewedAt());
     }
@@ -142,12 +143,21 @@ public class CareerService {
         Validator.notBlank(o.getDescription(), "Description");
         Validator.maxLength(o.getDescription(), 16000, "Description");
         Validator.maxLength(o.getRequiredSkills(), 16000, "Required skills");
-        boolean inactive = "Closed".equalsIgnoreCase(o.getStatus()) || "Archived".equalsIgnoreCase(o.getStatus());
+        String status = o.getStatus();
+        if (status == null || !List.of("Open", "Closed", "Archived").contains(status)) {
+            throw new AppException("Status must be Open, Closed, or Archived.");
+        }
+        boolean inactive = "Closed".equals(status) || "Archived".equals(status);
         if (!inactive && o.getDeadline() != null && o.getDeadline().isBefore(LocalDate.now())) {
             throw new AppException("The deadline cannot be in the past while the opportunity is open.");
         }
-        if (o.getStatus() != null && !List.of("Open", "Closed", "Archived").contains(o.getStatus())) {
-            throw new AppException("Status must be Open, Closed, or Archived.");
-        }
+    }
+
+    private static String normalizeOpportunityStatus(String status) {
+        if (status == null || status.isBlank()) return "Open";
+        if ("Open".equalsIgnoreCase(status)) return "Open";
+        if ("Closed".equalsIgnoreCase(status)) return "Closed";
+        if ("Archived".equalsIgnoreCase(status)) return "Archived";
+        return status.trim();
     }
 }

@@ -1,5 +1,6 @@
 @echo off
 setlocal
+cd /d "%~dp0"
 
 REM Check if current JAVA_HOME is valid
 if defined JAVA_HOME (

@@ -17,9 +17,9 @@ public final class DatabaseConfig {
     private static final Logger log = LoggerFactory.getLogger(DatabaseConfig.class);
 
     private static final String DEFAULT_URL =
-            "jdbc:postgresql://aws-0-ap-southeast-1.pooler.supabase.com:5432/postgres?sslmode=require";
-    private static final String DEFAULT_USER = "postgres.qlmrcmaqkvtmciursqvr";
-    private static final String DEFAULT_PASSWORD = "NextIT.2026lolxz";
+            "jdbc:mysql://127.0.0.1:3306/nextit?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC";
+    private static final String DEFAULT_USER = "root";
+    private static final String DEFAULT_PASSWORD = "";
 
     private static final Properties DOT_ENV = loadDotEnv();
 
@@ -28,15 +28,15 @@ public final class DatabaseConfig {
     // Resolved on every call so tests can point the application at an embedded
     // database after the configuration class has already been loaded.
     public static String url() {
-        return value("SUPABASE_DB_URL", value("NEXTIT_DB_URL", DEFAULT_URL));
+        return value("NEXTIT_DB_URL", value("SUPABASE_DB_URL", DEFAULT_URL));
     }
 
     public static String user() {
-        return value("SUPABASE_DB_USER", value("NEXTIT_DB_USER", DEFAULT_USER));
+        return value("NEXTIT_DB_USER", value("SUPABASE_DB_USER", DEFAULT_USER));
     }
 
     public static String password() {
-        return value("SUPABASE_DB_PASSWORD", value("NEXTIT_DB_PASSWORD", DEFAULT_PASSWORD));
+        return value("NEXTIT_DB_PASSWORD", value("SUPABASE_DB_PASSWORD", DEFAULT_PASSWORD));
     }
 
     public static Connection getConnection() throws SQLException {
@@ -55,9 +55,15 @@ public final class DatabaseConfig {
                 DOT_ENV.remove("SUPABASE_DB_URL");
                 DOT_ENV.remove("SUPABASE_DB_USER");
                 DOT_ENV.remove("SUPABASE_DB_PASSWORD");
+                DOT_ENV.remove("NEXTIT_DB_URL");
+                DOT_ENV.remove("NEXTIT_DB_USER");
+                DOT_ENV.remove("NEXTIT_DB_PASSWORD");
                 System.clearProperty("SUPABASE_DB_URL");
                 System.clearProperty("SUPABASE_DB_USER");
                 System.clearProperty("SUPABASE_DB_PASSWORD");
+                System.clearProperty("NEXTIT_DB_URL");
+                System.clearProperty("NEXTIT_DB_USER");
+                System.clearProperty("NEXTIT_DB_PASSWORD");
                 EmbeddedDatabaseManager.ensureStarted();
                 return DriverManager.getConnection(url(), user(), password());
             }

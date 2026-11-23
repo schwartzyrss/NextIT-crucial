@@ -226,6 +226,9 @@ public class RecommendationLetterService {
         if (isStudent && letter.getStudentId() != actingUserId) {
             throw new AppException("You can only cancel your own recommendation requests.");
         }
+        if (isStudent && !"REQUESTED".equalsIgnoreCase(letter.getStatus())) {
+            throw new AppException("Only pending recommendation requests can be cancelled.");
+        }
         if (!isStudent && letter.getInstructorId() != actingUserId) {
             throw new AppException("You can only delete recommendations assigned to you.");
         }

@@ -491,7 +491,7 @@ public class LoginController {
                 stepDesc.setText("Enter verification code for " + masked);
                 stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
                 String noteMsg = (otpResp != null && otpResp.message() != null) ? otpResp.message() : "HTTPS connection offline.";
-                expireNote.setText("⚠ " + noteMsg + (com.nextit.config.AppConfig.isOfflineOtpFallbackAllowed() ? " (Testing fallback code: 123456)" : ""));
+                expireNote.setText("⚠ " + noteMsg);
                 expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #B45309; -fx-font-weight: 600;");
             }
 
@@ -613,7 +613,7 @@ public class LoginController {
                                 verifyBtn.setDisable(false);
                                 backBtn.setDisable(false);
                                 if (seconds[0] <= 0) resendBtn.setDisable(false);
-                                step2Msg.setText("Invalid or expired code. Please try again, click Resend" + (com.nextit.config.AppConfig.isOfflineOtpFallbackAllowed() ? ", or use testing code 123456." : "."));
+                                step2Msg.setText("Invalid or expired code. Please try again or click Resend.");
                                 step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
                             }
                         }))

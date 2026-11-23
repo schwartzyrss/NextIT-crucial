@@ -120,7 +120,7 @@ public class AdminService {
         Validator.email(record.getInstitutionalEmail());
         Validator.notBlank(record.getFullName(), "Full name");
         Validator.notBlank(record.getDepartmentOrProgram(), "Department or program");
-        if (record.getRecordType() == null) {
+        if (record.getRecordType() != Role.STUDENT && record.getRecordType() != Role.INSTRUCTOR) {
             throw new AppException("Record type (STUDENT or INSTRUCTOR) is required.");
         }
         if (record.getRecordId() > 0) {

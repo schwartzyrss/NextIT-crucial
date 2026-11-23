@@ -831,8 +831,11 @@ public final class StudentViews {
         if (!availableSubjects.isEmpty()) catalogPicker.getSelectionModel().selectFirst();
 
         TextField codeField = Ui.field("Or enter subject code directly (e.g. IT301, IT-311)");
-        TextField termField = Ui.field("Academic Year (e.g. 2025-2026)");
-        termField.setText("2025-2026");
+        java.time.LocalDate today = java.time.LocalDate.now();
+        int startYear = today.getMonthValue() >= 6 ? today.getYear() : today.getYear() - 1;
+        String defaultTerm = startYear + "-" + (startYear + 1);
+        TextField termField = Ui.field("Academic Year (e.g. " + defaultTerm + ")");
+        termField.setText(defaultTerm);
         ComboBox<String> semCombo = Ui.combo(List.of("1st Semester", "2nd Semester", "Summer Term"), s -> s);
         semCombo.getSelectionModel().selectFirst();
 
@@ -868,7 +871,7 @@ public final class StudentViews {
             }
 
             final Subject toEnroll = chosen;
-            String ay = termField.getText() != null && !termField.getText().isBlank() ? termField.getText().trim() : "2025-2026";
+            String ay = termField.getText() != null && !termField.getText().isBlank() ? termField.getText().trim() : defaultTerm;
             String sem = semCombo.getValue() != null ? semCombo.getValue() : "1st Semester";
 
             okButton.setDisable(true);
@@ -1014,7 +1017,7 @@ public final class StudentViews {
                         || String.valueOf(p.getProjectType()).toLowerCase(Locale.ROOT).contains(q)
                         || String.valueOf(p.getTechnologiesUsed()).toLowerCase(Locale.ROOT).contains(q)
                         || String.valueOf(p.getStatus()).toLowerCase(Locale.ROOT).contains(q)
-                        || subjects.getOrDefault(p.getSubjectId(), "").toLowerCase(Locale.ROOT).contains(q);
+                        || (p.getSubjectId() != null && subjects.getOrDefault(p.getSubjectId(), "").toLowerCase(Locale.ROOT).contains(q));
                 if (matchMain) return true;
                 List<ProjectMember> mems = membersCache.getOrDefault(p.getProjectId(), List.of());
                 return mems.stream().anyMatch(m ->
@@ -1745,7 +1748,7 @@ public final class StudentViews {
                     pw.println("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + value(Session.currentUser().getFullName()) + " - Portfolio</title>");
                     pw.println("<style>body{font-family:sans-serif;margin:40px;background:#FAF7F2;color:#1A2634;} h1{color:#9E0B0F;} h2{border-bottom:1px solid #C6A75E;padding-bottom:4px;color:#1A2634;} .box{background:#fff;border-radius:12px;border:1px solid #EFE2CA;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.06);margin-bottom:20px;}</style></head><body>");
                     pw.println("<div class='box'><h1>" + value(Session.currentUser().getFullName()) + "</h1>");
-                    pw.println("<p><b>" + (student == null ? "" : value(student.getProgram()) + " - Year " + student.getYearLevel()) + "</b></p>");
+                    pw.println("<p><b>" + (student == null ? "" : value(student.getProgram()) + " - " + Ui.formatYearDisplay(student.getYearLevel())) + "</b></p>");
                     pw.println("<h2>Professional Headline</h2><p>" + value(p.getHeadline()) + "</p>");
                     pw.println("<h2>Biography</h2><p>" + value(p.getBio()) + "</p>");
                     pw.println("<h2>Career Goal</h2><p>" + value(p.getCareerGoal()) + "</p>");
