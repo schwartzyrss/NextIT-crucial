@@ -51,11 +51,13 @@ public final class OtpService {
         }
 
         EmailService.SmtpResult result = EmailService.sendOtpEmailWithStatus(cleanEmail, code);
-        boolean sent = result.isSuccess() || com.nextit.config.AppConfig.isDevBypassEmail();
+        boolean sent = result.isSuccess();
         boolean configured = EmailService.isConfigured();
-        String msg = (com.nextit.config.AppConfig.isDevBypassEmail() && !result.isSuccess())
-                ? "Dev bypass active. Code: " + code
-                : result.getMessage();
+        String msg = result.getMessage();
+        if (!result.isSuccess() && com.nextit.config.AppConfig.isDevBypassEmail()) {
+            sent = true;
+            msg = "Email offline. Local dev code: " + code;
+        }
 
         log.info("Requested OTP for {}: sent={}, configured={}, msg={}", cleanEmail, sent, configured, msg);
         return new OtpResponse(sent, configured, code, false, msg);
@@ -84,10 +86,12 @@ public final class OtpService {
         }
 
         EmailService.SmtpResult result = EmailService.sendOtpEmailWithStatus(user.getEmail().trim(), code);
-        boolean sent = result.isSuccess() || com.nextit.config.AppConfig.isDevBypassEmail();
-        String msg = (com.nextit.config.AppConfig.isDevBypassEmail() && !result.isSuccess())
-                ? "Dev bypass active. Code: " + code
-                : result.getMessage();
+        boolean sent = result.isSuccess();
+        String msg = result.getMessage();
+        if (!result.isSuccess() && com.nextit.config.AppConfig.isDevBypassEmail()) {
+            sent = true;
+            msg = "Email offline. Local dev code: " + code;
+        }
         return new OtpResponse(sent, EmailService.isConfigured(), code, false, msg);
     }
 
@@ -133,10 +137,12 @@ public final class OtpService {
         }
 
         EmailService.SmtpResult result = EmailService.sendPasswordResetOtpEmailWithStatus(user.getEmail().trim(), code, user.getUsername());
-        boolean sent = result.isSuccess() || com.nextit.config.AppConfig.isDevBypassEmail();
-        String msg = (com.nextit.config.AppConfig.isDevBypassEmail() && !result.isSuccess())
-                ? "Dev bypass active. Code: " + code
-                : result.getMessage();
+        boolean sent = result.isSuccess();
+        String msg = result.getMessage();
+        if (!result.isSuccess() && com.nextit.config.AppConfig.isDevBypassEmail()) {
+            sent = true;
+            msg = "Email offline. Local dev code: " + code;
+        }
         return new OtpResponse(sent, EmailService.isConfigured(), code, false, msg);
     }
 

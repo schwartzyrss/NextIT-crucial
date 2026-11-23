@@ -229,7 +229,7 @@ public final class EmailService {
     }
 
     /**
-     * Main dispatch pipeline supporting Option A (Edge Function) and Option B (Supabase Auth).
+     * Main dispatch pipeline supporting REST API, Supabase Edge Function, Supabase Auth, and Gmail SMTP.
      */
     public static SmtpResult dispatchEmail(String toEmail, String otpCode, String purpose, String username) {
         if (toEmail == null || toEmail.isBlank()) {
@@ -239,10 +239,12 @@ public final class EmailService {
         DispatchMode mode = getDispatchMode();
         log.info("Dispatching OTP email to {} (purpose={}) via mode={}", toEmail, purpose, mode);
 
-        // 0. If EMAIL_API_KEY is configured, dispatch via Brevo/Resend REST API over HTTPS port 443
+        // 1. If EMAIL_API_KEY is configured, dispatch via Brevo/Resend REST API over HTTPS port 443
         if (!getEmailApiKey().isBlank()) {
-            String subject = "NextIT Verification Code: " + otpCode;
-            String html = buildPasswordResetHtmlEmail(otpCode, username);
+            String subject = "PASSWORD_RESET".equalsIgnoreCase(purpose)
+                    ? "NextIT Password Reset Code: " + otpCode
+                    : "NextIT Verification Code: " + otpCode;
+            String html = buildOtpHtmlEmail(otpCode, username, purpose);
             SmtpResult restRes = sendViaEmailRestApi(toEmail, subject, html, otpCode);
             if (restRes.isSuccess()) {
                 return restRes;
@@ -250,8 +252,13 @@ public final class EmailService {
             log.warn("HTTPS Email REST API dispatch failed: {}. Continuing dispatch chain...", restRes.getMessage());
         }
 
-        // For PASSWORD_RESET, always use HTTPS Edge Function over port 443 (avoid direct SMTP port blockage)
-        if ("PASSWORD_RESET".equals(purpose)) {
+        // 2. If explicit DIRECT_SMTP mode is selected, try Gmail SMTP
+        if (mode == DispatchMode.DIRECT_SMTP) {
+            return sendDirectSmtp(toEmail, otpCode, purpose, username);
+        }
+
+        // 3. Option A: Supabase Edge Function
+        if (mode == DispatchMode.EDGE_FUNCTION || mode == DispatchMode.AUTO) {
             try {
                 SmtpResult edgeRes = sendViaSupabaseEdgeFunction(toEmail, otpCode, purpose, username, null, null, null);
                 if (edgeRes.isSuccess()) {
@@ -261,56 +268,29 @@ public final class EmailService {
             } catch (Exception ex) {
                 log.warn("Supabase Edge Function invocation exception: {}", ex.getMessage());
             }
+        }
 
-            // Secondary attempt via Supabase Auth native OTP if configured
+        // 4. Option B: Supabase Auth native OTP
+        if (mode == DispatchMode.SUPABASE_AUTH || mode == DispatchMode.AUTO) {
             try {
                 SmtpResult authRes = sendViaSupabaseAuthOtp(toEmail);
                 if (authRes.isSuccess()) return authRes;
             } catch (Exception ignored) {}
-
-            return evaluateFallback(toEmail, otpCode, "HTTPS delivery endpoints unreachable.");
         }
 
-        if (mode == DispatchMode.DIRECT_SMTP) {
-            return sendDirectSmtp(toEmail, otpCode, purpose, username);
-        }
-
-        if (mode == DispatchMode.SUPABASE_AUTH) {
-            SmtpResult authRes = sendViaSupabaseAuthOtp(toEmail);
-            if (authRes.isSuccess()) return authRes;
-            return evaluateFallback(toEmail, otpCode, authRes.getMessage());
-        }
-
-        if (mode == DispatchMode.EDGE_FUNCTION) {
-            SmtpResult edgeRes = sendViaSupabaseEdgeFunction(toEmail, otpCode, purpose, username, null, null, null);
-            if (edgeRes.isSuccess()) return edgeRes;
-            return evaluateFallback(toEmail, otpCode, edgeRes.getMessage());
-        }
-
-        // Mode AUTO: Attempt Option A (Edge Function) first
-        try {
-            SmtpResult edgeRes = sendViaSupabaseEdgeFunction(toEmail, otpCode, purpose, username, null, null, null);
-            if (edgeRes.isSuccess()) {
-                return edgeRes;
+        // 5. Gmail SMTP Fallback: if credentials are configured in .env, send real email directly via Gmail
+        if (isSmtpCredentialsConfigured()) {
+            log.info("Attempting direct Gmail SMTP delivery for {}", toEmail);
+            SmtpResult smtpRes = sendDirectSmtp(toEmail, otpCode, purpose, username);
+            if (smtpRes.isSuccess()) {
+                log.info("Direct Gmail SMTP succeeded for {}", toEmail);
+                return smtpRes;
             }
-            log.warn("Option A (Edge Function) failed: {}. Trying Option B (Supabase Auth)...", edgeRes.getMessage());
-        } catch (Exception ex) {
-            log.warn("Option A invocation exception: {}. Trying Option B...", ex.getMessage());
+            log.warn("Direct Gmail SMTP delivery attempt failed: {}", smtpRes.getMessage());
         }
 
-        // Mode AUTO: Attempt Option B (Supabase Auth OTP)
-        try {
-            SmtpResult authRes = sendViaSupabaseAuthOtp(toEmail);
-            if (authRes.isSuccess()) {
-                return authRes;
-            }
-            log.warn("Option B (Supabase Auth) failed: {}", authRes.getMessage());
-        } catch (Exception ex) {
-            log.warn("Option B invocation exception: {}", ex.getMessage());
-        }
-
-        // Offline or server not yet deployed: evaluate fallback
-        return evaluateFallback(toEmail, otpCode, "HTTPS delivery endpoints unreachable.");
+        // 6. Offline or server not yet deployed: evaluate fallback
+        return evaluateFallback(toEmail, otpCode, "HTTPS delivery endpoints and Gmail SMTP unreachable.");
     }
 
     /**
@@ -488,17 +468,13 @@ public final class EmailService {
     }
 
     private static SmtpResult evaluateFallback(String toEmail, String otpCode, String failureReason) {
-        if (AppConfig.isDevBypassEmail()) {
-            log.info("DEV_BYPASS_EMAIL active for {}. Code: {}", toEmail, otpCode);
+        if (AppConfig.isOfflineOtpFallbackAllowed() || AppConfig.isDevBypassEmail()) {
+            log.info("Active offline / dev fallback triggered for {}. Code: {}", toEmail, otpCode);
             System.out.println("[DEV_BYPASS_EMAIL] OTP Code for " + toEmail + ": " + otpCode);
-            return new SmtpResult(true, "Dev bypass active. Code: " + otpCode, otpCode, "Console / Dev Bypass", false);
+            return new SmtpResult(false, "Email dispatch offline or unconfigured. Local code: " + otpCode,
+                    otpCode, "Offline / Dev Fallback", true);
         }
-        if (AppConfig.isOfflineOtpFallbackAllowed()) {
-            log.info("Active offline fallback triggered for {}", toEmail);
-            return new SmtpResult(false, "HTTPS connection offline / server not configured. Local fallback mode is active.",
-                    otpCode, "HTTPS (Offline Fallback)", true);
-        }
-        return new SmtpResult(false, "HTTPS delivery failed: " + failureReason, otpCode, "HTTPS (Port 443)", false);
+        return new SmtpResult(false, "Email delivery failed: " + failureReason, otpCode, "Delivery Failed", false);
     }
 
     private static boolean isSmtpCredentialsConfigured() {
@@ -511,11 +487,17 @@ public final class EmailService {
     // Direct SMTP Fallback Implementation
     // --------------------------------------------------------------------------
 
+    public static SmtpResult sendDirectSmtpForTest(String toEmail, String otpCode, String purpose, String username) {
+        return sendDirectSmtp(toEmail, otpCode, purpose, username);
+    }
+
     private static SmtpResult sendDirectSmtp(String toEmail, String otpCode, String purpose, String username) {
         // If EMAIL_API_KEY is available, route to HTTPS REST API rather than blocked SMTP sockets
         if (!getEmailApiKey().isBlank()) {
-            String subject = "NextIT Verification Code: " + otpCode;
-            String html = buildPasswordResetHtmlEmail(otpCode, username);
+            String subject = "PASSWORD_RESET".equalsIgnoreCase(purpose)
+                    ? "NextIT Password Reset Code: " + otpCode
+                    : "NextIT Verification Code: " + otpCode;
+            String html = buildOtpHtmlEmail(otpCode, username, purpose);
             SmtpResult restRes = sendViaEmailRestApi(toEmail, subject, html, otpCode);
             if (restRes.isSuccess()) {
                 return restRes;
@@ -535,17 +517,18 @@ public final class EmailService {
         boolean primarySsl = "465".equals(port) || "true".equalsIgnoreCase(getSetting("SMTP_SECURE", "false"));
 
         try {
-            sendDirectEmailAttempt(host, port, primarySsl, mailUser, password, fromAddress, toEmail, otpCode, username, 3500);
+            sendDirectEmailAttempt(host, port, primarySsl, mailUser, password, fromAddress, toEmail, otpCode, username, purpose, 10000);
             return new SmtpResult(true, "Code sent to " + toEmail + " via SMTP", otpCode, "Direct SMTP", false);
         } catch (Exception exPrimary) {
             log.warn("Primary SMTP delivery failed on {}:{}: {}", host, port, exPrimary.getMessage());
             String altPort = "587".equals(port) ? "465" : "587";
             boolean altSsl = "465".equals(altPort);
             try {
-                sendDirectEmailAttempt(host, altPort, altSsl, mailUser, password, fromAddress, toEmail, otpCode, username, 3500);
+                sendDirectEmailAttempt(host, altPort, altSsl, mailUser, password, fromAddress, toEmail, otpCode, username, purpose, 10000);
                 return new SmtpResult(true, "Code sent to " + toEmail + " via port " + altPort, otpCode, "Direct SMTP", false);
             } catch (Exception exAlt) {
-                return evaluateFallback(toEmail, otpCode, "SMTP port 587 & 465 timed out or blocked by firewall.");
+                log.warn("Alternate SMTP delivery failed on {}:{}: {}", host, altPort, exAlt.getMessage());
+                return evaluateFallback(toEmail, otpCode, "SMTP delivery failed: " + exPrimary.getMessage());
             }
         }
     }
@@ -553,7 +536,7 @@ public final class EmailService {
     private static void sendDirectEmailAttempt(String host, String port, boolean isSsl,
                                               String username, String password,
                                               String fromAddress, String toEmail,
-                                              String otpCode, String accountUsername, int timeoutMs) throws Exception {
+                                              String otpCode, String accountUsername, String purpose, int timeoutMs) throws Exception {
         Properties props = new Properties();
         props.put("mail.smtp.auth", "true");
         props.put("mail.smtp.host", host);
@@ -570,7 +553,8 @@ public final class EmailService {
             props.put("mail.smtp.socketFactory.fallback", "false");
         } else {
             props.put("mail.smtp.starttls.enable", "true");
-            props.put("mail.smtp.starttls.required", "false");
+            props.put("mail.smtp.starttls.required", "true");
+            props.put("mail.smtp.ssl.protocols", "TLSv1.2 TLSv1.3");
         }
 
         Session session = Session.getInstance(props, new Authenticator() {
@@ -586,8 +570,11 @@ public final class EmailService {
                 : new InternetAddress(fromAddress, "NextIT Security");
         message.setFrom(from);
         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail.trim()));
-        message.setSubject("NextIT Verification Code: " + otpCode);
-        message.setContent(buildPasswordResetHtmlEmail(otpCode, accountUsername), "text/html; charset=utf-8");
+        String subject = "PASSWORD_RESET".equalsIgnoreCase(purpose)
+                ? "NextIT Password Reset Code: " + otpCode
+                : "NextIT Verification Code: " + otpCode;
+        message.setSubject(subject);
+        message.setContent(buildOtpHtmlEmail(otpCode, accountUsername, purpose), "text/html; charset=utf-8");
         Transport.send(message);
     }
 
@@ -689,24 +676,38 @@ public final class EmailService {
                .replace("{{STATUS_BODY}}", statusHtml);
     }
 
-    private static String buildPasswordResetHtmlEmail(String otpCode, String username) {
+    public static String buildOtpHtmlEmail(String otpCode, String username, String purpose) {
         String userDisplay = (username != null && !username.isBlank()) ? "@" + username : "your account";
+        boolean isReset = "PASSWORD_RESET".equalsIgnoreCase(purpose);
+        String title = isReset ? "Account Password Recovery" : "Identity &amp; Account Verification";
+        String heading = isReset ? "Password Reset Code" : "Verification Code";
+        String desc = isReset
+                ? "We received a request to reset credentials for <strong>" + userDisplay + "</strong>. Use the 6-digit confirmation code below:"
+                : "Welcome to NextIT! We received a registration verification request for <strong>" + userDisplay + "</strong>. Use the 6-digit confirmation code below to verify your identity:";
+
         return """
             <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 540px; margin: 0 auto; padding: 32px 24px; background: #FAF7F2; border-radius: 20px; color: #1A2634; border: 1.5px solid #C6A75E;">
               <div style="background: linear-gradient(135deg, #1A2634 0%, #9E0B0F 60%, #C6A75E 100%); padding: 22px 24px; border-radius: 16px; text-align: center; margin-bottom: 24px;">
                 <h1 style="margin: 0; font-size: 26px; color: #FFFFFF; font-weight: 900;">NextIT</h1>
-                <p style="margin: 4px 0 0 0; font-size: 13px; color: #EFE2CA; font-weight: 700;">Account Password Recovery</p>
+                <p style="margin: 4px 0 0 0; font-size: 13px; color: #EFE2CA; font-weight: 700;">{{TITLE}}</p>
               </div>
               <div style="background: #FFFFFF; padding: 28px 24px; border-radius: 16px; box-shadow: 0 4px 12px rgba(26,38,52,0.08); text-align: center; border: 1px solid #EFE2CA;">
-                <h2 style="font-size: 20px; margin-top: 0; color: #1A2634; font-weight: 800;">Password Reset Code</h2>
-                <p style="font-size: 14px; color: #4A5A6A; line-height: 1.5;">We received a request to reset credentials for <strong>{{USER}}</strong>. Use the 6-digit confirmation code below:</p>
+                <h2 style="font-size: 20px; margin-top: 0; color: #1A2634; font-weight: 800;">{{HEADING}}</h2>
+                <p style="font-size: 14px; color: #4A5A6A; line-height: 1.5;">{{DESC}}</p>
                 <div style="display: inline-block; background: #FAF7F2; padding: 14px 28px; border-radius: 16px; font-size: 32px; font-weight: 900; letter-spacing: 6px; color: #9E0B0F; margin: 20px 0; border: 2.5px solid #9E0B0F; box-shadow: 0 2px 8px rgba(158,11,15,0.15);">
                   {{CODE}}
                 </div>
                 <p style="font-size: 12px; color: #8C827A; margin-bottom: 0;">Code valid for 10 minutes.</p>
               </div>
             </div>
-            """.replace("{{CODE}}", otpCode).replace("{{USER}}", userDisplay);
+            """.replace("{{CODE}}", otpCode)
+               .replace("{{TITLE}}", title)
+               .replace("{{HEADING}}", heading)
+               .replace("{{DESC}}", desc);
+    }
+
+    private static String buildPasswordResetHtmlEmail(String otpCode, String username) {
+        return buildOtpHtmlEmail(otpCode, username, "PASSWORD_RESET");
     }
 
     public static synchronized void clearSmtpConfig() {
