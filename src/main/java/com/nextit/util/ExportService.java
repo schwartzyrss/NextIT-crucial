@@ -231,7 +231,7 @@ public final class ExportService {
                 .replace("'", "&#39;");
     }
 
-    private static void promptOpenFile(File file, String title, String message) {
+    public static void promptOpenFile(File file, String title, String message) {
         Alert alert = new Alert(Alert.AlertType.INFORMATION);
         alert.setTitle(title);
         alert.setHeaderText(title);

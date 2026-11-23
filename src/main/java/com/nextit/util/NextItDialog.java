@@ -40,6 +40,13 @@ public final class NextItDialog {
             pane.getStylesheets().add(NextItDialog.class.getResource("/com/nextit/css/application.css").toExternalForm());
             pane.setStyle("-fx-background-color: #FAF7F2;");
 
+            pane.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+                if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                    dialog.close();
+                    ev.consume();
+                }
+            });
+
             try {
                 dialog.setOnShowing(ev -> {
                     if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
@@ -131,6 +138,13 @@ public final class NextItDialog {
             DialogPane pane = alert.getDialogPane();
             pane.getStylesheets().add(NextItDialog.class.getResource("/com/nextit/css/application.css").toExternalForm());
             pane.setStyle("-fx-background-color: #FAF7F2;");
+
+            pane.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+                if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                    alert.close();
+                    ev.consume();
+                }
+            });
 
             try {
                 alert.setOnShowing(ev -> {

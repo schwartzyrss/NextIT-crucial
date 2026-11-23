@@ -29,10 +29,26 @@ public final class WindowBoundsManager {
     private static final String PREF_MAXIMIZED = "window_maximized";
 
     public static final double MIN_WIDTH = 1280.0;
-    public static final double MIN_HEIGHT = 800.0;
+    public static final double MIN_HEIGHT = 768.0;
     public static final String APP_TITLE = "NextIT: Track Your Progress, Build Your Future";
 
     private WindowBoundsManager() {}
+
+    /**
+     * Updates the stage title dynamically based on the active role workspace and section.
+     */
+    public static void updateTitle(Stage stage, String roleWorkspace, String viewName) {
+        if (stage == null) return;
+        if (roleWorkspace == null || roleWorkspace.isBlank()) {
+            stage.setTitle(APP_TITLE);
+            return;
+        }
+        if (viewName != null && !viewName.isBlank()) {
+            stage.setTitle("NextIT: " + roleWorkspace + " • " + viewName);
+        } else {
+            stage.setTitle("NextIT: " + roleWorkspace);
+        }
+    }
 
     /**
      * Configures the primary stage with application branding, icons, min bounds,

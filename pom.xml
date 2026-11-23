@@ -140,6 +140,7 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.nextit.AppLauncher</mainClass>
                                 </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                             </transformers>
                             <artifactSet>
                                 <excludes>
@@ -168,23 +169,17 @@
                 <configuration>
                     <name>NextIT</name>
                     <appVersion>1.0.0</appVersion>
+                    <vendor>NextIT Team</vendor>
+                    <description>NextIT: Track Your Progress, Build Your Future - Career &amp; Academic Hub</description>
                     <mainJar>nextit-1.0.0-all.jar</mainJar>
                     <mainClass>com.nextit.AppLauncher</mainClass>
                     <icon>src/main/resources/com/nextit/icons/nextit.ico</icon>
-                    <runtimeName>NextIT-Runtime</runtimeName>
-                    <destination>target/package</destination>
-                    <type>installer</type>
-                    <installerType>exe</installerType>
-                    <installerOptions>
-                        <installerOption>--win-dir-chooser</installerOption>
-                        <installerOption>--win-menu</installerOption>
-                        <installerOption>--win-shortcut</installerOption>
-                        <installerOption>--win-per-user-install</installerOption>
-                    </installerOptions>
-                    <javaOptions>
-                        <javaOption>--add-modules</javaOption>
-                        <javaOption>javafx.base,javafx.controls,javafx.fxml,javafx.graphics,javafx.web</javaOption>
-                    </javaOptions>
+                    <destination>target/dist</destination>
+                    <type>APP_IMAGE</type>
+                    <winDirChooser>true</winDirChooser>
+                    <winMenu>true</winMenu>
+                    <winShortcut>true</winShortcut>
+                    <winPerUserInstall>true</winPerUserInstall>
                     <verbose>true</verbose>
                 </configuration>
             </plugin>

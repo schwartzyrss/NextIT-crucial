@@ -49,6 +49,9 @@ public class AppController {
         if (view != null) {
             setView(view);
         }
+        if (sidebarMatch != null) {
+            updateWorkspaceTitle(sidebarMatch);
+        }
         if (sidebar != null && sidebarMatch != null) {
             String target = sidebarMatch.replaceAll("[^a-zA-Z0-9 ]", "").trim().toLowerCase(Locale.ROOT);
             Button exactMatch = null;
@@ -88,9 +91,25 @@ public class AppController {
         }
     }
 
+    public void updateWorkspaceTitle(String sectionName) {
+        if (stage == null) return;
+        User user = Session.currentUser();
+        String roleName = (user != null && user.getRole() != null)
+                ? switch (user.getRole()) {
+                    case STUDENT -> "Student Portal";
+                    case INSTRUCTOR -> "Instructor Workspace";
+                    case EMPLOYER -> "Employer Hub";
+                    case ADMIN -> "Administrator Console";
+                }
+                : "Portal";
+        String clean = sectionName != null ? sectionName.replaceAll("[^a-zA-Z0-9 &/-]", "").trim() : null;
+        com.nextit.util.WindowBoundsManager.updateTitle(stage, roleName, clean);
+    }
+
     public void initialize(Stage stage, User user) {
         instance = this;
         this.stage = stage;
+        updateWorkspaceTitle("Dashboard");
         String statusSuffix = user.isVerified() ? "" : " - " + user.getVerificationStatus().displayName();
         userLabel.setText(user.getFullName() + " (" + user.getRole() + statusSuffix + ")");
         if (toggleSidebarButton != null) {
@@ -248,6 +267,7 @@ public class AppController {
         b.getStyleClass().add("sidebar-button");
         b.setOnAction(e -> {
             setActiveButton(b);
+            updateWorkspaceTitle(text);
             runSafely(action);
         });
         return b;
@@ -275,6 +295,7 @@ public class AppController {
     }
 
     private void showDashboard(User user) {
+        updateWorkspaceTitle("Dashboard");
         switch (user.getRole()) {
             case STUDENT -> setView(StudentViews.dashboard());
             case INSTRUCTOR -> setView(InstructorViews.dashboard());
@@ -296,11 +317,15 @@ public class AppController {
         Session.logout();
         try {
             FXMLLoader loader = new FXMLLoader(getClass().getResource("/com/nextit/view/Login.fxml"));
-            Scene scene = new Scene(loader.load(), 1080, 690);
+            double width = (stage != null && stage.getWidth() > 0) ? stage.getWidth() : com.nextit.util.WindowBoundsManager.MIN_WIDTH;
+            double height = (stage != null && stage.getHeight() > 0) ? stage.getHeight() : com.nextit.util.WindowBoundsManager.MIN_HEIGHT;
+            Scene scene = new Scene(loader.load(), width, height);
             scene.getStylesheets().add(getClass().getResource("/com/nextit/css/application.css").toExternalForm());
+            com.nextit.util.WindowBoundsManager.installDesktopEventFilters(scene);
             LoginController controller = loader.getController();
             controller.setAuthenticationService(new AuthenticationService(new com.nextit.repository.JdbcUserRepository()));
             stage.setScene(scene);
+            stage.setTitle(com.nextit.util.WindowBoundsManager.APP_TITLE);
         } catch (Exception ex) {
             log.error("Could not return to the login screen", ex);
             com.nextit.util.Alerts.error("Could not return to login.");

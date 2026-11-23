@@ -100,14 +100,14 @@
 
                 <VBox spacing="6">
                     <Label text="USERNAME OR EMAIL" styleClass="login-field-label"/>
-                    <TextField fx:id="usernameField" promptText="Enter your username or institutional email" styleClass="text-field"/>
+                    <TextField fx:id="usernameField" promptText="Enter your username or institutional email" onAction="#handleLogin" styleClass="text-field"/>
                 </VBox>
 
                 <VBox spacing="6">
                     <HBox alignment="CENTER_LEFT">
                         <Label text="PASSWORD" styleClass="login-field-label"/>
                         <Region HBox.hgrow="ALWAYS"/>
-                        <Hyperlink fx:id="forgotPasswordLink" text="Forgot Password?" onAction="#handleForgotPassword" styleClass="forgot-password-link"/>
+                        <Hyperlink fx:id="forgotPasswordLink" text="Forgot Password?" onAction="#handleForgotPassword" focusTraversable="false" styleClass="forgot-password-link"/>
                     </HBox>
                     <StackPane alignment="CENTER_RIGHT">
                         <PasswordField fx:id="passwordField" promptText="Enter your account password" onAction="#handleLogin" styleClass="password-input-with-eye"/>
@@ -127,7 +127,7 @@
                 </VBox>
 
                 <VBox spacing="10" style="-fx-padding: 4 0 0 0;">
-                    <Button fx:id="signInBtn" text="Sign In to Portal" onAction="#handleLogin" maxWidth="Infinity" styleClass="primary-button" style="-fx-font-size: 13.5px; -fx-padding: 11 24;"/>
+                    <Button fx:id="signInBtn" text="Sign In to Portal" defaultButton="true" onAction="#handleLogin" maxWidth="Infinity" styleClass="primary-button" style="-fx-font-size: 13.5px; -fx-padding: 11 24;"/>
                     <Button text="✨ Create an Account / Onboarding" onAction="#handleOpenOnboarding" maxWidth="Infinity" styleClass="secondary-button" style="-fx-font-size: 13px; -fx-padding: 10 24;"/>
                 </VBox>
 

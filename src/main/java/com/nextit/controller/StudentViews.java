@@ -1550,8 +1550,27 @@ public final class StudentViews {
         TextArea description = Ui.area("Description, honors, or notes");
         if (existing != null) description.setText(existing.getDescription());
 
-        TextField url = Ui.field("https://... (verification or credential link)");
+        TextField url = Ui.field("https://... or attach local certificate file");
         if (existing != null) url.setText(existing.getVerificationUrl());
+
+        Button browseBtn = new Button("📂 Browse File...");
+        browseBtn.getStyleClass().add("secondary-button");
+        browseBtn.setOnAction(ev -> {
+            javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+            chooser.setTitle("Select Certificate or Document");
+            chooser.getExtensionFilters().addAll(
+                    new javafx.stage.FileChooser.ExtensionFilter("Documents & Images (*.pdf, *.png, *.jpg, *.jpeg)", "*.pdf", "*.png", "*.jpg", "*.jpeg"),
+                    new javafx.stage.FileChooser.ExtensionFilter("PDF Documents (*.pdf)", "*.pdf"),
+                    new javafx.stage.FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+            );
+            java.io.File chosen = chooser.showOpenDialog(browseBtn.getScene() != null ? browseBtn.getScene().getWindow() : null);
+            if (chosen != null) {
+                url.setText(chosen.getAbsolutePath());
+            }
+        });
+        HBox urlBox = new HBox(8, url, browseBtn);
+        HBox.setHgrow(url, Priority.ALWAYS);
+        urlBox.setAlignment(Pos.CENTER_LEFT);
 
         Runnable syncFieldsForType = () -> {
             boolean isCert = typeCombo.getValue() == AcademicCredential.Type.CERTIFICATION;
@@ -1570,8 +1589,8 @@ public final class StudentViews {
                 "Date / Issue Date",
                 "Expiration Date (Certifications)",
                 "Description / Notes",
-                "Verification / Credential URL"
-        }, new Node[]{typeCombo, title, organization, date, expires, description, url});
+                "Verification / Credential File or URL"
+        }, new Node[]{typeCombo, title, organization, date, expires, description, urlBox});
 
         String dialogTitle = existing == null ? "Add Achievement or Certification" :
                 (existing.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Edit Achievement" : "Edit Certification");
@@ -1710,6 +1729,39 @@ public final class StudentViews {
                 + "   |   Attendance: "
                 + String.format("%.2f%%", academic.attendanceRateForStudent(studentId)));
         content.getChildren().add(section("Academic Highlights", academicHighlights.getText()));
+
+        Button exportPortfolioBtn = Ui.button("📄 Export / Print Portfolio Report", "clay-btn-secondary");
+        exportPortfolioBtn.setOnAction(ev -> {
+            javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+            chooser.setTitle("Export Student Portfolio Report");
+            chooser.setInitialFileName("student_portfolio_" + studentId + ".html");
+            chooser.getExtensionFilters().addAll(
+                    new javafx.stage.FileChooser.ExtensionFilter("Printable HTML Report (*.html)", "*.html"),
+                    new javafx.stage.FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+            );
+            java.io.File f = chooser.showSaveDialog(exportPortfolioBtn.getScene() != null ? exportPortfolioBtn.getScene().getWindow() : null);
+            if (f != null) {
+                try (java.io.PrintWriter pw = new java.io.PrintWriter(f, java.nio.charset.StandardCharsets.UTF_8)) {
+                    pw.println("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + value(Session.currentUser().getFullName()) + " - Portfolio</title>");
+                    pw.println("<style>body{font-family:sans-serif;margin:40px;background:#FAF7F2;color:#1A2634;} h1{color:#9E0B0F;} h2{border-bottom:1px solid #C6A75E;padding-bottom:4px;color:#1A2634;} .box{background:#fff;border-radius:12px;border:1px solid #EFE2CA;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.06);margin-bottom:20px;}</style></head><body>");
+                    pw.println("<div class='box'><h1>" + value(Session.currentUser().getFullName()) + "</h1>");
+                    pw.println("<p><b>" + (student == null ? "" : value(student.getProgram()) + " - Year " + student.getYearLevel()) + "</b></p>");
+                    pw.println("<h2>Professional Headline</h2><p>" + value(p.getHeadline()) + "</p>");
+                    pw.println("<h2>Biography</h2><p>" + value(p.getBio()) + "</p>");
+                    pw.println("<h2>Career Goal</h2><p>" + value(p.getCareerGoal()) + "</p>");
+                    pw.println("<h2>Technical Skills</h2><pre>" + value(skills) + "</pre>");
+                    pw.println("<h2>Projects</h2><pre>" + value(formatPortfolioProjects(studentId)) + "</pre>");
+                    pw.println("<h2>Achievements</h2><pre>" + value(achievements) + "</pre>");
+                    pw.println("<h2>Certifications</h2><pre>" + value(certifications) + "</pre>");
+                    pw.println("<h2>Academic Highlights</h2><p>" + value(academicHighlights.getText()) + "</p>");
+                    pw.println("</div></body></html>");
+                    com.nextit.util.ExportService.promptOpenFile(f, "Portfolio Exported", "Portfolio report saved successfully to:\n" + f.getAbsolutePath());
+                } catch (Exception ex) {
+                    Alerts.error("Failed to export portfolio: " + ex.getMessage());
+                }
+            }
+        });
+        content.getChildren().add(exportPortfolioBtn);
 
         ScrollPane scroll = new ScrollPane(content);
         scroll.setFitToWidth(true);

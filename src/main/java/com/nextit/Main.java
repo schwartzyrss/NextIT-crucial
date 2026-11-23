@@ -1,5 +1,7 @@
 package com.nextit;
 
+import com.nextit.config.EmbeddedDatabaseManager;
+import com.nextit.service.SystemService;
 import com.nextit.util.Alerts;
 import com.nextit.util.SplashScreenView;
 import javafx.application.Application;
@@ -14,8 +16,22 @@ public class Main extends Application {
 
     @Override
     public void start(Stage stage) {
+        Platform.setImplicitExit(true);
         installUncaughtExceptionHandler();
+        installShutdownHook();
         SplashScreenView.showAndInitialize(stage);
+    }
+
+    private static void installShutdownHook() {
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            log.info("JVM shutdown hook initiated: cleanly releasing NextIT background resources...");
+            try {
+                SystemService.getInstance().stop();
+            } catch (Exception ignored) {}
+            try {
+                EmbeddedDatabaseManager.stop();
+            } catch (Exception ignored) {}
+        }, "nextit-jvm-shutdown"));
     }
 
     private static void installUncaughtExceptionHandler() {

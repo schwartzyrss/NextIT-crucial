@@ -764,7 +764,39 @@ public final class InstructorViews {
         HBox.setHgrow(sp, Priority.ALWAYS);
         Label dateLbl = new Label(letter.getIssuedAt() != null ? "Issued: " + Ui.formatDate(letter.getIssuedAt().toLocalDate()) : "");
         dateLbl.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862;");
-        topRow.getChildren().addAll(seal, sp, dateLbl);
+
+        Button exportLetterBtn = Ui.button("📄 Export Letter (Print / PDF)", "clay-btn-secondary");
+        exportLetterBtn.setOnAction(ev -> {
+            javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
+            chooser.setTitle("Export Recommendation Letter");
+            chooser.setInitialFileName("recommendation_" + studentName.toLowerCase(Locale.ROOT).replace(" ", "_") + ".html");
+            chooser.getExtensionFilters().addAll(
+                    new javafx.stage.FileChooser.ExtensionFilter("Printable HTML / PDF Document (*.html)", "*.html"),
+                    new javafx.stage.FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
+            );
+            java.io.File f = chooser.showSaveDialog(exportLetterBtn.getScene() != null ? exportLetterBtn.getScene().getWindow() : null);
+            if (f != null) {
+                try (java.io.PrintWriter pw = new java.io.PrintWriter(f, java.nio.charset.StandardCharsets.UTF_8)) {
+                    pw.println("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>Faculty Recommendation - " + studentName + "</title>");
+                    pw.println("<style>body{font-family:Georgia,serif;margin:48px;background:#FFF;color:#1A2634;line-height:1.6;} .letter-head{border-bottom:2px solid #9E0B0F;padding-bottom:12px;margin-bottom:24px;} .inst{color:#9E0B0F;font-size:22px;font-weight:bold;} .date{color:#666;font-size:12px;float:right;} .body{font-size:15px;white-space:pre-wrap;}</style></head><body>");
+                    pw.println("<div class='letter-head'><div class='date'>" + (letter.getIssuedAt() != null ? Ui.formatDate(letter.getIssuedAt().toLocalDate()) : "") + "</div>");
+                    pw.println("<div class='inst'>NextIT Academic Defense Network • Faculty Recommendation</div><div>Department of Computer Science</div></div>");
+                    pw.println("<h2>" + letter.getLetterTitle() + "</h2>");
+                    pw.println("<p><b>Candidate:</b> " + studentName + "</p>");
+                    if (letter.getEndorsementHighlights() != null && !letter.getEndorsementHighlights().isBlank()) {
+                        pw.println("<p><b>Key Competencies & Highlights:</b> " + letter.getEndorsementHighlights() + "</p>");
+                    }
+                    pw.println("<hr style='border:none;border-top:1px solid #EFE2CA;margin:18px 0;'/>");
+                    pw.println("<div class='body'>" + letter.getRecommendationBody() + "</div>");
+                    pw.println("</body></html>");
+                    com.nextit.util.ExportService.promptOpenFile(f, "Letter Exported", "Recommendation letter exported to:\n" + f.getAbsolutePath());
+                } catch (Exception ex) {
+                    Alerts.error("Failed to export recommendation letter: " + ex.getMessage());
+                }
+            }
+        });
+
+        topRow.getChildren().addAll(seal, sp, dateLbl, exportLetterBtn);
 
         Label letterTitleLbl = new Label(letter.getLetterTitle());
         letterTitleLbl.setStyle("-fx-font-size: 16px; -fx-font-weight: bold; -fx-text-fill: #9E0B0F;");
