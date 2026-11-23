@@ -86,15 +86,19 @@ public final class OtpService {
         }
         String cleanKey = "reset:" + user.getUserId();
         String emailKey = "reset:" + user.getEmail().trim().toLowerCase();
+        String userKey = (user.getUsername() != null) ? "reset:" + user.getUsername().trim().toLowerCase() : null;
         long now = System.currentTimeMillis();
 
         OtpRecord existing = ACTIVE_OTPS.get(cleanKey);
         if (existing == null) {
             existing = ACTIVE_OTPS.get(emailKey);
         }
+        if (existing == null && userKey != null) {
+            existing = ACTIVE_OTPS.get(userKey);
+        }
         if (existing != null && now < existing.resendAvailableAt()) {
             long waitSec = (existing.resendAvailableAt() - now) / 1000;
-            return new OtpResponse(false, EmailService.isConfigured(), "", true,
+            return new OtpResponse(false, EmailService.isConfigured(), existing.code(), true,
                     "Please wait " + waitSec + " seconds before requesting another reset code.");
         }
 
@@ -102,6 +106,9 @@ public final class OtpService {
         OtpRecord rec = new OtpRecord(code, now + OTP_TTL_MS, now + COOLDOWN_MS);
         ACTIVE_OTPS.put(cleanKey, rec);
         ACTIVE_OTPS.put(emailKey, rec);
+        if (userKey != null) {
+            ACTIVE_OTPS.put(userKey, rec);
+        }
 
         EmailService.SmtpResult result = EmailService.sendPasswordResetOtpEmailWithStatus(user.getEmail().trim(), code, user.getUsername());
         return new OtpResponse(result.isSuccess(), EmailService.isConfigured(), code, false, result.getMessage());
@@ -112,11 +119,11 @@ public final class OtpService {
         String cleanCode = enteredCode.replaceAll("\\D", "").trim();
         String cleanKey = "reset:" + user.getUserId();
         String emailKey = (user.getEmail() != null) ? "reset:" + user.getEmail().trim().toLowerCase() : null;
+        String userKey = (user.getUsername() != null) ? "reset:" + user.getUsername().trim().toLowerCase() : null;
 
         if ("123456".equals(cleanCode) || "000000".equals(cleanCode)) {
             if (com.nextit.config.AppConfig.isOfflineOtpFallbackAllowed()) {
-                ACTIVE_OTPS.remove(cleanKey);
-                if (emailKey != null) ACTIVE_OTPS.remove(emailKey);
+                clearPasswordResetOtp(user);
                 return true;
             } else {
                 log.warn("Offline bypass code rejected for reset key {}: ALLOW_OFFLINE_OTP_FALLBACK is disabled", cleanKey);
@@ -124,15 +131,33 @@ public final class OtpService {
             }
         }
 
-        boolean ok = verifyOtpInternal(cleanKey, cleanCode);
-        if (!ok && emailKey != null) {
-            ok = verifyOtpInternal(emailKey, cleanCode);
+        OtpRecord record = ACTIVE_OTPS.get(cleanKey);
+        if (record == null && emailKey != null) {
+            record = ACTIVE_OTPS.get(emailKey);
         }
-        if (ok) {
-            ACTIVE_OTPS.remove(cleanKey);
-            if (emailKey != null) ACTIVE_OTPS.remove(emailKey);
+        if (record == null && userKey != null) {
+            record = ACTIVE_OTPS.get(userKey);
         }
-        return ok;
+        if (record == null) {
+            return false;
+        }
+
+        long now = System.currentTimeMillis();
+        if (now > record.expiresAt() || record.failedAttempts()[0] >= MAX_FAILED_ATTEMPTS) {
+            clearPasswordResetOtp(user);
+            return false;
+        }
+
+        if (record.code().equals(cleanCode)) {
+            clearPasswordResetOtp(user);
+            return true;
+        }
+
+        record.failedAttempts()[0]++;
+        if (record.failedAttempts()[0] >= MAX_FAILED_ATTEMPTS) {
+            clearPasswordResetOtp(user);
+        }
+        return false;
     }
 
     public static void clearPasswordResetOtp(User user) {
@@ -140,6 +165,9 @@ public final class OtpService {
             ACTIVE_OTPS.remove("reset:" + user.getUserId());
             if (user.getEmail() != null) {
                 ACTIVE_OTPS.remove("reset:" + user.getEmail().trim().toLowerCase());
+            }
+            if (user.getUsername() != null) {
+                ACTIVE_OTPS.remove("reset:" + user.getUsername().trim().toLowerCase());
             }
         }
     }

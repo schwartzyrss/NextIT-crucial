@@ -111,6 +111,21 @@ public class ProfileService {
         });
     }
 
+    public void updateStudentYearLevel(Student student, int newYearLevel) {
+        if (student == null) throw new AppException("Student profile not found.");
+        if (newYearLevel < 1 || newYearLevel > 5) throw new AppException("Year level must be between 1 and 5.");
+        student.setYearLevel(newYearLevel);
+        studentRepo.update(student);
+        com.nextit.security.Session.setCurrentStudent(student);
+    }
+
+    public CompletableFuture<Student> updateStudentYearLevelAsync(Student student, int newYearLevel) {
+        return CompletableFuture.supplyAsync(() -> {
+            updateStudentYearLevel(student, newYearLevel);
+            return student;
+        });
+    }
+
     public void updateInstructor(Instructor instructor) {
         Validator.notBlank(instructor.getDepartment(), "Department");
         Validator.maxLength(instructor.getEmployeeNumber(), 30, "Employee number");

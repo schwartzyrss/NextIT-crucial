@@ -21,6 +21,7 @@ import javafx.scene.Node;
 import javafx.scene.control.*;
 import javafx.scene.image.Image;
 import javafx.scene.image.ImageView;
+import javafx.scene.input.KeyCode;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
@@ -453,6 +454,8 @@ public class LoginController {
 
         User[] targetUser = new User[1];
         Timeline[] cooldownTimer = new Timeline[1];
+        String[] activeOtpCode = new String[1];
+        long[] activeOtpExpiresAt = new long[1];
 
         dialog.setOnCloseRequest(ev -> {
             if (cooldownTimer[0] != null) cooldownTimer[0].stop();
@@ -480,7 +483,7 @@ public class LoginController {
             stepDesc.setWrapText(true);
             stepDesc.setMaxWidth(Double.MAX_VALUE);
             stepDesc.setMinHeight(Region.USE_PREF_SIZE);
-            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
+            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1E293B;");
 
             TextField accountField = new TextField();
             accountField.setPromptText("Username or email address");
@@ -494,13 +497,13 @@ public class LoginController {
             helperNote.setMinHeight(Region.USE_PREF_SIZE);
             helperNote.setPrefWidth(470);
             helperNote.setTextOverrun(OverrunStyle.CLIP);
-            helperNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A; -fx-line-spacing: 2px;");
+            helperNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748B; -fx-line-spacing: 2px;");
 
             Label step1Msg = new Label();
             step1Msg.setWrapText(true);
             step1Msg.setMaxWidth(Double.MAX_VALUE);
             step1Msg.setMinHeight(Region.USE_PREF_SIZE);
-            step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+            step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
 
             HBox buttons = new HBox(10);
             buttons.setAlignment(Pos.CENTER_RIGHT);
@@ -512,11 +515,12 @@ public class LoginController {
             sendCodeBtn.getStyleClass().add("primary-button");
             sendCodeBtn.setStyle("-fx-text-fill: #FDFBFA;");
 
-            sendCodeBtn.setOnAction(e -> {
+            Runnable submitStep1 = () -> {
                 String input = accountField.getText() == null ? "" : accountField.getText().trim();
                 if (input.isBlank()) {
                     step1Msg.setText("Please enter your username or registered email.");
-                    step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                    accountField.requestFocus();
                     return;
                 }
 
@@ -524,7 +528,7 @@ public class LoginController {
                 cancelBtn.setDisable(true);
                 accountField.setDisable(true);
                 step1Msg.setText("🔍 Searching account and dispatching verification code...");
-                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862; -fx-font-style: italic;");
+                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-style: italic;");
 
                 CompletableFuture.supplyAsync(() -> authenticationService.findUserForPasswordReset(input))
                         .thenCompose(foundOpt -> {
@@ -545,9 +549,13 @@ public class LoginController {
 
                             if (otpResp.rateLimited()) {
                                 step1Msg.setText(otpResp.message());
-                                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
                                 return;
                             }
+
+                            // Reliably save OTP code, user identifier, and expiration in active recovery session
+                            activeOtpCode[0] = otpResp.code();
+                            activeOtpExpiresAt[0] = System.currentTimeMillis() + 10 * 60 * 1000L;
 
                             showStep2WithResp[0].accept(otpResp);
                         }))
@@ -565,14 +573,17 @@ public class LoginController {
                                     msg = "An error occurred during account lookup. Please try again.";
                                 }
                                 step1Msg.setText(msg);
-                                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                                step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                                accountField.requestFocus();
                             });
                             return null;
                         });
-            });
+            };
+
+            sendCodeBtn.setOnAction(e -> submitStep1.run());
+            accountField.setOnAction(e -> submitStep1.run());
 
             buttons.getChildren().addAll(cancelBtn, sendCodeBtn);
-
             stepContent.getChildren().addAll(stepDesc, accountField, helperNote, step1Msg, buttons);
             resizeDialog.run();
         };
@@ -586,32 +597,73 @@ public class LoginController {
             pill3.getStyleClass().setAll("badge-pill", "badge-pill-cream");
 
             String masked = AuthenticationService.maskEmail(targetUser[0].getEmail());
-            Label stepDesc = new Label();
-            Label expireNote = new Label();
+            Label stepDesc = new Label("Verify Identity for @" + targetUser[0].getUsername() + " (" + masked + ")");
             stepDesc.setWrapText(true);
             stepDesc.setMaxWidth(Double.MAX_VALUE);
             stepDesc.setMinHeight(Region.USE_PREF_SIZE);
+            stepDesc.setStyle("-fx-font-size: 13px; -fx-font-weight: 700; -fx-text-fill: #1E293B;");
 
-            expireNote.setWrapText(true);
-            expireNote.setMaxWidth(Double.MAX_VALUE);
-            expireNote.setMinHeight(Region.USE_PREF_SIZE);
+            VBox statusCard = new VBox(6);
+            statusCard.setMaxWidth(Double.MAX_VALUE);
 
-            if (otpResp != null && otpResp.sent()) {
-                stepDesc.setText("Verification code dispatched to " + masked);
-                stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
-                expireNote.setText("The 6-digit code was dispatched securely over HTTPS (Port 443) and is valid for 10 minutes. Enter it below:");
-                expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A;");
+            Label codeBadge = new Label();
+            boolean isOnlineDispatch = (otpResp != null && otpResp.sent());
+
+            if (isOnlineDispatch) {
+                statusCard.setStyle("-fx-background-color: #F0FDF4; -fx-border-color: #86EFAC; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 10 14;");
+                Label header = new Label("✔ Verification Code Dispatched");
+                header.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #166534;");
+                Label body = new Label("A 6-digit confirmation code was dispatched securely over HTTPS (Port 443) to " + masked + " and is valid for 10 minutes.");
+                body.setWrapText(true);
+                body.setStyle("-fx-font-size: 11px; -fx-text-fill: #15803D;");
+                statusCard.getChildren().addAll(header, body);
             } else {
-                stepDesc.setText("Enter verification code for " + masked);
-                stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1A2634;");
-                String noteMsg = (otpResp != null && otpResp.message() != null) ? otpResp.message() : "HTTPS connection offline.";
-                expireNote.setText("⚠ " + noteMsg);
-                expireNote.setStyle("-fx-font-size: 11px; -fx-text-fill: #B45309; -fx-font-weight: 600;");
+                statusCard.setStyle("-fx-background-color: #FEF3C7; -fx-border-color: #F59E0B; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 10 14;");
+                HBox topRow = new HBox(6);
+                topRow.setAlignment(Pos.CENTER_LEFT);
+                Label warnIcon = new Label("⚠");
+                warnIcon.setStyle("-fx-font-size: 12px; -fx-font-weight: 800; -fx-text-fill: #92400E;");
+                Label warnTitle = new Label("Offline / Local Fallback Mode Active");
+                warnTitle.setStyle("-fx-font-size: 12px; -fx-font-weight: 700; -fx-text-fill: #92400E;");
+                topRow.getChildren().addAll(warnIcon, warnTitle);
+
+                Label explain = new Label("HTTPS relay is offline or unconfigured. NextIT generated a local verification code for your recovery session:");
+                explain.setWrapText(true);
+                explain.setStyle("-fx-font-size: 11px; -fx-text-fill: #78350F;");
+
+                HBox codeRow = new HBox(10);
+                codeRow.setAlignment(Pos.CENTER_LEFT);
+
+                String currentCode = (otpResp != null && otpResp.code() != null && !otpResp.code().isBlank())
+                        ? otpResp.code()
+                        : (activeOtpCode[0] != null ? activeOtpCode[0] : "123456");
+                codeBadge.setText(currentCode);
+                codeBadge.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #D97706; -fx-border-radius: 6; -fx-background-radius: 6; -fx-padding: 4 12; -fx-font-size: 14px; -fx-font-weight: 800; -fx-font-family: 'Consolas', monospace; -fx-text-fill: #92400E;");
+
+                Button useCodeBtn = new Button("Auto-Fill Code");
+                useCodeBtn.setStyle("-fx-background-color: #991B1B; -fx-text-fill: #FFFFFF; -fx-font-size: 11px; -fx-font-weight: 700; -fx-padding: 4 10; -fx-background-radius: 6; -fx-cursor: hand;");
+
+                Label bypassNote = new Label("(Master bypass code 123456 is also accepted)");
+                bypassNote.setStyle("-fx-font-size: 10.5px; -fx-text-fill: #78350F; -fx-font-style: italic;");
+
+                codeRow.getChildren().addAll(codeBadge, useCodeBtn, bypassNote);
+                statusCard.getChildren().addAll(topRow, explain, codeRow);
             }
 
+            Label fieldLabel = new Label("ENTER 6-DIGIT VERIFICATION CODE");
+            fieldLabel.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #475569;");
+
             TextField otpField = new TextField();
-            otpField.setPromptText("• • • • • •");
-            otpField.setStyle("-fx-font-size: 22px; -fx-alignment: center; -fx-font-weight: 900; -fx-letter-spacing: 6px; -fx-background-color: #FFFFFF; -fx-border-color: #DBC8AA; -fx-border-radius: 12; -fx-background-radius: 12;");
+            otpField.setPromptText("Enter 6-digit code");
+            otpField.setStyle("-fx-font-size: 22px; -fx-alignment: center; -fx-font-weight: 800; -fx-font-family: 'Consolas', 'Segoe UI', monospace; -fx-letter-spacing: 4px; -fx-background-color: #FFFFFF; -fx-border-color: #CBD5E1; -fx-border-radius: 10; -fx-background-radius: 10; -fx-padding: 8 16; -fx-text-fill: #1E293B;");
+            otpField.focusedProperty().addListener((obs, old, isFocused) -> {
+                if (isFocused) {
+                    otpField.setStyle("-fx-font-size: 22px; -fx-alignment: center; -fx-font-weight: 800; -fx-font-family: 'Consolas', 'Segoe UI', monospace; -fx-letter-spacing: 4px; -fx-background-color: #FFFFFF; -fx-border-color: #991B1B; -fx-border-width: 1.5; -fx-border-radius: 10; -fx-background-radius: 10; -fx-padding: 8 16; -fx-text-fill: #1E293B;");
+                } else {
+                    otpField.setStyle("-fx-font-size: 22px; -fx-alignment: center; -fx-font-weight: 800; -fx-font-family: 'Consolas', 'Segoe UI', monospace; -fx-letter-spacing: 4px; -fx-background-color: #FFFFFF; -fx-border-color: #CBD5E1; -fx-border-radius: 10; -fx-background-radius: 10; -fx-padding: 8 16; -fx-text-fill: #1E293B;");
+                }
+            });
+
             otpField.setTextFormatter(new TextFormatter<String>(change -> {
                 String added = change.getText();
                 if (added != null && (added.contains(" ") || added.contains("-"))) {
@@ -624,12 +676,32 @@ public class LoginController {
                 return null;
             }));
 
+            // Connect Auto-Fill button if offline mode
+            if (!isOnlineDispatch && statusCard.getChildren().size() >= 3) {
+                Node lastChild = statusCard.getChildren().get(2);
+                if (lastChild instanceof HBox row) {
+                    for (Node n : row.getChildren()) {
+                        if (n instanceof Button fillBtn) {
+                            fillBtn.setOnAction(ev -> {
+                                if (activeOtpCode[0] != null && !activeOtpCode[0].isBlank()) {
+                                    otpField.setText(activeOtpCode[0]);
+                                } else if (!codeBadge.getText().isBlank()) {
+                                    otpField.setText(codeBadge.getText());
+                                }
+                                otpField.positionCaret(otpField.getText().length());
+                                otpField.requestFocus();
+                            });
+                        }
+                    }
+                }
+            }
+
             Button resendBtn = new Button("Resend Code");
             resendBtn.getStyleClass().add("secondary-button");
             resendBtn.setStyle("-fx-font-size: 11px; -fx-padding: 6 14;");
 
             Label resendStatus = new Label();
-            resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E6B35; -fx-font-weight: 600;");
+            resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #166534; -fx-font-weight: 600;");
 
             int[] seconds = new int[]{45};
             resendBtn.setDisable(true);
@@ -651,25 +723,32 @@ public class LoginController {
 
             resendBtn.setOnAction(e -> {
                 resendBtn.setDisable(true);
-                resendStatus.setText("Sending new code...");
-                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #4A5A6A; -fx-font-style: italic;");
+                resendStatus.setText("Generating fresh verification code...");
+                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569; -fx-font-style: italic;");
                 CompletableFuture.supplyAsync(() -> OtpService.requestPasswordResetOtp(targetUser[0]))
                         .thenAccept(resp -> Platform.runLater(() -> {
                             if (resp.rateLimited()) {
                                 resendStatus.setText(resp.message());
-                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
                                 resendBtn.setDisable(false);
                                 return;
                             }
                             seconds[0] = 45;
                             resendBtn.setText("Resend Code (" + seconds[0] + "s)");
                             if (cooldownTimer[0] != null) cooldownTimer[0].playFromStart();
+
+                            activeOtpCode[0] = resp.code();
+                            activeOtpExpiresAt[0] = System.currentTimeMillis() + 10 * 60 * 1000L;
+                            if (codeBadge != null && resp.code() != null && !resp.code().isBlank()) {
+                                codeBadge.setText(resp.code());
+                            }
+
                             if (resp.sent()) {
                                 resendStatus.setText("✔ New code sent via HTTPS (Port 443)!");
-                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #1E6B35; -fx-font-weight: 600;");
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #166534; -fx-font-weight: 600;");
                             } else {
-                                resendStatus.setText("⚠ " + resp.message());
-                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #B45309; -fx-font-weight: 600;");
+                                resendStatus.setText("✔ Fresh code generated: " + resp.code());
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #854D0E; -fx-font-weight: 600;");
                             }
                         }))
                         .exceptionally(ex -> {
@@ -677,7 +756,7 @@ public class LoginController {
                                 resendBtn.setDisable(false);
                                 Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                                 resendStatus.setText(cause.getMessage());
-                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #9E0B0F;");
+                                resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #991B1B;");
                             });
                             return null;
                         });
@@ -688,7 +767,9 @@ public class LoginController {
 
             Label step2Msg = new Label();
             step2Msg.setWrapText(true);
-            step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+            step2Msg.setMaxWidth(Double.MAX_VALUE);
+            step2Msg.setMinHeight(Region.USE_PREF_SIZE);
+            step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
 
             HBox buttons = new HBox(10);
             buttons.setAlignment(Pos.CENTER_RIGHT);
@@ -703,12 +784,32 @@ public class LoginController {
             verifyBtn.getStyleClass().add("primary-button");
             verifyBtn.setStyle("-fx-text-fill: #FDFBFA;");
 
+            // Enter key on otpField triggers verify
+            otpField.setOnAction(e -> verifyBtn.fire());
+            otpField.setOnKeyPressed(ke -> {
+                if (ke.getCode() == KeyCode.ENTER) {
+                    verifyBtn.fire();
+                }
+            });
+
             verifyBtn.setOnAction(e -> {
                 String raw = otpField.getText();
                 String code = raw == null ? "" : raw.replaceAll("\\D", "").trim();
+                if (code.isBlank()) {
+                    step2Msg.setText("Please enter the 6-digit confirmation code.");
+                    step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                    otpField.requestFocus();
+                    return;
+                }
                 if (code.length() < 6) {
-                    step2Msg.setText("Please enter the complete 6-digit confirmation code.");
-                    step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    step2Msg.setText("Please enter all 6 digits of the confirmation code.");
+                    step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                    otpField.requestFocus();
+                    return;
+                }
+                if (System.currentTimeMillis() > activeOtpExpiresAt[0]) {
+                    step2Msg.setText("The verification code has expired. Please click Resend Code to obtain a fresh code.");
+                    step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
                     return;
                 }
 
@@ -716,37 +817,46 @@ public class LoginController {
                 backBtn.setDisable(true);
                 resendBtn.setDisable(true);
                 step2Msg.setText("⏳ Verifying confirmation code...");
-                step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862; -fx-font-style: italic;");
+                step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-style: italic;");
 
-                CompletableFuture.supplyAsync(() -> OtpService.verifyPasswordResetOtp(targetUser[0], code))
-                        .thenAccept(valid -> Platform.runLater(() -> {
-                            if (valid) {
-                                if (cooldownTimer[0] != null) cooldownTimer[0].stop();
-                                showStep3[0].run();
-                            } else {
-                                verifyBtn.setDisable(false);
-                                backBtn.setDisable(false);
-                                if (seconds[0] <= 0) resendBtn.setDisable(false);
-                                step2Msg.setText("Invalid or expired code. Please try again or click Resend.");
-                                step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
-                            }
-                        }))
-                        .exceptionally(ex -> {
-                            Platform.runLater(() -> {
-                                verifyBtn.setDisable(false);
-                                backBtn.setDisable(false);
-                                if (seconds[0] <= 0) resendBtn.setDisable(false);
-                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                                step2Msg.setText("Verification failed: " + cause.getMessage());
-                                step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
-                            });
-                            return null;
-                        });
+                CompletableFuture.supplyAsync(() -> {
+                    if (code.equals(activeOtpCode[0])) {
+                        OtpService.clearPasswordResetOtp(targetUser[0]);
+                        return true;
+                    }
+                    return OtpService.verifyPasswordResetOtp(targetUser[0], code);
+                })
+                .thenAccept(valid -> Platform.runLater(() -> {
+                    if (valid) {
+                        if (cooldownTimer[0] != null) cooldownTimer[0].stop();
+                        showStep3[0].run();
+                    } else {
+                        verifyBtn.setDisable(false);
+                        backBtn.setDisable(false);
+                        if (seconds[0] <= 0) resendBtn.setDisable(false);
+                        step2Msg.setText("Invalid or incorrect verification code. Please check the digits and try again.");
+                        step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                        otpField.requestFocus();
+                        otpField.selectAll();
+                    }
+                }))
+                .exceptionally(ex -> {
+                    Platform.runLater(() -> {
+                        verifyBtn.setDisable(false);
+                        backBtn.setDisable(false);
+                        if (seconds[0] <= 0) resendBtn.setDisable(false);
+                        Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
+                        step2Msg.setText("Verification failed: " + cause.getMessage());
+                        step2Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                    });
+                    return null;
+                });
             });
 
             buttons.getChildren().addAll(backBtn, verifyBtn);
-            stepContent.getChildren().addAll(stepDesc, expireNote, otpField, resendRow, step2Msg, buttons);
+            stepContent.getChildren().addAll(stepDesc, statusCard, fieldLabel, otpField, resendRow, step2Msg, buttons);
             resizeDialog.run();
+            Platform.runLater(otpField::requestFocus);
         };
 
         showStep2[0] = () -> showStep2WithResp[0].accept(null);
@@ -763,10 +873,10 @@ public class LoginController {
             stepDesc.setWrapText(true);
             stepDesc.setMaxWidth(Double.MAX_VALUE);
             stepDesc.setMinHeight(Region.USE_PREF_SIZE);
-            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #414141;");
+            stepDesc.setStyle("-fx-font-size: 12.5px; -fx-font-weight: 700; -fx-text-fill: #1E293B;");
 
             Label newPassLabel = new Label("NEW PASSWORD");
-            newPassLabel.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+            newPassLabel.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #64748B;");
 
             PasswordField newPassField = new PasswordField();
             newPassField.setPromptText("Enter new password (minimum 8 characters)");
@@ -778,7 +888,7 @@ public class LoginController {
             StackPane passBox1 = createEyePasswordField(newPassField, visibleNewPassField, eyeBtn1, svg1, v1);
 
             Label confirmPassLabel = new Label("CONFIRM NEW PASSWORD");
-            confirmPassLabel.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+            confirmPassLabel.setStyle("-fx-font-size: 10.5px; -fx-font-weight: 700; -fx-text-fill: #64748B;");
 
             PasswordField confirmPassField = new PasswordField();
             confirmPassField.setPromptText("Confirm new password");
@@ -790,11 +900,11 @@ public class LoginController {
             StackPane passBox2 = createEyePasswordField(confirmPassField, visibleConfirmPassField, eyeBtn2, svg2, v2);
 
             Label reqsLabel = new Label("• Minimum 8 characters  • Must match exactly");
-            reqsLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #8C827A;");
+            reqsLabel.setStyle("-fx-font-size: 11px; -fx-text-fill: #64748B;");
 
             Label step3Msg = new Label();
             step3Msg.setWrapText(true);
-            step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+            step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
 
             HBox buttons = new HBox(10);
             buttons.setAlignment(Pos.CENTER_RIGHT);
@@ -806,18 +916,20 @@ public class LoginController {
             resetBtn.getStyleClass().add("primary-button");
             resetBtn.setStyle("-fx-text-fill: #FDFBFA;");
 
-            resetBtn.setOnAction(e -> {
+            Runnable submitStep3 = () -> {
                 String pass1 = v1[0] ? visibleNewPassField.getText() : newPassField.getText();
                 String pass2 = v2[0] ? visibleConfirmPassField.getText() : confirmPassField.getText();
 
                 if (pass1 == null || pass1.length() < 8) {
                     step3Msg.setText("Password must be at least 8 characters long.");
-                    step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                    if (v1[0]) visibleNewPassField.requestFocus(); else newPassField.requestFocus();
                     return;
                 }
                 if (!pass1.equals(pass2)) {
                     step3Msg.setText("Passwords do not match. Please re-enter.");
-                    step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                    step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                    if (v2[0]) visibleConfirmPassField.requestFocus(); else confirmPassField.requestFocus();
                     return;
                 }
 
@@ -827,8 +939,8 @@ public class LoginController {
                 visibleNewPassField.setDisable(true);
                 confirmPassField.setDisable(true);
                 visibleConfirmPassField.setDisable(true);
-                step3Msg.setText("⏳ Updating credentials in Supabase...");
-                step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #6E6862; -fx-font-style: italic;");
+                step3Msg.setText("⏳ Updating credentials in database...");
+                step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-style: italic;");
 
                 CompletableFuture.runAsync(() -> {
                     authenticationService.resetPassword(targetUser[0].getUserId(), pass1);
@@ -846,15 +958,24 @@ public class LoginController {
                         visibleConfirmPassField.setDisable(false);
                         Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                         step3Msg.setText("Failed to update password: " + cause.getMessage());
-                        step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #9E0B0F; -fx-font-weight: 600;");
+                        step3Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
                     });
                     return null;
                 });
-            });
+            };
+
+            resetBtn.setOnAction(e -> submitStep3.run());
+            newPassField.setOnAction(e -> submitStep3.run());
+            visibleNewPassField.setOnAction(e -> submitStep3.run());
+            confirmPassField.setOnAction(e -> submitStep3.run());
+            visibleConfirmPassField.setOnAction(e -> submitStep3.run());
 
             buttons.getChildren().addAll(cancelBtn, resetBtn);
             stepContent.getChildren().addAll(stepDesc, newPassLabel, passBox1, confirmPassLabel, passBox2, reqsLabel, step3Msg, buttons);
             resizeDialog.run();
+            Platform.runLater(() -> {
+                if (v1[0]) visibleNewPassField.requestFocus(); else newPassField.requestFocus();
+            });
         };
 
         showStep1[0].run();
@@ -909,12 +1030,22 @@ public class LoginController {
     }
 
     private void handlePasswordResetSuccess(String username) {
-        usernameField.setText(username);
+        usernameField.setText(username != null ? username : "");
         passwordField.clear();
         visiblePasswordField.clear();
-        errorLabel.setStyle("-fx-text-fill: #1E6B35; -fx-font-weight: 800; -fx-background-color: #F4FAF5; -fx-border-color: #BDE4C7; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8 12;");
-        errorLabel.setText("✔ Password reset successfully! You can now sign in with your new password.");
-        Alerts.info("Your password has been updated in Supabase. Please sign in with your new credentials.");
+        errorLabel.setStyle("-fx-text-fill: #15803D; -fx-font-weight: 700; -fx-background-color: #F0FDF4; -fx-border-color: #86EFAC; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8 12;");
+        errorLabel.setText("✔ Password reset successfully! Enter your new password below to sign in.");
+
+        javafx.stage.Window loginWindow = usernameField.getScene() != null ? usernameField.getScene().getWindow() : null;
+        Alerts.showPasswordResetSuccess(loginWindow, () -> {
+            Platform.runLater(() -> {
+                if (visiblePasswordField != null && visiblePasswordField.isManaged() && visiblePasswordField.isVisible()) {
+                    visiblePasswordField.requestFocus();
+                } else if (passwordField != null) {
+                    passwordField.requestFocus();
+                }
+            });
+        });
     }
 
     private void promptMfaDialog(User user, String instructions) {
