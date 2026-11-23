@@ -219,7 +219,6 @@ public class AppController {
                 sidebar.getChildren().add(navButton("💡 Academic Support", () -> setView(InstructorViews.support())));
                 sidebar.getChildren().add(navButton("🌟 Opportunities", () -> setView(InstructorViews.opportunities())));
                 sidebar.getChildren().add(navButton("✍ Recommendation Letters", () -> setView(InstructorViews.recommendationLetters())));
-                sidebar.getChildren().add(navButton("🔑 Password Reset Queue", () -> setView(InstructorViews.passwordResetRequests())));
 
                 sidebar.getChildren().add(categoryHeader("Account"));
                 sidebar.getChildren().add(navButton("👤 My Profile", () -> setView(InstructorViews.profile())));
@@ -236,7 +235,6 @@ public class AppController {
             case ADMIN -> {
                 sidebar.getChildren().add(categoryHeader("Verification Management"));
                 sidebar.getChildren().add(navButton("🛡️ Verification Queue", () -> setView(AdminViews.verificationWorkspace())));
-                sidebar.getChildren().add(navButton("🔑 Password Reset Queue", () -> setView(AdminViews.passwordResetRequests())));
                 sidebar.getChildren().add(categoryHeader("Administration"));
                 sidebar.getChildren().add(navButton("👤 Admin Profile", () -> setView(AdminViews.profile())));
             }

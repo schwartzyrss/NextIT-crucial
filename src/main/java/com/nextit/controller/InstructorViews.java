@@ -37,7 +37,6 @@ public final class InstructorViews {
     private static final ProfileService profiles = new ProfileService();
     private static final RecommendationLetterService recLetters = new RecommendationLetterService();
     private static final CareerService career = new CareerService();
-    private static final PasswordResetService resetRequests = PasswordResetService.getInstance();
 
     private static final List<String> ACTIVITY_TYPES =
             List.of("Quiz", "Examination", "Laboratory", "Project", "Assignment", "Recitation", "Other");
@@ -1870,122 +1869,6 @@ public final class InstructorViews {
         refresh.setOnAction(e -> applyFilter.run());
         return Ui.page("Academic Support", "Document reviews, remedial sessions, consultations and additional exercises for students who need help.",
                 Ui.toolbar(new Label("Search:"), search, add, delete, refresh), table);
-    }
-
-    public static Node passwordResetRequests() {
-        TableView<PasswordResetRequest> table = Ui.table();
-        Ui.addColumn(table, "Identifier", PasswordResetRequest::getIdentifierSubmitted);
-        Ui.addColumn(table, "Role", r -> r.getRole() != null ? r.getRole().name() : "");
-        Ui.addColumn(table, "Matched User", r -> {
-            if (r.getFullName() != null && !r.getFullName().isBlank()) {
-                return r.getFullName() + (r.getUsername() != null ? " (" + r.getUsername() + ")" : "");
-            }
-            return r.getUsername() != null ? r.getUsername() : "Unmatched";
-        });
-        Ui.addColumn(table, "Contact / Registered Email", r -> r.getUserEmail() != null ? r.getUserEmail() : "—");
-        Ui.addColumn(table, "Reason", PasswordResetRequest::getReason);
-        Ui.addColumn(table, "Status", PasswordResetRequest::getStatus);
-        Ui.addColumn(table, "Requested At", r -> Ui.formatDateTime(r.getRequestedAt()));
-        Ui.addColumn(table, "Resolved At", r -> Ui.formatDateTime(r.getResolvedAt()));
-        Ui.addColumn(table, "Admin Remarks", PasswordResetRequest::getAdminRemarks);
-
-        Runnable refreshData = () -> {
-            List<PasswordResetRequest> all = resetRequests.listAllRequests();
-            table.setItems(FXCollections.observableArrayList(all));
-        };
-        refreshData.run();
-
-        TextField search = Ui.field("Search by identifier, user, role, reason or status...");
-        search.textProperty().addListener((obs, old, value) -> {
-            String q = value == null ? "" : value.toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(resetRequests.listAllRequests().stream().filter(r ->
-                    (r.getIdentifierSubmitted() != null && r.getIdentifierSubmitted().toLowerCase(Locale.ROOT).contains(q)) ||
-                    (r.getUsername() != null && r.getUsername().toLowerCase(Locale.ROOT).contains(q)) ||
-                    (r.getFullName() != null && r.getFullName().toLowerCase(Locale.ROOT).contains(q)) ||
-                    (r.getReason() != null && r.getReason().toLowerCase(Locale.ROOT).contains(q)) ||
-                    (r.getStatus() != null && r.getStatus().toLowerCase(Locale.ROOT).contains(q)) ||
-                    (r.getRole() != null && r.getRole().name().toLowerCase(Locale.ROOT).contains(q))
-            ).toList()));
-        });
-
-        Button approveBtn = new Button("✔ Approve & Dispatch Reset");
-        approveBtn.getStyleClass().add("primary-button");
-        approveBtn.setOnAction(e -> {
-            PasswordResetRequest selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                Alerts.error("Select a password reset request from the table to approve.");
-                return;
-            }
-            if (!"PENDING".equalsIgnoreCase(selected.getStatus())) {
-                Alerts.error("Only PENDING requests can be approved. Current status: " + selected.getStatus());
-                return;
-            }
-
-            TextInputDialog remarksDialog = new TextInputDialog("Approved by department coordinator. Recovery OTP dispatched.");
-            remarksDialog.setTitle("Approve Password Reset");
-            remarksDialog.setHeaderText("Authorize password reset for: " + selected.getIdentifierSubmitted());
-            remarksDialog.setContentText("Coordinator remarks:");
-            remarksDialog.showAndWait().ifPresent(remarks -> {
-                approveBtn.setDisable(true);
-                CompletableFuture.supplyAsync(() -> resetRequests.approveAndDispatchReset(selected.getRequestId(), remarks))
-                        .thenAccept(res -> Platform.runLater(() -> {
-                            approveBtn.setDisable(false);
-                            Alerts.info("Password reset approved. 6-digit recovery OTP has been generated and dispatched.");
-                            refreshData.run();
-                        }))
-                        .exceptionally(ex -> {
-                            Platform.runLater(() -> {
-                                approveBtn.setDisable(false);
-                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                                Alerts.error("Failed to approve reset request: " + cause.getMessage());
-                            });
-                            return null;
-                        });
-            });
-        });
-
-        Button rejectBtn = new Button("✖ Reject Request");
-        rejectBtn.getStyleClass().add("secondary-button");
-        rejectBtn.setOnAction(e -> {
-            PasswordResetRequest selected = table.getSelectionModel().getSelectedItem();
-            if (selected == null) {
-                Alerts.error("Select a password reset request from the table to reject.");
-                return;
-            }
-            if (!"PENDING".equalsIgnoreCase(selected.getStatus())) {
-                Alerts.error("Only PENDING requests can be rejected. Current status: " + selected.getStatus());
-                return;
-            }
-
-            TextInputDialog reasonDialog = new TextInputDialog("Identity could not be confirmed or request details are invalid.");
-            reasonDialog.setTitle("Reject Password Reset");
-            reasonDialog.setHeaderText("Reject reset request for: " + selected.getIdentifierSubmitted());
-            reasonDialog.setContentText("Rejection reason / remarks:");
-            reasonDialog.showAndWait().ifPresent(rejectionRemarks -> {
-                rejectBtn.setDisable(true);
-                CompletableFuture.supplyAsync(() -> resetRequests.rejectRequest(selected.getRequestId(), rejectionRemarks))
-                        .thenAccept(res -> Platform.runLater(() -> {
-                            rejectBtn.setDisable(false);
-                            Alerts.info("Password reset request rejected.");
-                            refreshData.run();
-                        }))
-                        .exceptionally(ex -> {
-                            Platform.runLater(() -> {
-                                rejectBtn.setDisable(false);
-                                Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
-                                Alerts.error("Failed to reject request: " + cause.getMessage());
-                            });
-                            return null;
-                        });
-            });
-        });
-
-        Button refreshBtn = new Button("Refresh");
-        refreshBtn.setOnAction(e -> refreshData.run());
-
-        return Ui.page("Password Reset Requests",
-                "Administrative recovery assistance queue. Review manual password reset requests submitted by students, faculty, and employers.",
-                Ui.toolbar(new Label("Search:"), search, approveBtn, rejectBtn, refreshBtn), table);
     }
 
     /** Enrollment selector that keeps the academic term visible, preventing ambiguous grades or attendance when a student retakes a subject. */
