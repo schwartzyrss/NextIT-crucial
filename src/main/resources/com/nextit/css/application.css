@@ -357,7 +357,7 @@
     -fx-border-color: rgba(74, 90, 106, 0.25) rgba(74, 90, 106, 0.25) rgba(74, 90, 106, 0.25) transparent;
     -fx-border-radius: 0 24 24 0;
     -fx-border-width: 1;
-    -fx-padding: 36 38;
+    -fx-padding: 40 40;
 }
 
 .login-form-title {
