@@ -525,9 +525,10 @@ public class LoginController {
                 }
 
                 sendCodeBtn.setDisable(true);
+                sendCodeBtn.setText("Sending Code...");
                 cancelBtn.setDisable(true);
                 accountField.setDisable(true);
-                step1Msg.setText("🔍 Searching account and dispatching verification code...");
+                step1Msg.setText("⏳ Resolving account and requesting verification code via Supabase HTTPS (Port 443)...");
                 step1Msg.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #64748B; -fx-font-style: italic;");
 
                 CompletableFuture.supplyAsync(() -> authenticationService.findUserForPasswordReset(input))
@@ -543,6 +544,7 @@ public class LoginController {
                             return CompletableFuture.supplyAsync(() -> OtpService.requestPasswordResetOtp(u));
                         })
                         .thenAccept(otpResp -> Platform.runLater(() -> {
+                            sendCodeBtn.setText("Send Verification Code");
                             sendCodeBtn.setDisable(false);
                             cancelBtn.setDisable(false);
                             accountField.setDisable(false);
@@ -561,6 +563,7 @@ public class LoginController {
                         }))
                         .exceptionally(ex -> {
                             Platform.runLater(() -> {
+                                sendCodeBtn.setText("Send Verification Code");
                                 sendCodeBtn.setDisable(false);
                                 cancelBtn.setDisable(false);
                                 accountField.setDisable(false);
@@ -723,13 +726,15 @@ public class LoginController {
 
             resendBtn.setOnAction(e -> {
                 resendBtn.setDisable(true);
-                resendStatus.setText("Generating fresh verification code...");
+                resendBtn.setText("Sending...");
+                resendStatus.setText("Requesting fresh code via Supabase HTTPS (Port 443)...");
                 resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #475569; -fx-font-style: italic;");
                 CompletableFuture.supplyAsync(() -> OtpService.requestPasswordResetOtp(targetUser[0]))
                         .thenAccept(resp -> Platform.runLater(() -> {
                             if (resp.rateLimited()) {
                                 resendStatus.setText(resp.message());
                                 resendStatus.setStyle("-fx-font-size: 11px; -fx-text-fill: #991B1B; -fx-font-weight: 600;");
+                                resendBtn.setText("Resend Code");
                                 resendBtn.setDisable(false);
                                 return;
                             }
@@ -753,6 +758,7 @@ public class LoginController {
                         }))
                         .exceptionally(ex -> {
                             Platform.runLater(() -> {
+                                resendBtn.setText("Resend Code");
                                 resendBtn.setDisable(false);
                                 Throwable cause = ex.getCause() != null ? ex.getCause() : ex;
                                 resendStatus.setText(cause.getMessage());
