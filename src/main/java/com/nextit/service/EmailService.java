@@ -99,6 +99,14 @@ public final class EmailService {
         return getSetting("SUPABASE_ANON_KEY", getSetting("SUPABASE_KEY", ""));
     }
 
+    public static String getEmailApiKey() {
+        return getSetting("EMAIL_API_KEY", getSetting("RESEND_API_KEY", getSetting("BREVO_API_KEY", ""))).trim();
+    }
+
+    public static String getEmailSender() {
+        return getSetting("EMAIL_SENDER", getSetting("SMTP_FROM", "NextIT Security <zyrajoyce06@gmail.com>")).trim();
+    }
+
     public static DispatchMode getDispatchMode() {
         String mode = getSetting("OTP_DISPATCH_MODE", getSetting("EMAIL_DISPATCH_MODE", "AUTO")).trim().toUpperCase();
         return switch (mode) {
@@ -112,6 +120,8 @@ public final class EmailService {
     public static boolean isConfigured() {
         String enabled = getSetting("EMAIL_ENABLED", getSetting("SMTP_ENABLED", "true"));
         if ("false".equalsIgnoreCase(enabled) || "0".equals(enabled)) return false;
+        if (AppConfig.isDevBypassEmail()) return true;
+        if (!getEmailApiKey().isBlank()) return true;
         DispatchMode mode = getDispatchMode();
         if (mode == DispatchMode.DIRECT_SMTP) {
             String user = getSetting("SMTP_USER", getSetting("SMTP_USERNAME", ""));
@@ -147,6 +157,78 @@ public final class EmailService {
     }
 
     /**
+     * Dispatches an email using Brevo or Resend REST API over HTTPS port 443.
+     */
+    public static SmtpResult sendViaEmailRestApi(String toEmail, String subject, String htmlContent, String otpCode) {
+        String apiKey = getEmailApiKey();
+        if (apiKey.isBlank()) {
+            return new SmtpResult(false, "EMAIL_API_KEY not configured", otpCode, "HTTPS REST API", false);
+        }
+
+        boolean isResend = apiKey.startsWith("re_");
+        String endpoint = isResend ? "https://api.resend.com/emails" : "https://api.brevo.com/v3/smtp/email";
+        String senderStr = getEmailSender();
+        String apiName = isResend ? "Resend" : "Brevo";
+
+        String jsonPayload;
+        HttpRequest.Builder reqBuilder = HttpRequest.newBuilder()
+                .uri(URI.create(endpoint))
+                .timeout(Duration.ofSeconds(10))
+                .header("Content-Type", "application/json")
+                .header("Accept", "application/json");
+
+        if (isResend) {
+            reqBuilder.header("Authorization", "Bearer " + apiKey);
+            jsonPayload = String.format(
+                    "{\"from\":\"%s\",\"to\":[\"%s\"],\"subject\":\"%s\",\"html\":\"%s\"}",
+                    escapeJson(senderStr),
+                    escapeJson(toEmail),
+                    escapeJson(subject),
+                    escapeJson(htmlContent)
+            );
+        } else {
+            reqBuilder.header("api-key", apiKey);
+            String senderEmail = senderStr;
+            String senderName = "NextIT Security";
+            if (senderStr.contains("<") && senderStr.contains(">")) {
+                int start = senderStr.indexOf('<');
+                int end = senderStr.indexOf('>');
+                senderName = senderStr.substring(0, start).trim();
+                senderEmail = senderStr.substring(start + 1, end).trim();
+            }
+            jsonPayload = String.format(
+                    "{\"sender\":{\"name\":\"%s\",\"email\":\"%s\"},\"to\":[{\"email\":\"%s\"}],\"subject\":\"%s\",\"htmlContent\":\"%s\"}",
+                    escapeJson(senderName),
+                    escapeJson(senderEmail),
+                    escapeJson(toEmail),
+                    escapeJson(subject),
+                    escapeJson(htmlContent)
+            );
+        }
+
+        try {
+            HttpResponse<String> response = HTTP_CLIENT.send(
+                    reqBuilder.POST(HttpRequest.BodyPublishers.ofString(jsonPayload, StandardCharsets.UTF_8)).build(),
+                    HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8)
+            );
+
+            int status = response.statusCode();
+            String body = response.body();
+
+            if (status >= 200 && status < 300) {
+                log.info("HTTPS Email REST API ({}) succeeded for {}: HTTP {}", apiName, toEmail, status);
+                return new SmtpResult(true, "Email dispatched via " + apiName + " (HTTPS Port 443)", otpCode, "HTTPS REST API (" + apiName + ")", false);
+            } else {
+                log.warn("HTTPS Email REST API ({}) failed with HTTP {}: {}", apiName, status, body);
+                return new SmtpResult(false, apiName + " returned HTTP " + status + ": " + body, otpCode, "HTTPS REST API (" + apiName + ")", false);
+            }
+        } catch (Exception ex) {
+            log.warn("HTTPS Email REST API ({}) request failed: {}", apiName, ex.getMessage());
+            return new SmtpResult(false, apiName + " error: " + ex.getMessage(), otpCode, "HTTPS REST API (" + apiName + ")", false);
+        }
+    }
+
+    /**
      * Main dispatch pipeline supporting Option A (Edge Function) and Option B (Supabase Auth).
      */
     public static SmtpResult dispatchEmail(String toEmail, String otpCode, String purpose, String username) {
@@ -156,6 +238,17 @@ public final class EmailService {
 
         DispatchMode mode = getDispatchMode();
         log.info("Dispatching OTP email to {} (purpose={}) via mode={}", toEmail, purpose, mode);
+
+        // 0. If EMAIL_API_KEY is configured, dispatch via Brevo/Resend REST API over HTTPS port 443
+        if (!getEmailApiKey().isBlank()) {
+            String subject = "NextIT Verification Code: " + otpCode;
+            String html = buildPasswordResetHtmlEmail(otpCode, username);
+            SmtpResult restRes = sendViaEmailRestApi(toEmail, subject, html, otpCode);
+            if (restRes.isSuccess()) {
+                return restRes;
+            }
+            log.warn("HTTPS Email REST API dispatch failed: {}. Continuing dispatch chain...", restRes.getMessage());
+        }
 
         // For PASSWORD_RESET, always use HTTPS Edge Function over port 443 (avoid direct SMTP port blockage)
         if ("PASSWORD_RESET".equals(purpose)) {
@@ -363,7 +456,21 @@ public final class EmailService {
             return new SmtpResult(false, "Recipient email address is missing.", "");
         }
 
-        // Try HTTPS Edge Function first
+        String subject = approved
+                ? "NextIT Account Verified: Welcome to the Platform"
+                : "NextIT Account Verification Status Update";
+        String htmlContent = buildVerificationDecisionHtml(fullName, role, approved, remarks);
+
+        // 1. Try HTTPS Email REST API (Brevo/Resend) first if configured
+        if (!getEmailApiKey().isBlank()) {
+            SmtpResult restRes = sendViaEmailRestApi(toEmail, subject, htmlContent, "");
+            if (restRes.isSuccess()) {
+                return restRes;
+            }
+            log.warn("HTTPS Email REST API for decision notification failed: {}. Continuing...", restRes.getMessage());
+        }
+
+        // 2. Try HTTPS Edge Function
         try {
             SmtpResult edgeRes = sendViaSupabaseEdgeFunction(toEmail, "", "VERIFICATION_DECISION", null, fullName, approved, remarks);
             if (edgeRes.isSuccess()) {
@@ -371,7 +478,7 @@ public final class EmailService {
             }
         } catch (Exception ignored) {}
 
-        // Secondary fallback to legacy direct SMTP if configured
+        // 3. Fallback to direct SMTP if configured
         if (isSmtpCredentialsConfigured()) {
             return sendDirectVerificationDecisionEmail(toEmail, fullName, role, approved, remarks);
         }
@@ -381,6 +488,11 @@ public final class EmailService {
     }
 
     private static SmtpResult evaluateFallback(String toEmail, String otpCode, String failureReason) {
+        if (AppConfig.isDevBypassEmail()) {
+            log.info("DEV_BYPASS_EMAIL active for {}. Code: {}", toEmail, otpCode);
+            System.out.println("[DEV_BYPASS_EMAIL] OTP Code for " + toEmail + ": " + otpCode);
+            return new SmtpResult(true, "Dev bypass active. Code: " + otpCode, otpCode, "Console / Dev Bypass", false);
+        }
         if (AppConfig.isOfflineOtpFallbackAllowed()) {
             log.info("Active offline fallback triggered for {}", toEmail);
             return new SmtpResult(false, "HTTPS connection offline / server not configured. Local fallback mode is active.",
@@ -400,6 +512,16 @@ public final class EmailService {
     // --------------------------------------------------------------------------
 
     private static SmtpResult sendDirectSmtp(String toEmail, String otpCode, String purpose, String username) {
+        // If EMAIL_API_KEY is available, route to HTTPS REST API rather than blocked SMTP sockets
+        if (!getEmailApiKey().isBlank()) {
+            String subject = "NextIT Verification Code: " + otpCode;
+            String html = buildPasswordResetHtmlEmail(otpCode, username);
+            SmtpResult restRes = sendViaEmailRestApi(toEmail, subject, html, otpCode);
+            if (restRes.isSuccess()) {
+                return restRes;
+            }
+        }
+
         if (!isSmtpCredentialsConfigured()) {
             return evaluateFallback(toEmail, otpCode, "SMTP credentials missing.");
         }
@@ -470,6 +592,19 @@ public final class EmailService {
     }
 
     private static SmtpResult sendDirectVerificationDecisionEmail(String toEmail, String fullName, com.nextit.model.Role role, boolean approved, String remarks) {
+        String subject = approved
+                ? "NextIT Account Verified: Welcome to the Platform"
+                : "NextIT Account Verification Status Update";
+        String htmlContent = buildVerificationDecisionHtml(fullName, role, approved, remarks);
+
+        // If HTTPS REST API key is configured, send via HTTPS REST API rather than blocked SMTP
+        if (!getEmailApiKey().isBlank()) {
+            SmtpResult restRes = sendViaEmailRestApi(toEmail, subject, htmlContent, "");
+            if (restRes.isSuccess()) {
+                return restRes;
+            }
+        }
+
         String host = getSetting("SMTP_HOST", "smtp.gmail.com").trim();
         String port = getSetting("SMTP_PORT", "587").trim();
         String mailUser = getSetting("SMTP_USER", "").trim();
@@ -479,7 +614,7 @@ public final class EmailService {
         boolean primarySsl = "465".equals(port) || "true".equalsIgnoreCase(getSetting("SMTP_SECURE", "false"));
 
         try {
-            sendVerificationDecisionEmailAttempt(host, port, primarySsl, mailUser, password, fromAddress, toEmail, fullName, role, approved, remarks, 3500);
+            sendVerificationDecisionEmailAttempt(host, port, primarySsl, mailUser, password, fromAddress, toEmail, subject, htmlContent, 3500);
             return new SmtpResult(true, "Decision email dispatched to " + toEmail, "", "Direct SMTP", false);
         } catch (Exception ex) {
             log.warn("Direct SMTP verification decision failed: {}", ex.getMessage());
@@ -490,8 +625,7 @@ public final class EmailService {
     private static void sendVerificationDecisionEmailAttempt(String host, String port, boolean ssl,
                                                             String mailUser, String password,
                                                             String fromAddress, String toEmail,
-                                                            String fullName, com.nextit.model.Role role,
-                                                            boolean approved, String remarks,
+                                                            String subject, String htmlContent,
                                                             int timeoutMs) throws Exception {
         Properties props = new Properties();
         props.put("mail.smtp.host", host);
@@ -524,10 +658,12 @@ public final class EmailService {
                 : new InternetAddress(fromAddress, "NextIT Security");
         message.setFrom(from);
         message.setRecipients(Message.RecipientType.TO, InternetAddress.parse(toEmail.trim()));
-        message.setSubject(approved
-                ? "NextIT Account Verified: Welcome to the Platform"
-                : "NextIT Account Verification Status Update");
+        message.setSubject(subject);
+        message.setContent(htmlContent, "text/html; charset=utf-8");
+        Transport.send(message);
+    }
 
+    public static String buildVerificationDecisionHtml(String fullName, com.nextit.model.Role role, boolean approved, String remarks) {
         String roleName = role != null ? role.name() : "User";
         String statusHtml = approved
                 ? "<h2 style=\"font-size: 20px; color: #10B981; font-weight: 800; margin-top: 0;\">✔ Identity Verified & Approved</h2>"
@@ -538,7 +674,7 @@ public final class EmailService {
                   + "<strong>Reviewer Remarks:</strong> " + (remarks != null && !remarks.isBlank() ? remarks : "Please verify and re-upload authentic identification documents.")
                   + "</div>";
 
-        String htmlContent = """
+        return """
             <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 560px; margin: 0 auto; padding: 32px 24px; background: #FDFBFA; border-radius: 24px; color: #414141; border: 1.5px solid #C6A75E;">
               <div style="background: linear-gradient(135deg, #1A2634 0%, #9E0B0F 60%, #C6A75E 100%); padding: 18px 24px; border-radius: 20px; text-align: center; margin-bottom: 24px;">
                 <h1 style="margin: 0; font-size: 24px; color: #FDFBFA; font-weight: 900;">NextIT</h1>
@@ -551,9 +687,6 @@ public final class EmailService {
             </div>
             """.replace("{{NAME}}", fullName != null ? fullName : "User")
                .replace("{{STATUS_BODY}}", statusHtml);
-
-        message.setContent(htmlContent, "text/html; charset=utf-8");
-        Transport.send(message);
     }
 
     private static String buildPasswordResetHtmlEmail(String otpCode, String username) {

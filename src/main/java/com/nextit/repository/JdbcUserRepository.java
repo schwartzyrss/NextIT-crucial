@@ -28,7 +28,9 @@ public class JdbcUserRepository implements UserRepository {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
-            throw new AppException("Failed to find user by id", e);
+            log.error("Failed to find user by id={} [SQLState={}, ErrorCode={}]: {}",
+                    id, e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to find user by id: " + e.getMessage(), e);
         }
     }
 
@@ -42,6 +44,8 @@ public class JdbcUserRepository implements UserRepository {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
+            log.error("Failed to find user by username='{}' [SQLState={}, ErrorCode={}]: {}",
+                    username, e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to find user: " + e.getMessage(), e);
         }
     }
@@ -56,6 +60,8 @@ public class JdbcUserRepository implements UserRepository {
                 return rs.next() ? Optional.of(map(rs)) : Optional.empty();
             }
         } catch (SQLException e) {
+            log.error("Failed to find user by email='{}' [SQLState={}, ErrorCode={}]: {}",
+                    email, e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to find user: " + e.getMessage(), e);
         }
     }
@@ -236,7 +242,9 @@ public class JdbcUserRepository implements UserRepository {
             while (rs.next()) users.add(map(rs));
             return users;
         } catch (SQLException e) {
-            throw new AppException("Failed to list users", e);
+            log.error("Failed to list all users [SQLState={}, ErrorCode={}]: {}",
+                    e.getSQLState(), e.getErrorCode(), e.getMessage());
+            throw new AppException("Failed to list users: " + e.getMessage(), e);
         }
     }
 

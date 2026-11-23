@@ -23,6 +23,12 @@ public final class AppConfig {
     public static boolean ALLOW_OFFLINE_OTP_FALLBACK = true;
 
     /**
+     * Fallback flag that logs the generated OTP code to the console and allows
+     * the UI flow to proceed to verification/login when no email API key is set or when offline.
+     */
+    public static boolean DEV_BYPASS_EMAIL = true;
+
+    /**
      * Resolves whether quick login is active. Checks environment variable
      * {@code NEXTIT_ENABLE_QUICK_LOGIN}, system property {@code nextit.enable.quick.login},
      * and defaults to {@link #ENABLE_QUICK_LOGIN}.
@@ -54,5 +60,22 @@ public final class AppConfig {
             return Boolean.parseBoolean(prop.trim());
         }
         return ALLOW_OFFLINE_OTP_FALLBACK;
+    }
+
+    /**
+     * Resolves whether development bypass for emails is active. Checks environment variable
+     * {@code DEV_BYPASS_EMAIL}, system property {@code dev.bypass.email},
+     * and defaults to {@link #DEV_BYPASS_EMAIL}.
+     */
+    public static boolean isDevBypassEmail() {
+        String env = System.getenv("DEV_BYPASS_EMAIL");
+        if (env != null && !env.isBlank()) {
+            return Boolean.parseBoolean(env.trim());
+        }
+        String prop = System.getProperty("dev.bypass.email");
+        if (prop != null && !prop.isBlank()) {
+            return Boolean.parseBoolean(prop.trim());
+        }
+        return DEV_BYPASS_EMAIL;
     }
 }
