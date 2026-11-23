@@ -12,8 +12,7 @@ INSERT INTO users (username, password_hash, email, role, first_name, last_name, 
 ('student2',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'student2@nextit.edu',   'STUDENT',   'Bianca', 'Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('instructor1', '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'instructor@nextit.edu', 'INSTRUCTOR','Maria',  'Santos', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
 ('employer1',   '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'employer@techcorp.com', 'EMPLOYER',  'John',   'Dela Cruz', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
-('25-16522',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', '25-16522@g.bastate-u.edu.ph', 'STUDENT', 'BatStateU', 'Scholar', 'VERIFIED', CURRENT_TIMESTAMP, FALSE),
-('admin',       '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu.ph',         'ADMIN',   'System',   'Administrator', 'VERIFIED', CURRENT_TIMESTAMP, FALSE);
+('25-16522',    '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', '25-16522@g.bastate-u.edu.ph', 'STUDENT', 'BatStateU', 'Scholar', 'VERIFIED', CURRENT_TIMESTAMP, FALSE);
 
 SET @student_user    = (SELECT user_id FROM users WHERE username = 'student1');
 SET @student2_user   = (SELECT user_id FROM users WHERE username = 'student2');
@@ -29,8 +28,8 @@ INSERT INTO students (user_id, student_number, program, year_level, section, enr
 INSERT INTO instructors (user_id, employee_number, department, specialization) VALUES
 (@instructor_user, 'EMP-1001', 'Computer Science', 'Software Engineering');
 
-INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address) VALUES
-(@employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City');
+INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title) VALUES
+(@employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City', 'HR Director');
 
 SET @student_id    = (SELECT student_id FROM students WHERE user_id = @student_user);
 SET @student2_id   = (SELECT student_id FROM students WHERE user_id = @student2_user);

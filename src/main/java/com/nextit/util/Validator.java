@@ -32,6 +32,27 @@ public final class Validator {
         }
     }
 
+    /** Returns true if null, blank, or a valid phone number format without alphabetic characters. */
+    public static boolean isValidPhoneNumber(String value) {
+        if (value == null || value.isBlank()) return true;
+        String trimmed = value.trim();
+        if (trimmed.matches(".*[a-zA-Z].*")) {
+            return false;
+        }
+        if (!trimmed.matches("^\\+?[0-9\\s\\-\\(\\).]{7,25}$")) {
+            return false;
+        }
+        int digitCount = trimmed.replaceAll("[^0-9]", "").length();
+        return digitCount >= 7 && digitCount <= 15;
+    }
+
+    /** Allows an empty value but rejects text that is not a valid phone number. */
+    public static void optionalPhoneNumber(String value, String fieldName) {
+        if (value != null && !value.isBlank() && !isValidPhoneNumber(value)) {
+            throw new AppException(fieldName + " must be a valid phone number (e.g., +63 9XX XXX XXXX).");
+        }
+    }
+
     public static void nonNegative(double value, String fieldName) {
         if (!Double.isFinite(value) || value < 0) {
             throw new AppException(fieldName + " must be a finite non-negative number.");

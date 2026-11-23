@@ -28,8 +28,8 @@ INSERT INTO students (user_id, student_number, program, year_level, section, enr
 INSERT INTO instructors (user_id, employee_number, department, specialization) VALUES
 (@instructor_user, 'EMP-1001', 'Computer Science', 'Software Engineering');
 
-INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address) VALUES
-(@employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City');
+INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title) VALUES
+(@employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City', 'HR Director');
 
 SET @student_id    = (SELECT student_id FROM students WHERE user_id = @student_user);
 SET @student2_id   = (SELECT student_id FROM students WHERE user_id = @student2_user);

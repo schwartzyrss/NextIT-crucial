@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS employers (
     contact_person VARCHAR(100) NULL,
     contact_number VARCHAR(30) NULL,
     address VARCHAR(255) NULL,
+    job_title VARCHAR(100) NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 

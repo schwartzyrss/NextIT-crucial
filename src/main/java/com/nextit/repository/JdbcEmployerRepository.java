@@ -42,7 +42,7 @@ public class JdbcEmployerRepository {
     }
 
     public void save(Employer e0) {
-        String sql = "INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address) VALUES (?,?,?,?,?,?)";
+        String sql = "INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title) VALUES (?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setInt(1, e0.getUserId());
@@ -51,13 +51,14 @@ public class JdbcEmployerRepository {
             ps.setString(4, e0.getContactPerson());
             ps.setString(5, e0.getContactNumber());
             ps.setString(6, e0.getAddress());
+            ps.setString(7, e0.getJobTitle());
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) e0.setEmployerId(k.getInt(1)); }
         } catch (SQLException e) { throw new AppException("Failed to save employer", e); }
     }
 
     public void update(Employer e0) {
-        String sql = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=? WHERE employer_id=?";
+        String sql = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=?, job_title=? WHERE employer_id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, e0.getCompanyName());
@@ -65,7 +66,8 @@ public class JdbcEmployerRepository {
             ps.setString(3, e0.getContactPerson());
             ps.setString(4, e0.getContactNumber());
             ps.setString(5, e0.getAddress());
-            ps.setInt(6, e0.getEmployerId());
+            ps.setString(6, e0.getJobTitle());
+            ps.setInt(7, e0.getEmployerId());
             ps.executeUpdate();
         } catch (SQLException e) { throw new AppException("Failed to update employer", e); }
     }
@@ -79,6 +81,9 @@ public class JdbcEmployerRepository {
         e0.setContactPerson(rs.getString("contact_person"));
         e0.setContactNumber(rs.getString("contact_number"));
         e0.setAddress(rs.getString("address"));
+        try {
+            e0.setJobTitle(rs.getString("job_title"));
+        } catch (SQLException ignored) {}
         return e0;
     }
 }

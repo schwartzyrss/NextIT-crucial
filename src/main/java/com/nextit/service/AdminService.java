@@ -256,7 +256,9 @@ public class AdminService {
         Validator.maxLength(employer.getCompanyName(), 150, "Company name");
         Validator.maxLength(employer.getIndustry(), 100, "Industry");
         Validator.maxLength(employer.getContactPerson(), 100, "Contact person");
+        Validator.maxLength(employer.getJobTitle(), 100, "Job title");
         Validator.maxLength(employer.getContactNumber(), 30, "Contact number");
+        Validator.optionalPhoneNumber(employer.getContactNumber(), "Contact number");
         Validator.maxLength(employer.getAddress(), 255, "Address");
         employerRepo.update(employer);
     }
@@ -297,6 +299,7 @@ public class AdminService {
             employer.setCompanyName(company.isBlank() ? user.getUsername() : company + " Company");
             employer.setIndustry("");
             employer.setContactPerson(company);
+            employer.setJobTitle("Corporate Representative");
             employer.setContactNumber("");
             employer.setAddress("");
             employerRepo.save(employer);

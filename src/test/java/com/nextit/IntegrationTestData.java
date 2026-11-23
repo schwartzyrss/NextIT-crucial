@@ -76,6 +76,7 @@ final class IntegrationTestData {
         employer.setCompanyName("Company " + suffix());
         employer.setIndustry("Technology");
         employer.setContactPerson("Hiring Manager");
+        employer.setJobTitle("HR Director");
         employer.setContactNumber("09000000000");
         employer.setAddress("Test Address");
         employers.save(employer);
