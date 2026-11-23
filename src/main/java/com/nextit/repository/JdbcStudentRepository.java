@@ -70,7 +70,7 @@ public class JdbcStudentRepository {
                 }
             }
         } catch (SQLException e) {
-            // fallback gracefully
+            throw new AppException("Failed to generate the next student number", e);
         }
         return String.format("%04d-%04d", fullYear, maxSeq + 1);
     }

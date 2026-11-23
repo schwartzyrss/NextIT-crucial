@@ -135,9 +135,14 @@ public class AppController {
         }
         com.nextit.service.SystemService.getInstance().start();
 
-        // RBAC Enforcement: Users enter their role workspace directly
-        buildSidebar(user);
-        showDashboard(user);
+        // RBAC Enforcement: unverified accounts cannot use role workspaces
+        if (user.isVerified()) {
+            buildSidebar(user);
+            showDashboard(user);
+        } else {
+            buildUnverifiedSidebar(user);
+            showVerificationStatus(user);
+        }
     }
 
     private void showVerificationStatus(User user) {

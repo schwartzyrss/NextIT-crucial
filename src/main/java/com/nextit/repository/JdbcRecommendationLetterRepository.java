@@ -25,6 +25,14 @@ public class JdbcRecommendationLetterRepository {
         synchronized (JdbcRecommendationLetterRepository.class) {
             if (tableInitialized) return;
             try (Connection c = DatabaseConfig.getConnection();
+                 ResultSet rs = c.getMetaData().getTables(null, null, "recommendation_letters", new String[]{"TABLE"})) {
+                if (rs.next()) {
+                    tableInitialized = true;
+                    return;
+                }
+            } catch (SQLException ignored) {
+            }
+            try (Connection c = DatabaseConfig.getConnection();
                  Statement s = c.createStatement()) {
                 s.executeUpdate("""
                     CREATE TABLE IF NOT EXISTS recommendation_letters (

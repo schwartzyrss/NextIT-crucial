@@ -86,7 +86,13 @@ public class JdbcUserRepository implements UserRepository {
                             }
                             u.setFirstName(rs.getString("first_name"));
                             u.setLastName(rs.getString("last_name"));
-                            u.setVerificationStatus(VerificationStatus.VERIFIED);
+                            try {
+                                String vStatus = rs.getString("verification_status");
+                                if (vStatus != null && !vStatus.isBlank()) {
+                                    u.setVerificationStatus(VerificationStatus.valueOf(vStatus.trim().toUpperCase()));
+                                }
+                            } catch (SQLException ignored) {
+                            }
                             return Optional.of(u);
                         }
                     }
@@ -425,13 +431,11 @@ public class JdbcUserRepository implements UserRepository {
 
         try {
             String vStatus = rs.getString("verification_status");
-            if (vStatus != null) {
-                u.setVerificationStatus(VerificationStatus.valueOf(vStatus.toUpperCase()));
-            } else {
-                u.setVerificationStatus(VerificationStatus.VERIFIED);
+            if (vStatus != null && !vStatus.isBlank()) {
+                u.setVerificationStatus(VerificationStatus.valueOf(vStatus.trim().toUpperCase()));
             }
-        } catch (Exception ignored) {
-            u.setVerificationStatus(VerificationStatus.VERIFIED);
+        } catch (Exception ex) {
+            log.warn("Unrecognized verification status for user {}: {}", u.getUserId(), ex.getMessage());
         }
 
         try {

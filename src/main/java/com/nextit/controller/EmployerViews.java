@@ -20,7 +20,6 @@ import javafx.scene.layout.*;
 import javafx.util.Duration;
 
 import java.time.LocalDate;
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
@@ -36,7 +35,6 @@ public final class EmployerViews {
     private static final ProfileService profiles = new ProfileService();
     private static final RecommendationService recommendationService = new RecommendationService();
     private static final RecommendationLetterService recLetters = new RecommendationLetterService();
-    private static final com.nextit.repository.JdbcPortfolioAccessRepository accessRepo = new com.nextit.repository.JdbcPortfolioAccessRepository();
 
     private EmployerViews() {}
 
@@ -411,7 +409,7 @@ public final class EmployerViews {
         search.setPrefWidth(240);
 
         ComboBox<String> statusFilter = new ComboBox<>(FXCollections.observableArrayList(
-                "All Statuses", "Pending", "Reviewed", "Shortlisted", "Accepted", "Rejected"));
+                "All Statuses", "Pending", "Under Review", "Shortlisted", "Accepted", "Rejected"));
         statusFilter.setValue("All Statuses");
 
         HBox trayHeader = new HBox(12);
@@ -470,7 +468,7 @@ public final class EmployerViews {
             chartsRow.getChildren().clear();
             Map<String, Long> appStatusCounts = DashboardCharts.countByStatus(
                     apps.stream().map(Application::getStatus).toList(),
-                    List.of("Pending", "Reviewed", "Shortlisted", "Accepted", "Rejected"));
+                    List.of("Pending", "Under Review", "Shortlisted", "Accepted", "Rejected"));
             Node appStatusChart = DashboardCharts.statusSummary("Application Status", appStatusCounts,
                     () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.applications(), "Applications"); });
 
@@ -1974,26 +1972,8 @@ public final class EmployerViews {
         int eid = employerId();
         Optional<Portfolio> portOpt = portfolios.portfolioForStudent(sid);
 
-        if (portOpt.isPresent()) {
-            Portfolio p = portOpt.get();
-            if (!portfolios.isVisibleToEmployer(p.getPortfolioId(), eid)) {
-                accessRepo.findByPortfolioAndEmployer(p.getPortfolioId(), eid).ifPresentOrElse(
-                        a -> {
-                            a.setAccessStatus("Approved");
-                            a.setGrantedAt(LocalDateTime.now());
-                            accessRepo.update(a);
-                        },
-                        () -> {
-                            PortfolioAccess a = new PortfolioAccess();
-                            a.setPortfolioId(p.getPortfolioId());
-                            a.setEmployerId(eid);
-                            a.setAccessStatus("Approved");
-                            a.setGrantedAt(LocalDateTime.now());
-                            accessRepo.save(a);
-                        }
-                );
-            }
-            guard(() -> PortfolioDetailsView.show(p, false));
+        if (portOpt.isPresent() && portfolios.isVisibleToEmployer(portOpt.get().getPortfolioId(), eid)) {
+            guard(() -> PortfolioDetailsView.show(portOpt.get(), false));
         } else {
             showCandidateProfileDialog(candidate);
         }
@@ -2012,7 +1992,7 @@ public final class EmployerViews {
         infoGrid.add(Ui.propertyTile("Student Name", studentName), 0, 0);
         infoGrid.add(Ui.propertyTile("Student Number", candidate.getStudent().getStudentNumber()), 1, 0);
         infoGrid.add(Ui.propertyTile("Degree / Program", candidate.getStudent().getProgram()), 0, 1);
-        infoGrid.add(Ui.propertyTile("Year Level", String.valueOf(candidate.getStudent().getYearLevel())), 1, 1);
+        infoGrid.add(Ui.propertyTile("Year Level", Ui.formatYearDisplay(candidate.getStudent().getYearLevel())), 1, 1);
         infoGrid.add(Ui.propertyTile("Identity Status", candidate.isIdentityVerified() ? Ui.badge("Verified", "badge-pill-mint") : Ui.badge("Unverified", "badge-pill-cream")), 0, 2);
         infoGrid.add(Ui.propertyTile("Enrollment Status", candidate.getStudent().getEnrollmentStatus()), 1, 2);
 

@@ -38,7 +38,7 @@ public final class OtpService {
         OtpRecord existing = ACTIVE_OTPS.get(cleanEmail);
         if (existing != null && now < existing.resendAvailableAt()) {
             long waitSec = (existing.resendAvailableAt() - now) / 1000;
-            return new OtpResponse(false, EmailService.isConfigured(), existing.code(), true,
+            return new OtpResponse(false, EmailService.isConfigured(), "", true,
                     "Please wait " + waitSec + " seconds before requesting another code.");
         }
 
@@ -63,7 +63,7 @@ public final class OtpService {
         OtpRecord existing = ACTIVE_OTPS.get(cleanEmail);
         if (existing != null && now < existing.resendAvailableAt()) {
             long waitSec = (existing.resendAvailableAt() - now) / 1000;
-            return new OtpResponse(false, EmailService.isConfigured(), existing.code(), true,
+            return new OtpResponse(false, EmailService.isConfigured(), "", true,
                     "Please wait " + waitSec + " seconds before requesting another MFA code.");
         }
 
@@ -94,7 +94,7 @@ public final class OtpService {
         }
         if (existing != null && now < existing.resendAvailableAt()) {
             long waitSec = (existing.resendAvailableAt() - now) / 1000;
-            return new OtpResponse(false, EmailService.isConfigured(), existing.code(), true,
+            return new OtpResponse(false, EmailService.isConfigured(), "", true,
                     "Please wait " + waitSec + " seconds before requesting another reset code.");
         }
 

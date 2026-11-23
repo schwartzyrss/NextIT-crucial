@@ -15,6 +15,7 @@
 DROP TABLE IF EXISTS security_audit_logs CASCADE;
 DROP TABLE IF EXISTS verification_requests CASCADE;
 DROP TABLE IF EXISTS institutional_records CASCADE;
+DROP TABLE IF EXISTS recommendation_letters CASCADE;
 DROP TABLE IF EXISTS applications CASCADE;
 DROP TABLE IF EXISTS job_opportunities CASCADE;
 DROP TABLE IF EXISTS academic_support CASCADE;
@@ -46,7 +47,7 @@ CREATE TABLE users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED' CHECK (verification_status IN ('UNVERIFIED','PENDING','VERIFIED','REJECTED','SUSPENDED')),
@@ -138,7 +139,7 @@ CREATE TABLE enrollments (
     instructor_id INT NULL REFERENCES instructors(instructor_id) ON DELETE SET NULL,
     grade VARCHAR(20) NULL,
     enrolled_at TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT uq_student_enrollment_subject UNIQUE (student_id, subject_id)
+    CONSTRAINT uq_student_enrollment_subject UNIQUE (student_id, subject_id, academic_year, semester)
 );
 CREATE INDEX idx_enrollments_student ON enrollments(student_id);
 CREATE INDEX idx_enrollments_subject ON enrollments(subject_id);
@@ -373,7 +374,7 @@ CREATE TABLE institutional_records (
 CREATE TABLE verification_requests (
     request_id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER')),
+    role VARCHAR(20) NOT NULL CHECK (role IN ('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN')),
     id_number VARCHAR(50) NULL,
     institutional_email VARCHAR(100) NULL,
     organization_name VARCHAR(150) NULL,

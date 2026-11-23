@@ -1,3 +1,5 @@
+Set-Location -LiteralPath $PSScriptRoot
+
 # Check if JAVA_HOME is already set and valid
 if (-not $env:JAVA_HOME -or -not (Test-Path "$env:JAVA_HOME\bin\java.exe")) {
     if (Test-Path "C:\Program Files\Java\jdk-26.0.2.1\bin\java.exe") {

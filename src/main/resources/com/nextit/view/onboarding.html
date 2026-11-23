@@ -749,9 +749,6 @@
           try {
             const respStr = window.javaBridge.requestOtp(this.email);
             const data = JSON.parse(respStr);
-            if (data.code) {
-              this.generatedCode = data.code;
-            }
             if (data.sent) {
               this.otpStatus = 'sent';
             } else {
@@ -851,9 +848,6 @@
               this.email || this.smtpUser
             );
             const resp = JSON.parse(respStr);
-            if (resp.code) {
-              this.generatedCode = resp.code;
-            }
             if (resp.success) {
               this.smtpSuccess = resp.message || 'SMTP verified! Code sent to ' + (this.email || this.smtpUser);
               this.otpStatus = 'sent';

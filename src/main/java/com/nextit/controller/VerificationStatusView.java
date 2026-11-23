@@ -65,6 +65,7 @@ public final class VerificationStatusView {
         VBox contentHolder = new VBox(20);
         mainTray.getChildren().add(contentHolder);
 
+        Runnable[] renderHolder = new Runnable[1];
         Runnable renderContent = () -> {
             contentHolder.getChildren().clear();
             User u = currentUser[0];
@@ -173,6 +174,7 @@ public final class VerificationStatusView {
                         return;
                     }
                 }
+                renderHolder[0].run();
                 Alerts.info("Status updated. Current status: " + currentUser[0].getVerificationStatus().displayName());
             });
 
@@ -184,6 +186,7 @@ public final class VerificationStatusView {
                 resubmitBtn.setOnAction(ev -> openResubmitModal(stage, currentUser[0], requestRepo, () -> {
                     Optional<User> fresh = userRepo.findById(u.getUserId());
                     fresh.ifPresent(updatedUser -> currentUser[0] = updatedUser);
+                    renderHolder[0].run();
                 }));
                 actions.getChildren().add(0, resubmitBtn);
             }
@@ -191,6 +194,7 @@ public final class VerificationStatusView {
             contentHolder.getChildren().addAll(statusHeader, titleLabel, descLabel, timeline, infoBox, actions);
         };
 
+        renderHolder[0] = renderContent;
         renderContent.run();
         root.getChildren().addAll(topBar, mainTray);
 

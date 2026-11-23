@@ -41,7 +41,7 @@ final class DevelopmentManagementViews {
     private static final List<String> PROJECT_STATUSES =
             List.of("Draft", "In Progress", "Completed", "Archived");
     private static final List<String> APPLICATION_STATUSES =
-            List.of("Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted");
+            List.of("Pending", "Under Review", "Shortlisted", "Rejected", "Accepted");
 
     private DevelopmentManagementViews() {}
 
@@ -655,7 +655,7 @@ final class DevelopmentManagementViews {
         Ui.addColumn(table, "Status", Application::getStatus);
         Ui.addColumn(table, "Remarks", Application::getRemarks);
 
-        ComboBox<String> statusFilter = Ui.combo(List.of("All statuses", "Pending", "Reviewed", "Shortlisted", "Rejected", "Accepted"), s -> s);
+        ComboBox<String> statusFilter = Ui.combo(List.of("All statuses", "Pending", "Under Review", "Shortlisted", "Rejected", "Accepted"), s -> s);
         statusFilter.getSelectionModel().selectFirst();
         TextField search = Ui.field("Search by student, opportunity, employer or remarks...");
         Runnable refresh = () -> {
