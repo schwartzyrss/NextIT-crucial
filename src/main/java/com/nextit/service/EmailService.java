@@ -24,6 +24,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * Service managing outbound email delivery for NextIT.
@@ -139,6 +140,13 @@ public final class EmailService {
     }
 
     /**
+     * Asynchronously dispatches password recovery OTP email over HTTPS (Port 443).
+     */
+    public static CompletableFuture<SmtpResult> sendPasswordResetOtpEmailAsync(String toEmail, String otpCode, String username) {
+        return CompletableFuture.supplyAsync(() -> sendPasswordResetOtpEmailWithStatus(toEmail, otpCode, username));
+    }
+
+    /**
      * Main dispatch pipeline supporting Option A (Edge Function) and Option B (Supabase Auth).
      */
     public static SmtpResult dispatchEmail(String toEmail, String otpCode, String purpose, String username) {
@@ -148,6 +156,27 @@ public final class EmailService {
 
         DispatchMode mode = getDispatchMode();
         log.info("Dispatching OTP email to {} (purpose={}) via mode={}", toEmail, purpose, mode);
+
+        // For PASSWORD_RESET, always use HTTPS Edge Function over port 443 (avoid direct SMTP port blockage)
+        if ("PASSWORD_RESET".equals(purpose)) {
+            try {
+                SmtpResult edgeRes = sendViaSupabaseEdgeFunction(toEmail, otpCode, purpose, username, null, null, null);
+                if (edgeRes.isSuccess()) {
+                    return edgeRes;
+                }
+                log.warn("Supabase Edge Function send-otp returned non-200: {}. Checking fallbacks...", edgeRes.getMessage());
+            } catch (Exception ex) {
+                log.warn("Supabase Edge Function invocation exception: {}", ex.getMessage());
+            }
+
+            // Secondary attempt via Supabase Auth native OTP if configured
+            try {
+                SmtpResult authRes = sendViaSupabaseAuthOtp(toEmail);
+                if (authRes.isSuccess()) return authRes;
+            } catch (Exception ignored) {}
+
+            return evaluateFallback(toEmail, otpCode, "HTTPS delivery endpoints unreachable.");
+        }
 
         if (mode == DispatchMode.DIRECT_SMTP) {
             return sendDirectSmtp(toEmail, otpCode, purpose, username);
@@ -192,17 +221,21 @@ public final class EmailService {
     }
 
     /**
-     * Option A: Invokes Supabase Edge Function `send-otp-email` over HTTPS (Port 443).
+     * Option A: Invokes Supabase Edge Function `send-otp` over HTTPS (Port 443).
+     * Endpoint: https://qlmrcmaqkvtmciursqvr.supabase.co/functions/v1/send-otp
+     * Headers: Content-Type: application/json, apikey: <SUPABASE_ANON_KEY>
+     * Body: {"email": "<recipient>", "otp": "<6-digit-code>"}
      */
     public static SmtpResult sendViaSupabaseEdgeFunction(String toEmail, String otpCode, String purpose, String username,
                                                          String fullName, Boolean approved, String remarks) {
         String supabaseUrl = getSupabaseUrl();
         String anonKey = getSupabaseAnonKey();
-        String endpoint = supabaseUrl + "/functions/v1/send-otp-email";
+        String endpoint = supabaseUrl + "/functions/v1/send-otp";
 
         StringBuilder json = new StringBuilder("{");
         json.append("\"email\":\"").append(escapeJson(toEmail)).append("\"");
         if (otpCode != null) {
+            json.append(",\"otp\":\"").append(escapeJson(otpCode)).append("\"");
             json.append(",\"otpCode\":\"").append(escapeJson(otpCode)).append("\"");
         }
         if (purpose != null) {
@@ -242,15 +275,36 @@ public final class EmailService {
             if (status >= 200 && status < 300) {
                 log.info("Supabase Edge Function dispatch succeeded for {}: HTTP {}", toEmail, status);
                 String msg = extractJsonStringField(body, "message");
-                if (msg.isBlank()) msg = "OTP email dispatched successfully via HTTPS (Supabase Edge Function)";
+                if (msg.isBlank()) msg = "OTP email dispatched successfully via HTTPS (Port 443)";
                 return new SmtpResult(true, msg, otpCode, "HTTPS (Port 443 - Edge Function)", false);
-            } else {
-                log.warn("Supabase Edge Function returned HTTP {}: {}", status, body);
-                String err = extractJsonStringField(body, "error");
-                if (err.isBlank()) err = extractJsonStringField(body, "message");
-                if (err.isBlank()) err = "HTTP " + status + " (" + body + ")";
-                return new SmtpResult(false, err, otpCode, "HTTPS (Port 443 - Edge Function)", false);
             }
+
+            // Fallback attempt to alternate function route /functions/v1/send-otp-email if /send-otp returned 404
+            if (status == 404) {
+                String altEndpoint = supabaseUrl + "/functions/v1/send-otp-email";
+                try {
+                    HttpRequest.Builder altBuilder = HttpRequest.newBuilder()
+                            .uri(URI.create(altEndpoint))
+                            .timeout(Duration.ofSeconds(10))
+                            .header("Content-Type", "application/json")
+                            .header("Accept", "application/json")
+                            .POST(HttpRequest.BodyPublishers.ofString(json.toString(), StandardCharsets.UTF_8));
+                    if (!anonKey.isBlank()) {
+                        altBuilder.header("apikey", anonKey);
+                        altBuilder.header("Authorization", "Bearer " + anonKey);
+                    }
+                    HttpResponse<String> altResponse = HTTP_CLIENT.send(altBuilder.build(), HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+                    if (altResponse.statusCode() >= 200 && altResponse.statusCode() < 300) {
+                        return new SmtpResult(true, "OTP email dispatched successfully via HTTPS (Port 443)", otpCode, "HTTPS (Port 443 - Edge Function)", false);
+                    }
+                } catch (Exception ignored) {}
+            }
+
+            log.warn("Supabase Edge Function returned HTTP {}: {}", status, body);
+            String err = extractJsonStringField(body, "error");
+            if (err.isBlank()) err = extractJsonStringField(body, "message");
+            if (err.isBlank()) err = "HTTP " + status + " (" + body + ")";
+            return new SmtpResult(false, err, otpCode, "HTTPS (Port 443 - Edge Function)", false);
         } catch (Exception ex) {
             log.warn("HTTPS request to Supabase Edge Function failed: {}", ex.getMessage());
             return new SmtpResult(false, ex.getMessage(), otpCode, "HTTPS (Port 443 - Edge Function)", false);
