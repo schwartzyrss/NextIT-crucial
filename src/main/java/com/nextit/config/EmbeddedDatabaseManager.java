@@ -1,11 +1,13 @@
 package com.nextit.config;
 
+import ch.vorburger.exec.ManagedProcessException;
 import ch.vorburger.mariadb4j.DB;
 import ch.vorburger.mariadb4j.DBConfiguration;
 import ch.vorburger.mariadb4j.DBConfigurationBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -19,7 +21,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Manages an embedded MariaDB instance for NextIT when no local MySQL server is running.
+ * Manages an embedded, persistent MariaDB instance for NextIT when no local or remote MySQL server is reachable.
+ * Stores database records in a persistent directory across application launches.
  */
 public final class EmbeddedDatabaseManager {
 
@@ -48,21 +51,126 @@ public final class EmbeddedDatabaseManager {
     }
 
     public static boolean shouldFallback(String url) {
-        if (started) return false;
-        if (url == null || url.isBlank()) return true;
-        return !url.startsWith("jdbc:postgresql:");
+        return !started;
+    }
+
+    /**
+     * Resolves a persistent storage directory on disk for the embedded database.
+     * Prioritizes NEXTIT_DATA_DIR, followed by %LOCALAPPDATA%\NextIT\data, %APPDATA%\NextIT\data,
+     * and finally ~/.nextit/data.
+     */
+    public static Path resolveDataDirectory() {
+        String customDir = System.getProperty("NEXTIT_DATA_DIR");
+        if (customDir == null || customDir.isBlank()) {
+            customDir = System.getenv("NEXTIT_DATA_DIR");
+        }
+        if (customDir != null && !customDir.isBlank()) {
+            Path path = Path.of(customDir.trim()).toAbsolutePath();
+            try {
+                Files.createDirectories(path);
+                return path;
+            } catch (IOException e) {
+                LOG.warn("Failed to create custom data directory {}, falling back to default", path, e);
+            }
+        }
+
+        String localAppData = System.getenv("LOCALAPPDATA");
+        if (localAppData != null && !localAppData.isBlank()) {
+            Path path = Path.of(localAppData, "NextIT", "data").toAbsolutePath();
+            try {
+                Files.createDirectories(path);
+                return path;
+            } catch (IOException ignored) {}
+        }
+
+        String appData = System.getenv("APPDATA");
+        if (appData != null && !appData.isBlank()) {
+            Path path = Path.of(appData, "NextIT", "data").toAbsolutePath();
+            try {
+                Files.createDirectories(path);
+                return path;
+            } catch (IOException ignored) {}
+        }
+
+        String userHome = System.getProperty("user.home", ".");
+        Path fallback = Path.of(userHome, ".nextit", "data").toAbsolutePath();
+        try {
+            Files.createDirectories(fallback);
+        } catch (IOException ignored) {}
+        return fallback;
+    }
+
+    /**
+     * Custom DB instance that enforces persistence:
+     * 1. Overrides prepareDirectories to prevent deletion of dataDir even if in temp paths.
+     * 2. Overrides cleanupOnExit to prevent MariaDB4j from deleting the database on JVM exit.
+     * 3. Skips mysql_install_db bootstrap when the persistent data directory is already initialized.
+     */
+    private static class PersistentEmbeddedDB extends DB {
+        PersistentEmbeddedDB(DBConfiguration configuration) {
+            super(configuration);
+        }
+
+        @Override
+        protected void prepareDirectories() throws ManagedProcessException {
+            try {
+                java.lang.reflect.Field baseDirF = DB.class.getDeclaredField("baseDir");
+                java.lang.reflect.Field libDirF = DB.class.getDeclaredField("libDir");
+                java.lang.reflect.Field tmpDirF = DB.class.getDeclaredField("tmpDir");
+                java.lang.reflect.Field dataDirF = DB.class.getDeclaredField("dataDir");
+
+                baseDirF.setAccessible(true);
+                libDirF.setAccessible(true);
+                tmpDirF.setAccessible(true);
+                dataDirF.setAccessible(true);
+
+                baseDirF.set(this, ch.vorburger.mariadb4j.Util.getDirectory(configuration.getBaseDir()));
+                libDirF.set(this, ch.vorburger.mariadb4j.Util.getDirectory(configuration.getLibDir()));
+                tmpDirF.set(this, ch.vorburger.mariadb4j.Util.getDirectory(configuration.getTmpDir()));
+                dataDirF.set(this, ch.vorburger.mariadb4j.Util.getDirectory(configuration.getDataDir()));
+            } catch (Exception e) {
+                throw new ManagedProcessException("Failed to prepare persistent directories", e);
+            }
+        }
+
+        @Override
+        protected void cleanupOnExit() {
+            // Intentionally no-op to ensure persistent database files are never deleted on JVM shutdown.
+        }
+
+        static PersistentEmbeddedDB create(DBConfiguration config) throws ManagedProcessException {
+            PersistentEmbeddedDB db = new PersistentEmbeddedDB(config);
+            db.prepareDirectories();
+            db.unpackEmbeddedDb();
+            File dataDir = config.getDataDir();
+            File mysqlSystemDir = (dataDir != null) ? new File(dataDir, "mysql") : null;
+            if (mysqlSystemDir == null || !mysqlSystemDir.isDirectory()) {
+                LOG.info("First-time embedded database setup: initializing system tables in {}...",
+                        dataDir != null ? dataDir.getAbsolutePath() : "default dir");
+                db.install();
+            } else {
+                LOG.info("Existing database detected at {}: skipping install step to preserve stored user data.",
+                        dataDir.getAbsolutePath());
+            }
+            return db;
+        }
     }
 
     public static synchronized void ensureStarted() throws SQLException {
         if (started) return;
 
-        LOG.info("No external MySQL server detected on port 3306. Starting embedded database...");
+        LOG.info("Starting persistent local embedded database...");
         try {
+            Path dataDir = resolveDataDirectory();
+            LOG.info("Persistent database storage location: {}", dataDir.toAbsolutePath());
+
             DBConfigurationBuilder builder = DBConfigurationBuilder.newBuilder();
+            builder.setDataDir(dataDir.toFile());
+            builder.setDeletingTemporaryBaseAndDataDirsOnShutdown(false);
             builder.setPort(0);
             DBConfiguration configuration = builder.build();
 
-            embeddedDatabase = DB.newEmbeddedDB(configuration);
+            embeddedDatabase = PersistentEmbeddedDB.create(configuration);
             embeddedDatabase.start();
 
             String serverUrl = "jdbc:mysql://127.0.0.1:" + configuration.getPort() + "/";
