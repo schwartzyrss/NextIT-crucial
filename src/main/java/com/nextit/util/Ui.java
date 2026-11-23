@@ -602,10 +602,20 @@ public final class Ui {
 
     public static Optional<ButtonType> dialog(String title, Node content) {
         Dialog<ButtonType> dialog = new Dialog<>();
+        try {
+            if (com.nextit.controller.AppController.getInstance() != null) {
+                javafx.stage.Stage stage = com.nextit.controller.AppController.getInstance().getStage();
+                if (stage != null && stage.isShowing()) {
+                    dialog.initOwner(stage);
+                }
+            }
+        } catch (Exception ignored) {}
         dialog.setTitle(title);
         dialog.setHeaderText(null);
         dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        if (Ui.class.getResource("/com/nextit/css/application.css") != null) {
+            dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         dialog.setResizable(true);
         return dialog.showAndWait();
@@ -614,10 +624,20 @@ public final class Ui {
     /** Read-only dialog with a single Close button. */
     public static void viewDialog(String title, Node content) {
         Dialog<ButtonType> dialog = new Dialog<>();
+        try {
+            if (com.nextit.controller.AppController.getInstance() != null) {
+                javafx.stage.Stage stage = com.nextit.controller.AppController.getInstance().getStage();
+                if (stage != null && stage.isShowing()) {
+                    dialog.initOwner(stage);
+                }
+            }
+        } catch (Exception ignored) {}
         dialog.setTitle(title);
         dialog.setHeaderText(null);
         dialog.getDialogPane().setContent(content);
-        dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        if (Ui.class.getResource("/com/nextit/css/application.css") != null) {
+            dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
         dialog.setResizable(true);
         dialog.showAndWait();

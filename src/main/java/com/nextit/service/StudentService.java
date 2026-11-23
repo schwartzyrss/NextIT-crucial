@@ -106,7 +106,7 @@ public class StudentService {
         Validator.maxLength(a.getDescription(), 16000, "Description");
         Validator.maxLength(a.getOrganization(), 150, "Organization");
         Validator.maxLength(a.getVerificationUrl(), 255, "Verification URL");
-        Validator.optionalWebUrl(a.getVerificationUrl(), "Verification URL");
+        Validator.optionalUrlOrFilePath(a.getVerificationUrl(), "Verification URL / Proof");
         if (a.getStudentId() <= 0 || studentRepo.findById(a.getStudentId()).isEmpty()) {
             throw new AppException("A valid student is required.");
         }
@@ -137,7 +137,7 @@ public class StudentService {
         Validator.maxLength(c.getCertificationName(), 200, "Certification name");
         Validator.maxLength(c.getIssuingOrganization(), 150, "Issuing organization");
         Validator.maxLength(c.getCredentialUrl(), 255, "Credential URL");
-        Validator.optionalWebUrl(c.getCredentialUrl(), "Credential URL");
+        Validator.optionalUrlOrFilePath(c.getCredentialUrl(), "Credential URL / Proof");
         if (c.getStudentId() <= 0 || studentRepo.findById(c.getStudentId()).isEmpty()) {
             throw new AppException("A valid student is required.");
         }

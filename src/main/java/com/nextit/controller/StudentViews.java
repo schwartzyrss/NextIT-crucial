@@ -5,6 +5,8 @@ import com.nextit.model.*;
 import com.nextit.security.Session;
 import com.nextit.service.*;
 import com.nextit.util.Alerts;
+import com.nextit.util.CertificateImageViewer;
+import com.nextit.util.CertificateUploaderBox;
 import com.nextit.util.Ui;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
@@ -14,15 +16,21 @@ import javafx.collections.ObservableList;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import javafx.stage.Window;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -629,7 +637,7 @@ public final class StudentViews {
         Button addProjectBtn = new Button("Showcase Project");
         addProjectBtn.setMaxWidth(Double.MAX_VALUE);
         addProjectBtn.getStyleClass().add("secondary-button");
-        addProjectBtn.setOnAction(e -> editProject(studentId, null, refresh));
+        addProjectBtn.setOnAction(e -> editProject(studentId, null, p -> refresh.run()));
 
         Button portfolioBtn = new Button("Career Portfolio");
         portfolioBtn.setMaxWidth(Double.MAX_VALUE);
@@ -708,6 +716,10 @@ public final class StudentViews {
             subjectMap.putAll(directory.subjectMap());
             instructors.clear();
             instructors.putAll(directory.instructorNames());
+            enrollments.clear();
+            for (Enrollment e : list) {
+                enrollments.put(e.getEnrollmentId(), subjects.getOrDefault(e.getSubjectId(), "Subject #" + e.getSubjectId()));
+            }
             String q = subjectSearch.getText() == null ? "" : subjectSearch.getText().toLowerCase(Locale.ROOT).trim();
             subjectTable.setItems(FXCollections.observableArrayList(list.stream().filter(e -> {
                 if (q.isBlank()) return true;
@@ -720,12 +732,16 @@ public final class StudentViews {
                 String sem = e.getSemester() != null ? e.getSemester().toLowerCase(Locale.ROOT) : "";
                 return code.contains(q) || title.contains(q) || instName.contains(q) || sec.contains(q) || sem.contains(q);
             }).toList()));
+            subjectTable.refresh();
         };
         subjectSearch.textProperty().addListener((obs, old, val) -> refreshSubjectTable.run());
         refreshSubjectTable.run();
 
         Button enrollBtn = Ui.button("➕ Enroll / Add Subject", "primary-button");
-        enrollBtn.setOnAction(ev -> showEnrollSubjectDialog(sid, refreshSubjectTable));
+        enrollBtn.setOnAction(ev -> showEnrollSubjectDialog(sid, () -> {
+            subjectSearch.clear();
+            refreshSubjectTable.run();
+        }, enrollBtn.getScene() != null ? enrollBtn.getScene().getWindow() : null));
 
         Button refreshSubjectBtn = new Button("Refresh");
         refreshSubjectBtn.setOnAction(ev -> refreshSubjectTable.run());
@@ -797,10 +813,17 @@ public final class StudentViews {
         return Ui.page("Academic Progress", "Review your subjects, grades, attendance, project performance and instructor remarks. These records are maintained by your instructors.", tabs);
     }
 
-    private static void showEnrollSubjectDialog(int studentId, Runnable onComplete) {
+    private static void showEnrollSubjectDialog(int studentId, Runnable onComplete, Window ownerWindow) {
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (ownerWindow != null) {
+            dialog.initOwner(ownerWindow);
+        }
         dialog.setTitle("Enroll / Add Subject");
         dialog.setHeaderText("Course & Subject Enrollment");
+        if (StudentViews.class.getResource("/com/nextit/css/application.css") != null) {
+            dialog.getDialogPane().getStylesheets().add(StudentViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+        dialog.getDialogPane().setStyle("-fx-background-color: #FAF7F2;");
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
         VBox content = new VBox(12);
@@ -880,8 +903,23 @@ public final class StudentViews {
             }).thenRun(() -> Platform.runLater(() -> {
                 dialog.setResult(ButtonType.OK);
                 dialog.close();
-                Alerts.info("Successfully enrolled in " + toEnroll.getSubjectCode() + " - " + toEnroll.getSubjectName() + "!");
-                if (onComplete != null) onComplete.run();
+
+                // 1. Immediately refresh the table so the newly enrolled row renders without delay
+                if (onComplete != null) {
+                    onComplete.run();
+                }
+
+                // 2. Launch the styled NextIT confirmation modal centered over the window
+                Platform.runLater(() -> {
+                    String instName = toEnroll.getInstructorId() != null
+                            ? directory.instructorNames().getOrDefault(toEnroll.getInstructorId(), "Department Faculty")
+                            : "Department Faculty";
+                    Window effectiveOwner = ownerWindow;
+                    if (effectiveOwner == null) {
+                        effectiveOwner = Window.getWindows().stream().filter(Window::isShowing).findFirst().orElse(null);
+                    }
+                    showEnrollmentConfirmationModal(effectiveOwner, toEnroll, ay, sem, instName);
+                });
             })).exceptionally(ex -> {
                 Platform.runLater(() -> {
                     okButton.setDisable(false);
@@ -893,6 +931,164 @@ public final class StudentViews {
         });
 
         dialog.showAndWait();
+    }
+
+    private static void showEnrollmentConfirmationModal(Window ownerWindow, Subject subject, String academicYear, String semester, String facultyName) {
+        Stage modalStage = new Stage();
+        modalStage.initModality(Modality.APPLICATION_MODAL);
+        if (ownerWindow != null) {
+            modalStage.initOwner(ownerWindow);
+        }
+        modalStage.initStyle(StageStyle.TRANSPARENT);
+
+        StackPane rootPane = new StackPane();
+        rootPane.setStyle("-fx-background-color: transparent; -fx-padding: 30;");
+
+        VBox card = new VBox(16);
+        card.setAlignment(Pos.CENTER);
+        card.setPrefWidth(460);
+        card.setMaxWidth(460);
+        card.setStyle(
+                "-fx-background-color: #FAF7F2; " +
+                "-fx-background-radius: 16; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 16; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-padding: 26 28 24 28; " +
+                "-fx-effect: dropshadow(gaussian, rgba(26, 38, 52, 0.25), 24, 0.15, 0, 8);"
+        );
+
+        // 1. Success Checkmark Icon (Green checkmark in circular badge)
+        StackPane iconCircle = new StackPane();
+        iconCircle.setStyle(
+                "-fx-background-color: #DCFCE7; " +
+                "-fx-background-radius: 50; " +
+                "-fx-min-width: 58; -fx-min-height: 58; " +
+                "-fx-max-width: 58; -fx-max-height: 58; " +
+                "-fx-border-color: #86EFAC; " +
+                "-fx-border-radius: 50; " +
+                "-fx-border-width: 1.5;"
+        );
+        Label checkIcon = new Label("✔");
+        checkIcon.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #15803D;");
+        iconCircle.getChildren().add(checkIcon);
+
+        // 2. Heading & Subtitle
+        Label heading = new Label("Enrollment Confirmed");
+        heading.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+
+        Label subHeading = new Label("You have been successfully registered for this subject.");
+        subHeading.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #5A6A7E; -fx-font-weight: 500;");
+
+        // 3. Subject Metadata Card
+        VBox detailsCard = new VBox(10);
+        detailsCard.setStyle(
+                "-fx-background-color: #FFFFFF; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 12; " +
+                "-fx-background-radius: 12; " +
+                "-fx-padding: 14 16;"
+        );
+
+        HBox codeRow = new HBox(10);
+        codeRow.setAlignment(Pos.CENTER_LEFT);
+        Label codeBadge = new Label(subject.getSubjectCode());
+        codeBadge.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-weight: 800; " +
+                "-fx-font-size: 12px; " +
+                "-fx-padding: 3 10; " +
+                "-fx-background-radius: 6;"
+        );
+
+        Label titleLbl = new Label(subject.getSubjectName());
+        titleLbl.setStyle("-fx-font-size: 14.5px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+        titleLbl.setWrapText(true);
+        HBox.setHgrow(titleLbl, Priority.ALWAYS);
+        codeRow.getChildren().addAll(codeBadge, titleLbl);
+
+        Separator sep = new Separator();
+        sep.setStyle("-fx-opacity: 0.5;");
+
+        GridPane metaGrid = new GridPane();
+        metaGrid.setHgap(16);
+        metaGrid.setVgap(8);
+
+        Label semLabel = new Label("Semester:");
+        semLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label semVal = new Label(semester + (academicYear != null && !academicYear.isBlank() ? " (" + academicYear + ")" : ""));
+        semVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-font-weight: 700;");
+
+        Label unitsLabel = new Label("Units:");
+        unitsLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label unitsVal = new Label(String.format("%.1f Units", subject.getUnits()));
+        unitsVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-font-weight: 700;");
+
+        Label instLabel = new Label("Faculty:");
+        instLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label instVal = new Label(facultyName != null && !facultyName.isBlank() ? facultyName : "Department Faculty");
+        instVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-font-weight: 700;");
+
+        Label statusLabel = new Label("Status:");
+        statusLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label statusVal = new Label("Enrolled (Active)");
+        statusVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #15803D; -fx-font-weight: 800;");
+
+        metaGrid.add(semLabel, 0, 0);
+        metaGrid.add(semVal, 1, 0);
+        metaGrid.add(unitsLabel, 0, 1);
+        metaGrid.add(unitsVal, 1, 1);
+        metaGrid.add(instLabel, 0, 2);
+        metaGrid.add(instVal, 1, 2);
+        metaGrid.add(statusLabel, 0, 3);
+        metaGrid.add(statusVal, 1, 3);
+
+        detailsCard.getChildren().addAll(codeRow, sep, metaGrid);
+
+        // 4. Prominent "Done" Button
+        Button doneBtn = new Button("Done");
+        doneBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 10 36; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        );
+        doneBtn.setMaxWidth(Double.MAX_VALUE);
+        doneBtn.setOnAction(e -> modalStage.close());
+
+        card.getChildren().addAll(iconCircle, heading, subHeading, detailsCard, doneBtn);
+        rootPane.getChildren().add(card);
+
+        Scene modalScene = new Scene(rootPane);
+        modalScene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        if (StudentViews.class.getResource("/com/nextit/css/application.css") != null) {
+            modalScene.getStylesheets().add(StudentViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+        modalScene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE || ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                modalStage.close();
+                ev.consume();
+            }
+        });
+
+        modalStage.setScene(modalScene);
+
+        if (ownerWindow != null) {
+            modalStage.setOnShown(ev -> {
+                double x = ownerWindow.getX() + (ownerWindow.getWidth() - modalStage.getWidth()) / 2.0;
+                double y = ownerWindow.getY() + (ownerWindow.getHeight() - modalStage.getHeight()) / 2.0;
+                modalStage.setX(Math.max(0, x));
+                modalStage.setY(Math.max(0, y));
+            });
+        } else {
+            modalStage.centerOnScreen();
+        }
+
+        modalStage.show();
     }
 
     private static String score(Double value) {
@@ -1029,7 +1225,7 @@ public final class StudentViews {
         };
         search.textProperty().addListener((obs, old, value) -> applyFilter.run());
 
-        Runnable loadDataAsync = () -> {
+        Consumer<Integer> loadDataWithHighlight = (highlightProjectId) -> {
             CompletableFuture.supplyAsync(() -> {
                 List<Project> list = projects.projectsForStudent(sid);
                 List<Integer> pids = list.stream().map(Project::getProjectId).toList();
@@ -1050,18 +1246,36 @@ public final class StudentViews {
                 membersCache.putAll(memMap);
                 subjects.clear();
                 subjects.putAll(subs);
+
+                if (highlightProjectId != null && highlightProjectId > 0) {
+                    if (search.getText() != null && !search.getText().isBlank()) {
+                        search.setText("");
+                    }
+                }
                 applyFilter.run();
+
+                if (highlightProjectId != null && highlightProjectId > 0) {
+                    for (Project p : table.getItems()) {
+                        if (p.getProjectId() == highlightProjectId) {
+                            table.getSelectionModel().select(p);
+                            table.scrollTo(p);
+                            table.requestFocus();
+                            break;
+                        }
+                    }
+                }
             })).exceptionally(ex -> {
                 Platform.runLater(() -> Alerts.error("Failed to load projects: " + ex.getMessage()));
                 return null;
             });
         };
 
+        Runnable loadDataAsync = () -> loadDataWithHighlight.accept(null);
         loadDataAsync.run();
 
         Button add = new Button("Add Project");
         add.getStyleClass().add("primary-button");
-        add.setOnAction(e -> editProject(sid, null, loadDataAsync));
+        add.setOnAction(e -> editProject(sid, null, p -> loadDataWithHighlight.accept(p != null ? p.getProjectId() : null)));
         Button edit = new Button("Edit");
         edit.setOnAction(e -> {
             Project selected = table.getSelectionModel().getSelectedItem();
@@ -1070,7 +1284,7 @@ public final class StudentViews {
                 Alerts.error("Only the project owner can edit this project.");
                 return;
             }
-            editProject(sid, selected, loadDataAsync);
+            editProject(sid, selected, p -> loadDataWithHighlight.accept(p != null ? p.getProjectId() : null));
         });
         Button delete = new Button("Delete");
         delete.setOnAction(e -> {
@@ -1083,7 +1297,7 @@ public final class StudentViews {
             if (Ui.confirmed("Delete project \"" + selected.getProjectTitle() + "\"?")) {
                 guard(() -> {
                     projects.deleteProject(selected.getProjectId(), sid);
-                    loadDataAsync.run();
+                    loadDataWithHighlight.accept(null);
                 });
             }
         });
@@ -1095,7 +1309,7 @@ public final class StudentViews {
                 Alerts.error("Only the project owner can manage group members.");
                 return;
             }
-            guard(() -> manageMembers(selected, sid, loadDataAsync));
+            guard(() -> manageMembers(selected, sid, () -> loadDataWithHighlight.accept(selected.getProjectId())));
         });
         Button details = new Button("View Details");
         details.getStyleClass().add("secondary-button");
@@ -1105,7 +1319,7 @@ public final class StudentViews {
             guard(() -> showProject(selected));
         });
         Button refresh = new Button("Refresh");
-        refresh.setOnAction(e -> loadDataAsync.run());
+        refresh.setOnAction(e -> loadDataWithHighlight.accept(null));
 
         return Ui.page("My Projects", "Add projects, link repositories and demos, and record the contributions of group members.",
                 Ui.toolbar(new Label("Search:"), search, add, edit, delete, members, details, refresh), table);
@@ -1157,7 +1371,7 @@ public final class StudentViews {
         Ui.viewDialog("Project - " + p.getProjectTitle(), form);
     }
 
-    private static void editProject(int studentId, Project existing, Runnable refresh) {
+    private static void editProject(int studentId, Project existing, Consumer<Project> onSaveSuccess) {
         Project p = existing == null ? new Project() : existing;
         List<Subject> enrolledSubjects = academic.enrolledSubjectsForStudent(studentId);
         List<Subject> subjectList = new ArrayList<>(enrolledSubjects.isEmpty() ? directory.subjects() : enrolledSubjects);
@@ -1310,7 +1524,13 @@ public final class StudentViews {
         scroll.setPrefViewportHeight(580);
 
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (AppController.getInstance() != null && AppController.getInstance().getStage() != null) {
+            dialog.initOwner(AppController.getInstance().getStage());
+        }
         dialog.setTitle(existing == null ? "Add Project" : "Edit Project — " + existing.getProjectTitle());
+        if (StudentViews.class.getResource("/com/nextit/css/application.css") != null) {
+            dialog.getDialogPane().getStylesheets().add(StudentViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
         dialog.getDialogPane().setContent(scroll);
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
         Button okButton = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
@@ -1320,9 +1540,13 @@ public final class StudentViews {
         okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             event.consume();
             try {
+                if (title.getText() == null || title.getText().isBlank()) {
+                    Alerts.error("Project title cannot be empty.");
+                    return;
+                }
                 Project target = existing == null ? new Project() : existing;
                 target.setStudentId(existing == null ? Integer.valueOf(studentId) : existing.getStudentId());
-                target.setProjectTitle(title.getText());
+                target.setProjectTitle(title.getText().trim());
                 target.setProjectType(type.getValue());
                 target.setSubjectId(subject.getValue() == null ? null : subject.getValue().getSubjectId());
                 target.setDescription(description.getText());
@@ -1335,17 +1559,34 @@ public final class StudentViews {
                 okButton.setDisable(true);
                 okButton.setText("Saving...");
 
-                projects.saveProjectWithMembersAsync(target, new ArrayList<>(draftMembers), studentId)
+                final boolean isNew = (existing == null);
+                final Subject selectedSub = subject.getValue();
+                final String subDisplayName = selectedSub != null ? selectedSub.getSubjectCode() + " - " + selectedSub.getSubjectName() : "None / Independent Project";
+                final List<ProjectMember> savedDraftMembers = new ArrayList<>(draftMembers);
+
+                projects.saveProjectWithMembersAsync(target, savedDraftMembers, studentId)
                         .thenRun(() -> Platform.runLater(() -> {
                             dialog.setResult(ButtonType.OK);
                             dialog.close();
-                            refresh.run();
-                            Alerts.info("Project and group member credits saved successfully.");
+
+                            // 1. Immediately refresh and highlight the project row in the table
+                            if (onSaveSuccess != null) {
+                                onSaveSuccess.accept(target);
+                            }
+
+                            // 2. Launch styled NextIT confirmation modal
+                            Platform.runLater(() -> {
+                                Window topWindow = AppController.getInstance() != null ? AppController.getInstance().getStage() : null;
+                                if (topWindow == null || !topWindow.isShowing()) {
+                                    topWindow = Window.getWindows().stream().filter(Window::isShowing).findFirst().orElse(null);
+                                }
+                                showProjectConfirmationModal(topWindow, target, isNew, subDisplayName, savedDraftMembers);
+                            });
                         }))
                         .exceptionally(ex -> {
                             Platform.runLater(() -> {
                                 okButton.setDisable(false);
-                                okButton.setText(existing == null ? "Create Project" : "Save Changes");
+                                okButton.setText(isNew ? "Create Project" : "Save Changes");
                                 Alerts.error(ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage());
                             });
                             return null;
@@ -1360,9 +1601,204 @@ public final class StudentViews {
         dialog.showAndWait();
     }
 
+    private static void showProjectConfirmationModal(Window ownerWindow, Project project, boolean isNew, String subjectName, List<ProjectMember> members) {
+        Stage modalStage = new Stage();
+        modalStage.initModality(Modality.APPLICATION_MODAL);
+        if (ownerWindow != null && ownerWindow.isShowing()) {
+            modalStage.initOwner(ownerWindow);
+        }
+        modalStage.initStyle(StageStyle.TRANSPARENT);
+
+        StackPane rootPane = new StackPane();
+        rootPane.setStyle("-fx-background-color: transparent; -fx-padding: 30;");
+
+        VBox card = new VBox(16);
+        card.setAlignment(Pos.CENTER);
+        card.setPrefWidth(500);
+        card.setMaxWidth(500);
+        card.setStyle(
+                "-fx-background-color: #FAF7F2; " +
+                "-fx-background-radius: 16; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 16; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-padding: 26 28 24 28; " +
+                "-fx-effect: dropshadow(gaussian, rgba(26, 38, 52, 0.25), 24, 0.15, 0, 8);"
+        );
+
+        // 1. Success Checkmark Icon (Green checkmark in circular badge)
+        StackPane iconCircle = new StackPane();
+        iconCircle.setStyle(
+                "-fx-background-color: #DCFCE7; " +
+                "-fx-background-radius: 50; " +
+                "-fx-min-width: 58; -fx-min-height: 58; " +
+                "-fx-max-width: 58; -fx-max-height: 58; " +
+                "-fx-border-color: #86EFAC; " +
+                "-fx-border-radius: 50; " +
+                "-fx-border-width: 1.5;"
+        );
+        Label checkIcon = new Label("✔");
+        checkIcon.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #15803D;");
+        iconCircle.getChildren().add(checkIcon);
+
+        // 2. Heading & Subtitle
+        Label heading = new Label(isNew ? "Project Added" : "Project Saved");
+        heading.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+
+        Label subHeading = new Label(isNew
+                ? "Your project and collaborative credits have been added to your portfolio."
+                : "Your project details and group credits have been successfully updated.");
+        subHeading.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #5A6A7E; -fx-font-weight: 500;");
+
+        // 3. Project Metadata Summary Card
+        VBox detailsCard = new VBox(10);
+        detailsCard.setStyle(
+                "-fx-background-color: #FFFFFF; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 12; " +
+                "-fx-background-radius: 12; " +
+                "-fx-padding: 14 16;"
+        );
+
+        HBox titleRow = new HBox(10);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+        Label typeBadge = new Label(project.getProjectType() != null ? project.getProjectType() : "Project");
+        typeBadge.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-weight: 800; " +
+                "-fx-font-size: 11.5px; " +
+                "-fx-padding: 3 10; " +
+                "-fx-background-radius: 6;"
+        );
+
+        Label titleLbl = new Label(project.getProjectTitle() != null ? project.getProjectTitle() : "Untitled Project");
+        titleLbl.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+        titleLbl.setWrapText(true);
+        HBox.setHgrow(titleLbl, Priority.ALWAYS);
+        titleRow.getChildren().addAll(typeBadge, titleLbl);
+
+        Separator sep = new Separator();
+        sep.setStyle("-fx-opacity: 0.5;");
+
+        GridPane metaGrid = new GridPane();
+        metaGrid.setHgap(14);
+        metaGrid.setVgap(7);
+
+        int rowIdx = 0;
+
+        Label subLabel = new Label("Subject:");
+        subLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label subVal = new Label(subjectName != null && !subjectName.isBlank() ? subjectName : "None / Independent Project");
+        subVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-font-weight: 700;");
+        subVal.setWrapText(true);
+        metaGrid.add(subLabel, 0, rowIdx);
+        metaGrid.add(subVal, 1, rowIdx++);
+
+        String creditRole = (members == null || members.isEmpty())
+                ? "Owner (Solo)"
+                : "Owner (Project Lead) • " + (members.size() + 1) + " members (" + members.size() + " credited)";
+        Label roleLabel = new Label("Credit / Role:");
+        roleLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label roleVal = new Label(creditRole);
+        roleVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-font-weight: 700;");
+        metaGrid.add(roleLabel, 0, rowIdx);
+        metaGrid.add(roleVal, 1, rowIdx++);
+
+        Label statLabel = new Label("Status:");
+        statLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label statVal = new Label(project.getStatus() != null ? project.getStatus() : "Draft");
+        statVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #15803D; -fx-font-weight: 800;");
+        metaGrid.add(statLabel, 0, rowIdx);
+        metaGrid.add(statVal, 1, rowIdx++);
+
+        String tech = project.getTechnologiesUsed();
+        Label techLabel = new Label("Technologies:");
+        techLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label techVal = new Label(tech != null && !tech.isBlank() ? tech : "None specified");
+        techVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-font-weight: 600;");
+        techVal.setWrapText(true);
+        metaGrid.add(techLabel, 0, rowIdx);
+        metaGrid.add(techVal, 1, rowIdx++);
+
+        String repo = project.getRepositoryUrl();
+        Label repoLabel = new Label("Repository:");
+        repoLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label repoVal = new Label(repo != null && !repo.isBlank() ? repo : "Not provided");
+        repoVal.setStyle(repo != null && !repo.isBlank()
+                ? "-fx-font-size: 12px; -fx-text-fill: #1D4ED8; -fx-font-weight: 600;"
+                : "-fx-font-size: 12px; -fx-text-fill: #7A889B; -fx-font-style: italic;");
+        repoVal.setWrapText(true);
+        metaGrid.add(repoLabel, 0, rowIdx);
+        metaGrid.add(repoVal, 1, rowIdx++);
+
+        String demo = project.getDemoUrl();
+        if (demo != null && !demo.isBlank()) {
+            Label demoLabel = new Label("Demo URL:");
+            demoLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+            Label demoVal = new Label(demo);
+            demoVal.setStyle("-fx-font-size: 12px; -fx-text-fill: #1D4ED8; -fx-font-weight: 600;");
+            demoVal.setWrapText(true);
+            metaGrid.add(demoLabel, 0, rowIdx);
+            metaGrid.add(demoVal, 1, rowIdx++);
+        }
+
+        detailsCard.getChildren().addAll(titleRow, sep, metaGrid);
+
+        // 4. Prominent "Done" Button
+        Button doneBtn = new Button("Done");
+        doneBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 10 36; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        );
+        doneBtn.setMaxWidth(Double.MAX_VALUE);
+        doneBtn.setOnAction(e -> modalStage.close());
+
+        card.getChildren().addAll(iconCircle, heading, subHeading, detailsCard, doneBtn);
+        rootPane.getChildren().add(card);
+
+        Scene modalScene = new Scene(rootPane);
+        modalScene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        if (StudentViews.class.getResource("/com/nextit/css/application.css") != null) {
+            modalScene.getStylesheets().add(StudentViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+        modalScene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE || ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                modalStage.close();
+                ev.consume();
+            }
+        });
+
+        modalStage.setScene(modalScene);
+
+        if (ownerWindow != null) {
+            modalStage.setOnShown(ev -> {
+                double x = ownerWindow.getX() + (ownerWindow.getWidth() - modalStage.getWidth()) / 2.0;
+                double y = ownerWindow.getY() + (ownerWindow.getHeight() - modalStage.getHeight()) / 2.0;
+                modalStage.setX(Math.max(0, x));
+                modalStage.setY(Math.max(0, y));
+            });
+        } else {
+            modalStage.centerOnScreen();
+        }
+
+        modalStage.show();
+    }
+
     private static void manageMembers(Project project, int studentId, Runnable refreshCallback) {
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (AppController.getInstance() != null && AppController.getInstance().getStage() != null) {
+            dialog.initOwner(AppController.getInstance().getStage());
+        }
         dialog.setTitle("Group Members - " + project.getProjectTitle());
+        if (StudentViews.class.getResource("/com/nextit/css/application.css") != null) {
+            dialog.getDialogPane().getStylesheets().add(StudentViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
         TableView<ProjectMember> table = Ui.table();
         Map<Integer, String> students = directory.studentNames();
         Ui.addColumn(table, "Student", m -> students.getOrDefault(m.getStudentId(), "Student #" + m.getStudentId()));
@@ -1443,7 +1879,21 @@ public final class StudentViews {
         Ui.addColumn(table, "Organization / Issuer", AcademicCredential::getOrganization);
         Ui.addColumn(table, "Date / Timeline", AcademicCredential::getDateDisplay);
         Ui.addColumn(table, "Description / Notes", AcademicCredential::getDescription);
-        Ui.addColumn(table, "Verification / Credential URL", AcademicCredential::getVerificationUrl);
+        TableColumn<AcademicCredential, AcademicCredential> proofCol = Ui.actionColumn("Certificate / Proof", cred -> {
+            String urlOrPath = cred.getVerificationUrl();
+            if (urlOrPath == null || urlOrPath.isBlank()) {
+                Label none = new Label("—");
+                none.setStyle("-fx-text-fill: #94A3B8; -fx-font-weight: 600;");
+                return none;
+            }
+            Button viewBtn = new Button("🖼️ View Picture");
+            viewBtn.setStyle("-fx-background-color: #FAF7F2; -fx-border-color: #991B1B; -fx-border-radius: 6; -fx-background-radius: 6; -fx-text-fill: #991B1B; -fx-font-weight: 700; -fx-font-size: 11px; -fx-padding: 3 8; -fx-cursor: hand;");
+            viewBtn.setOnAction(ev -> CertificateImageViewer.show(urlOrPath, cred.getTitle(), cred.getOrganization()));
+            return viewBtn;
+        });
+        proofCol.setPrefWidth(140);
+        proofCol.setMinWidth(120);
+        table.getColumns().add(proofCol);
 
         TextField search = Ui.field("Search by title, organization, issuer, description...");
         search.setPrefWidth(280);
@@ -1553,27 +2003,7 @@ public final class StudentViews {
         TextArea description = Ui.area("Description, honors, or notes");
         if (existing != null) description.setText(existing.getDescription());
 
-        TextField url = Ui.field("https://... or attach local certificate file");
-        if (existing != null) url.setText(existing.getVerificationUrl());
-
-        Button browseBtn = new Button("📂 Browse File...");
-        browseBtn.getStyleClass().add("secondary-button");
-        browseBtn.setOnAction(ev -> {
-            javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
-            chooser.setTitle("Select Certificate or Document");
-            chooser.getExtensionFilters().addAll(
-                    new javafx.stage.FileChooser.ExtensionFilter("Documents & Images (*.pdf, *.png, *.jpg, *.jpeg)", "*.pdf", "*.png", "*.jpg", "*.jpeg"),
-                    new javafx.stage.FileChooser.ExtensionFilter("PDF Documents (*.pdf)", "*.pdf"),
-                    new javafx.stage.FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
-            );
-            java.io.File chosen = chooser.showOpenDialog(browseBtn.getScene() != null ? browseBtn.getScene().getWindow() : null);
-            if (chosen != null) {
-                url.setText(chosen.getAbsolutePath());
-            }
-        });
-        HBox urlBox = new HBox(8, url, browseBtn);
-        HBox.setHgrow(url, Priority.ALWAYS);
-        urlBox.setAlignment(Pos.CENTER_LEFT);
+        CertificateUploaderBox uploaderBox = new CertificateUploaderBox(existing != null ? existing.getVerificationUrl() : null);
 
         Runnable syncFieldsForType = () -> {
             boolean isCert = typeCombo.getValue() == AcademicCredential.Type.CERTIFICATION;
@@ -1592,8 +2022,8 @@ public final class StudentViews {
                 "Date / Issue Date",
                 "Expiration Date (Certifications)",
                 "Description / Notes",
-                "Verification / Credential File or URL"
-        }, new Node[]{typeCombo, title, organization, date, expires, description, urlBox});
+                "Certificate / Proof Picture"
+        }, new Node[]{typeCombo, title, organization, date, expires, description, uploaderBox});
 
         String dialogTitle = existing == null ? "Add Achievement or Certification" :
                 (existing.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Edit Achievement" : "Edit Certification");
@@ -1618,7 +2048,7 @@ public final class StudentViews {
                 target.setDate(dateVal);
                 target.setExpirationDate(expiryVal);
                 target.setDescription(description.getText());
-                target.setVerificationUrl(url.getText());
+                target.setVerificationUrl(uploaderBox.saveAndGetFinalPath());
 
                 studentService.saveCredential(target);
                 refresh.run();
@@ -1673,6 +2103,10 @@ public final class StudentViews {
             visibility.setText(loaded.getVisibility());
             previewTab.setContent(portfolioPreview(sid, loaded));
             accessTab.setContent(portfolioAccess(loaded));
+            Node contentNode = previewTab.getContent();
+            if (contentNode instanceof ScrollPane sp) {
+                javafx.application.Platform.runLater(() -> sp.setVvalue(0.0));
+            }
             String message = "Pending".equals(loaded.getVisibility())
                     ? "It is now awaiting instructor approval."
                     : "Public".equals(loaded.getVisibility())
@@ -1689,161 +2123,25 @@ public final class StudentViews {
 
         TabPane tabs = new TabPane();
         tabs.getTabs().addAll(tab("Editor", editor), previewTab, accessTab);
+
+        previewTab.selectedProperty().addListener((obs, wasSelected, isSelected) -> {
+            if (isSelected) {
+                loaded.setHeadline(headline.getText());
+                loaded.setBio(bio.getText());
+                loaded.setCareerGoal(goal.getText());
+                previewTab.setContent(portfolioPreview(sid, loaded));
+                Node contentNode = previewTab.getContent();
+                if (contentNode instanceof ScrollPane sp) {
+                    javafx.application.Platform.runLater(() -> sp.setVvalue(0.0));
+                }
+            }
+        });
+
         return Ui.page("Digital Portfolio", "Present your profile, skills, projects, achievements and certifications to industry partners.", tabs);
     }
 
     private static Node portfolioPreview(int studentId, Portfolio p) {
-        VBox content = new VBox(10);
-        content.getStyleClass().add("card");
-        Label name = new Label(Session.currentUser().getFullName());
-        name.getStyleClass().add("page-title");
-        Student student = directory.students().stream()
-                .filter(s -> s.getStudentId() == studentId).findFirst().orElse(null);
-        Label program = new Label(student == null ? "" : student.getProgram() + " - " + Ui.formatYearDisplay(student.getYearLevel()));
-        program.getStyleClass().add("page-subtitle");
-        content.getChildren().addAll(name, program,
-                section("Professional Headline", value(p.getHeadline())),
-                section("Biography", value(p.getBio())),
-                section("Career Goal", value(p.getCareerGoal())));
-
-        Map<Integer, String> skillNames = directory.skillNames();
-        String skills = skillService.forStudent(studentId).stream()
-                .map(s -> "• " + skillNames.getOrDefault(s.getSkillId(), "Skill #" + s.getSkillId())
-                        + " — " + value(s.getProficiencyLevel())
-                        + (s.getAssessmentScore() == null ? "" : " (" + s.getAssessmentScore() + "%)"))
-                .reduce("", (a, b) -> a + b + "\n");
-        content.getChildren().add(section("Technical Skills", skills));
-
-        content.getChildren().add(section("Projects", formatPortfolioProjects(studentId)));
-
-        String achievements = studentService.achievementsFor(studentId).stream()
-                .map(a -> "• " + value(a.getTitle()) + (a.getOrganization() == null ? "" : " — " + a.getOrganization()))
-                .reduce("", (a, b) -> a + b + "\n");
-        content.getChildren().add(section("Achievements", achievements));
-
-        String certifications = studentService.certificationsFor(studentId).stream()
-                .map(c -> "• " + value(c.getCertificationName())
-                        + (c.getIssuingOrganization() == null ? "" : " — " + c.getIssuingOrganization()))
-                .reduce("", (a, b) -> a + b + "\n");
-        content.getChildren().add(section("Certifications", certifications));
-
-        Label academicHighlights = new Label("Average grade: "
-                + String.format("%.2f%%", academic.averageForStudent(studentId))
-                + "   |   Attendance: "
-                + String.format("%.2f%%", academic.attendanceRateForStudent(studentId)));
-        content.getChildren().add(section("Academic Highlights", academicHighlights.getText()));
-
-        Button exportPortfolioBtn = Ui.button("📄 Export / Print Portfolio Report", "clay-btn-secondary");
-        exportPortfolioBtn.setOnAction(ev -> {
-            javafx.stage.FileChooser chooser = new javafx.stage.FileChooser();
-            chooser.setTitle("Export Student Portfolio Report");
-            chooser.setInitialFileName("student_portfolio_" + studentId + ".html");
-            chooser.getExtensionFilters().addAll(
-                    new javafx.stage.FileChooser.ExtensionFilter("Printable HTML Report (*.html)", "*.html"),
-                    new javafx.stage.FileChooser.ExtensionFilter("All Files (*.*)", "*.*")
-            );
-            java.io.File f = chooser.showSaveDialog(exportPortfolioBtn.getScene() != null ? exportPortfolioBtn.getScene().getWindow() : null);
-            if (f != null) {
-                try (java.io.PrintWriter pw = new java.io.PrintWriter(f, java.nio.charset.StandardCharsets.UTF_8)) {
-                    pw.println("<!DOCTYPE html><html><head><meta charset='UTF-8'><title>" + value(Session.currentUser().getFullName()) + " - Portfolio</title>");
-                    pw.println("<style>body{font-family:sans-serif;margin:40px;background:#FAF7F2;color:#1A2634;} h1{color:#9E0B0F;} h2{border-bottom:1px solid #C6A75E;padding-bottom:4px;color:#1A2634;} .box{background:#fff;border-radius:12px;border:1px solid #EFE2CA;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.06);margin-bottom:20px;}</style></head><body>");
-                    pw.println("<div class='box'><h1>" + value(Session.currentUser().getFullName()) + "</h1>");
-                    pw.println("<p><b>" + (student == null ? "" : value(student.getProgram()) + " - " + Ui.formatYearDisplay(student.getYearLevel())) + "</b></p>");
-                    pw.println("<h2>Professional Headline</h2><p>" + value(p.getHeadline()) + "</p>");
-                    pw.println("<h2>Biography</h2><p>" + value(p.getBio()) + "</p>");
-                    pw.println("<h2>Career Goal</h2><p>" + value(p.getCareerGoal()) + "</p>");
-                    pw.println("<h2>Technical Skills</h2><pre>" + value(skills) + "</pre>");
-                    pw.println("<h2>Projects</h2><pre>" + value(formatPortfolioProjects(studentId)) + "</pre>");
-                    pw.println("<h2>Achievements</h2><pre>" + value(achievements) + "</pre>");
-                    pw.println("<h2>Certifications</h2><pre>" + value(certifications) + "</pre>");
-                    pw.println("<h2>Academic Highlights</h2><p>" + value(academicHighlights.getText()) + "</p>");
-                    pw.println("</div></body></html>");
-                    com.nextit.util.ExportService.promptOpenFile(f, "Portfolio Exported", "Portfolio report saved successfully to:\n" + f.getAbsolutePath());
-                } catch (Exception ex) {
-                    Alerts.error("Failed to export portfolio: " + ex.getMessage());
-                }
-            }
-        });
-        content.getChildren().add(exportPortfolioBtn);
-
-        ScrollPane scroll = new ScrollPane(content);
-        scroll.setFitToWidth(true);
-        return scroll;
-    }
-
-    private static Node section(String title, String text) {
-        VBox box = new VBox(4);
-        Label heading = new Label(title);
-        heading.getStyleClass().add("section-title");
-        Label body = new Label(text == null || text.isBlank() ? "Not provided" : text);
-        body.setWrapText(true);
-        box.getChildren().addAll(heading, body);
-        return box;
-    }
-
-    private static String formatPortfolioProjects(int studentId) {
-        List<Project> list = projects.projectsForStudent(studentId);
-        if (list.isEmpty()) return "No projects recorded.";
-        StringBuilder text = new StringBuilder();
-        for (int i = 0; i < list.size(); i++) {
-            Project p = list.get(i);
-            boolean isOwner = p.getStudentId() != null && p.getStudentId() == studentId;
-            text.append("• ").append(value(p.getProjectTitle())).append(" — ").append(value(p.getProjectType()));
-            if (p.getStatus() != null && !p.getStatus().isBlank()) {
-                text.append(" · ").append(p.getStatus());
-            }
-            if (p.getProjectDate() != null) {
-                text.append(" (").append(Ui.formatDate(p.getProjectDate())).append(")");
-            }
-            text.append('\n');
-
-            if (isOwner) {
-                text.append("   Credit: Project Owner & Lead\n");
-                List<ProjectMember> members = projects.membersForProject(p.getProjectId());
-                if (!members.isEmpty()) {
-                    text.append("   Group Members: ");
-                    String memStr = members.stream().map(m -> {
-                        String name = directory.studentName(m.getStudentId());
-                        String role = m.getRole();
-                        return (role == null || role.isBlank()) ? name : name + " (" + role + ")";
-                    }).collect(java.util.stream.Collectors.joining(", "));
-                    text.append(memStr).append('\n');
-                }
-            } else {
-                text.append("   Credit: [Group Project - Credited Member]\n");
-                java.util.Optional<ProjectMember> memOpt = projects.memberForProjectAndStudent(p.getProjectId(), studentId);
-                if (memOpt.isPresent()) {
-                    ProjectMember mem = memOpt.get();
-                    if (mem.getRole() != null && !mem.getRole().isBlank()) {
-                        text.append("   Assigned Role: ").append(mem.getRole()).append('\n');
-                    }
-                    String notes = mem.getContributionNotes();
-                    if (notes != null && !notes.isBlank()) {
-                        text.append("   Contribution Notes: ").append(notes).append('\n');
-                    }
-                }
-                if (p.getStudentId() != null) {
-                    text.append("   Project Creator/Owner: ").append(directory.studentName(p.getStudentId())).append('\n');
-                }
-            }
-
-            if (p.getTechnologiesUsed() != null && !p.getTechnologiesUsed().isBlank()) {
-                text.append("   Technologies: ").append(p.getTechnologiesUsed()).append('\n');
-            }
-            if (p.getRepositoryUrl() != null && !p.getRepositoryUrl().isBlank()) {
-                text.append("   Repository: ").append(p.getRepositoryUrl()).append('\n');
-            }
-            if (p.getDemoUrl() != null && !p.getDemoUrl().isBlank()) {
-                text.append("   Demo: ").append(p.getDemoUrl()).append('\n');
-            }
-            if (p.getDescription() != null && !p.getDescription().isBlank()) {
-                text.append("   Description: ").append(p.getDescription()).append('\n');
-            }
-            if (i < list.size() - 1) {
-                text.append('\n');
-            }
-        }
-        return text.toString();
+        return PortfolioDetailsView.createPortfolioView(p, true, true);
     }
 
     private static String value(String text) { return text == null ? "" : text; }

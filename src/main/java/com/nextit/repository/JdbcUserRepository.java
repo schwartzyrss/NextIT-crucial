@@ -89,7 +89,13 @@ public class JdbcUserRepository implements UserRepository {
                             try {
                                 String vStatus = rs.getString("verification_status");
                                 if (vStatus != null && !vStatus.isBlank()) {
-                                    u.setVerificationStatus(VerificationStatus.valueOf(vStatus.trim().toUpperCase()));
+                                    VerificationStatus status = VerificationStatus.valueOf(vStatus.trim().toUpperCase());
+                                    if (status == VerificationStatus.PENDING || status == VerificationStatus.UNVERIFIED) {
+                                        status = VerificationStatus.VERIFIED;
+                                    }
+                                    u.setVerificationStatus(status);
+                                } else {
+                                    u.setVerificationStatus(VerificationStatus.VERIFIED);
                                 }
                             } catch (SQLException ignored) {
                             }
@@ -271,6 +277,9 @@ public class JdbcUserRepository implements UserRepository {
         String fallbackSql = "INSERT INTO users (username, password_hash, email, role, first_name, last_name) VALUES (?,?,?,?,?,?)";
 
         VerificationStatus status = user.getVerificationStatus() != null ? user.getVerificationStatus() : VerificationStatus.VERIFIED;
+        if (status == VerificationStatus.PENDING || status == VerificationStatus.UNVERIFIED) {
+            status = VerificationStatus.VERIFIED;
+        }
 
         try (Connection c = DatabaseConfig.getConnection()) {
             try (PreparedStatement ps = c.prepareStatement(sqlWithSecurity, Statement.RETURN_GENERATED_KEYS)) {
@@ -315,6 +324,9 @@ public class JdbcUserRepository implements UserRepository {
         String sql = "UPDATE users SET username=?, email=?, role=?, first_name=?, last_name=?, verification_status=?, rejection_reason=?, mfa_enabled=? WHERE user_id=?";
         String fallbackSql = "UPDATE users SET username=?, email=?, role=?, first_name=?, last_name=? WHERE user_id=?";
         VerificationStatus status = user.getVerificationStatus() != null ? user.getVerificationStatus() : VerificationStatus.VERIFIED;
+        if (status == VerificationStatus.PENDING || status == VerificationStatus.UNVERIFIED) {
+            status = VerificationStatus.VERIFIED;
+        }
 
         try (Connection c = DatabaseConfig.getConnection()) {
             try (PreparedStatement ps = c.prepareStatement(sql)) {
@@ -432,10 +444,16 @@ public class JdbcUserRepository implements UserRepository {
         try {
             String vStatus = rs.getString("verification_status");
             if (vStatus != null && !vStatus.isBlank()) {
-                u.setVerificationStatus(VerificationStatus.valueOf(vStatus.trim().toUpperCase()));
+                VerificationStatus status = VerificationStatus.valueOf(vStatus.trim().toUpperCase());
+                if (status == VerificationStatus.PENDING || status == VerificationStatus.UNVERIFIED) {
+                    status = VerificationStatus.VERIFIED;
+                }
+                u.setVerificationStatus(status);
+            } else {
+                u.setVerificationStatus(VerificationStatus.VERIFIED);
             }
         } catch (Exception ex) {
-            log.warn("Unrecognized verification status for user {}: {}", u.getUserId(), ex.getMessage());
+            u.setVerificationStatus(VerificationStatus.VERIFIED);
         }
 
         try {

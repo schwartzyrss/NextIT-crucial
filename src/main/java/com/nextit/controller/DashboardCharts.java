@@ -11,9 +11,11 @@ import javafx.scene.chart.LineChart;
 import javafx.scene.chart.NumberAxis;
 import javafx.scene.chart.PieChart;
 import javafx.scene.control.Label;
+import javafx.scene.control.Tooltip;
 import javafx.scene.layout.HBox;
 import javafx.scene.layout.Priority;
 import javafx.scene.layout.Region;
+import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
 
 import java.time.LocalDate;
@@ -34,6 +36,15 @@ final class DashboardCharts {
 
     private static final List<String> ATTENDANCE_STATUSES =
             List.of("Present", "Late", "Excused", "Absent");
+
+    private static final String[] DONUT_PALETTE = {
+            "#991B1B", // Deep crimson
+            "#1E293B", // Dark slate
+            "#B45309", // Warm amber
+            "#15803D", // Forest green
+            "#2563EB", // Royal blue
+            "#7C3AED"  // Violet
+    };
 
     private DashboardCharts() {}
 
@@ -58,9 +69,39 @@ final class DashboardCharts {
 
         PieChart chart = new PieChart();
         chart.setLegendSide(javafx.geometry.Side.BOTTOM);
-        chart.setLabelsVisible(true);
-        counts.forEach((status, count) ->
-                chart.getData().add(new PieChart.Data(status + " (" + count + ")", count)));
+        chart.setLabelsVisible(false);
+        chart.setLegendVisible(true);
+        chart.setAnimated(false);
+        chart.setPrefHeight(190);
+        chart.setMaxHeight(205);
+        chart.setMinHeight(160);
+
+        long total = counts.values().stream().mapToLong(Long::longValue).sum();
+        int idx = 0;
+        for (Map.Entry<String, Long> entry : counts.entrySet()) {
+            String status = entry.getKey();
+            long count = entry.getValue();
+            PieChart.Data d = new PieChart.Data(status + " (" + count + ")", count);
+            chart.getData().add(d);
+            final String color = DONUT_PALETTE[idx % DONUT_PALETTE.length];
+            final double pct = (count * 100.0) / Math.max(1, total);
+            java.util.function.Consumer<Node> setupNode = node -> {
+                if (node != null) {
+                    node.setStyle("-fx-pie-color: " + color + "; -fx-border-color: #FFFFFF; -fx-border-width: 2px; -fx-stroke: #FFFFFF; -fx-stroke-width: 2px;");
+                    Tooltip tip = new Tooltip(String.format("%s\nCount: %d (%.1f%%)", status, count, pct));
+                    tip.setShowDelay(javafx.util.Duration.millis(80));
+                    Tooltip.install(node, tip);
+                }
+            };
+            if (d.getNode() != null) {
+                setupNode.accept(d.getNode());
+            } else {
+                d.nodeProperty().addListener((obs, oldN, newN) -> {
+                    if (newN != null) setupNode.accept(newN);
+                });
+            }
+            idx++;
+        }
         return chartCard("Attendance Summary", chart, onClick);
     }
 
@@ -131,18 +172,95 @@ final class DashboardCharts {
     }
 
     static Node statusSummary(String title, Map<String, Long> statuses) {
-        return statusSummary(title, statuses, null);
+        return donutSummary(title, null, statuses, null);
     }
 
     static Node statusSummary(String title, Map<String, Long> statuses, Runnable onClick) {
-        if (statuses.isEmpty()) {
-            return placeholder(title, "No records yet.", onClick);
+        return donutSummary(title, null, statuses, onClick);
+    }
+
+    static Node donutSummary(String title, String subtitle, Map<String, Long> statuses) {
+        return donutSummary(title, subtitle, statuses, null);
+    }
+
+    static Node donutSummary(String title, String subtitle, Map<String, Long> statuses, Runnable onClick) {
+        long total = statuses.values().stream().mapToLong(Long::longValue).sum();
+        if (statuses.isEmpty() || total == 0) {
+            return placeholder(title, subtitle, "No records yet.", onClick);
         }
+
         PieChart chart = new PieChart();
+        chart.setLabelsVisible(false);
+        chart.setLegendVisible(true);
         chart.setLegendSide(javafx.geometry.Side.BOTTOM);
-        statuses.forEach((status, count) ->
-                chart.getData().add(new PieChart.Data(status + " (" + count + ")", count)));
-        return chartCard(title, chart, onClick);
+        chart.setAnimated(false);
+        chart.setPrefHeight(185);
+        chart.setMaxHeight(195);
+        chart.setMinHeight(155);
+
+        int index = 0;
+        for (Map.Entry<String, Long> entry : statuses.entrySet()) {
+            String label = entry.getKey();
+            long count = entry.getValue();
+            PieChart.Data data = new PieChart.Data(label + " (" + count + ")", count);
+            chart.getData().add(data);
+
+            final String color = DONUT_PALETTE[index % DONUT_PALETTE.length];
+            final double pct = (count * 100.0) / Math.max(1, total);
+
+            java.util.function.Consumer<Node> setupNode = node -> {
+                if (node != null) {
+                    node.setStyle("-fx-pie-color: " + color + "; -fx-border-color: #FFFFFF; -fx-border-width: 2px; -fx-stroke: #FFFFFF; -fx-stroke-width: 2px;");
+                    Tooltip tip = new Tooltip(String.format("%s\nCount: %d (%.1f%%)", label, count, pct));
+                    tip.setShowDelay(javafx.util.Duration.millis(80));
+                    tip.setStyle("-fx-font-size: 12px; -fx-font-weight: bold;");
+                    Tooltip.install(node, tip);
+                }
+            };
+            if (data.getNode() != null) {
+                setupNode.accept(data.getNode());
+            } else {
+                data.nodeProperty().addListener((obs, oldN, newN) -> {
+                    if (newN != null) setupNode.accept(newN);
+                });
+            }
+            index++;
+        }
+
+        // Modern donut center badge
+        StackPane donutHole = new StackPane();
+        donutHole.setMouseTransparent(true);
+        donutHole.setPrefSize(60, 60);
+        donutHole.setMinSize(60, 60);
+        donutHole.setMaxSize(60, 60);
+        donutHole.setStyle(
+                "-fx-background-color: #FAF7F2; " +
+                "-fx-background-radius: 999; " +
+                "-fx-border-color: rgba(74, 90, 106, 0.22); " +
+                "-fx-border-radius: 999; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-effect: dropshadow(gaussian, rgba(0, 0, 0, 0.08), 6, 0, 0, 2);"
+        );
+
+        VBox badgeText = new VBox(0);
+        badgeText.setAlignment(Pos.CENTER);
+        Label totalNum = new Label(String.valueOf(total));
+        totalNum.setStyle("-fx-font-size: 17px; -fx-font-weight: 900; -fx-text-fill: #1E293B;");
+        Label totalLbl = new Label("TOTAL");
+        totalLbl.setStyle("-fx-font-size: 9px; -fx-font-weight: 800; -fx-text-fill: #64748B; -fx-padding: -2 0 0 0;");
+        badgeText.getChildren().addAll(totalNum, totalLbl);
+        donutHole.getChildren().add(badgeText);
+
+        // Compensate for bottom legend to center on the circle
+        donutHole.setTranslateY(-14);
+
+        StackPane chartStack = new StackPane(chart, donutHole);
+        chartStack.setAlignment(Pos.CENTER);
+        chartStack.setPrefHeight(185);
+        chartStack.setMaxHeight(195);
+        VBox.setVgrow(chartStack, Priority.NEVER);
+
+        return chartCardWithSubtitle(title, subtitle, chartStack, onClick);
     }
 
     /** Case-insensitive grouping helper shared by the dashboards. */
@@ -168,6 +286,44 @@ final class DashboardCharts {
         return row;
     }
 
+    private static Node chartCardWithSubtitle(String title, String subtitle, Node chart, Runnable onClick) {
+        VBox titles = new VBox(2);
+        Label titleLabel = Ui.section(title);
+        titles.getChildren().add(titleLabel);
+        if (subtitle != null && !subtitle.isBlank()) {
+            Label subLabel = new Label(subtitle);
+            subLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 500; -fx-text-fill: #64748B;");
+            titles.getChildren().add(subLabel);
+        }
+
+        HBox header = new HBox(8);
+        header.setAlignment(Pos.CENTER_LEFT);
+        Region sp = new Region();
+        HBox.setHgrow(sp, Priority.ALWAYS);
+        header.getChildren().addAll(titles, sp);
+
+        Label arrow = null;
+        if (onClick != null) {
+            arrow = new Label("→");
+            arrow.getStyleClass().add("card-arrow-hint");
+            arrow.setStyle("-fx-font-size: 15px; -fx-font-weight: 900; -fx-text-fill: #991B1B; -fx-opacity: 0.35;");
+            header.getChildren().add(arrow);
+        }
+
+        VBox box = new VBox(6, header, chart);
+        box.getStyleClass().add("chart-card");
+        box.setMaxWidth(Double.MAX_VALUE);
+        box.setPrefHeight(275);
+        box.setMaxHeight(295);
+        box.setMinHeight(255);
+        box.setAlignment(Pos.TOP_LEFT);
+
+        if (onClick != null) {
+            Ui.makeInteractive(box, arrow, onClick);
+        }
+        return box;
+    }
+
     private static Node chartCard(String title, Node chart) {
         return chartCard(title, chart, null);
     }
@@ -188,13 +344,18 @@ final class DashboardCharts {
             header.getChildren().add(arrow);
         }
 
-        VBox box = new VBox(8, header, chart);
+        VBox box = new VBox(6, header, chart);
         box.getStyleClass().add("chart-card");
         box.setMaxWidth(Double.MAX_VALUE);
+        box.setPrefHeight(275);
+        box.setMaxHeight(295);
+        box.setMinHeight(255);
+        box.setAlignment(Pos.TOP_LEFT);
         VBox.setVgrow(chart, Priority.ALWAYS);
         if (chart instanceof javafx.scene.chart.Chart fxChart) {
-            fxChart.setPrefHeight(240);
-            fxChart.setMinHeight(220);
+            fxChart.setPrefHeight(190);
+            fxChart.setMaxHeight(205);
+            fxChart.setMinHeight(160);
             fxChart.setAnimated(false);
         }
 
@@ -205,16 +366,28 @@ final class DashboardCharts {
     }
 
     private static Node placeholder(String title, String message) {
-        return placeholder(title, message, null);
+        return placeholder(title, null, message, null);
     }
 
     private static Node placeholder(String title, String message, Runnable onClick) {
+        return placeholder(title, null, message, onClick);
+    }
+
+    private static Node placeholder(String title, String subtitle, String message, Runnable onClick) {
+        VBox titles = new VBox(2);
+        Label titleLabel = Ui.section(title);
+        titles.getChildren().add(titleLabel);
+        if (subtitle != null && !subtitle.isBlank()) {
+            Label subLabel = new Label(subtitle);
+            subLabel.setStyle("-fx-font-size: 11px; -fx-font-weight: 500; -fx-text-fill: #64748B;");
+            titles.getChildren().add(subLabel);
+        }
+
         HBox header = new HBox(8);
         header.setAlignment(Pos.CENTER_LEFT);
-        Label titleLabel = Ui.section(title);
         Region sp = new Region();
         HBox.setHgrow(sp, Priority.ALWAYS);
-        header.getChildren().addAll(titleLabel, sp);
+        header.getChildren().addAll(titles, sp);
 
         Label arrow = null;
         if (onClick != null) {
@@ -226,10 +399,16 @@ final class DashboardCharts {
 
         Label label = new Label(message);
         label.getStyleClass().add("empty-state");
-        VBox box = new VBox(8, header, label);
+        VBox centerBox = new VBox(label);
+        centerBox.setAlignment(Pos.CENTER);
+        centerBox.setPrefHeight(185);
+
+        VBox box = new VBox(6, header, centerBox);
         box.getStyleClass().add("chart-card");
         box.setMaxWidth(Double.MAX_VALUE);
-        box.setMinHeight(120);
+        box.setPrefHeight(275);
+        box.setMaxHeight(295);
+        box.setMinHeight(255);
 
         if (onClick != null) {
             Ui.makeInteractive(box, arrow, onClick);

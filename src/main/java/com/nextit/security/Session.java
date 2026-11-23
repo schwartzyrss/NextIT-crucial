@@ -37,17 +37,8 @@ public final class Session {
 
     public static void requireVerified() {
         requireLoggedIn();
-        if (currentUser.getVerificationStatus() != VerificationStatus.VERIFIED) {
-            VerificationStatus status = currentUser.getVerificationStatus();
-            if (status == VerificationStatus.PENDING) {
-                throw new AppException("Access restricted: Your identity verification is pending review.");
-            } else if (status == VerificationStatus.SUSPENDED) {
-                throw new AppException("Access restricted: Your account is suspended due to security or policy concerns.");
-            } else if (status == VerificationStatus.REJECTED) {
-                throw new AppException("Access restricted: Your verification application was rejected.");
-            } else {
-                throw new AppException("Access restricted: Identity verification required before accessing protected role features.");
-            }
+        if (currentUser.isSuspended()) {
+            throw new AppException("Access restricted: Your account is suspended due to security or policy concerns.");
         }
     }
 

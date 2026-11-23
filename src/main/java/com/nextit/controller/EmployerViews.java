@@ -15,9 +15,16 @@ import javafx.scene.control.*;
 import javafx.application.Platform;
 import javafx.beans.property.SimpleObjectProperty;
 import javafx.beans.property.SimpleStringProperty;
+import javafx.scene.Scene;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import javafx.stage.Window;
 import javafx.util.Duration;
+import com.nextit.util.WindowBoundsManager;
+import java.util.function.Consumer;
 
 import java.time.LocalDate;
 import java.util.*;
@@ -364,24 +371,33 @@ public final class EmployerViews {
         HBox cardsRow = new HBox(14);
         cardsRow.setFillHeight(true);
 
-        // 3. Middle Analytics & Sidebar Stack Row
+        // Lower Candidate Applications Table Card
+        VBox appTray = new VBox(14);
+        appTray.getStyleClass().add("clay-tray");
+        appTray.setFillWidth(true);
+
+        // 3. Middle Analytics & Candidate Applications Layout
         HBox middleRow = new HBox(16);
         middleRow.setAlignment(Pos.TOP_LEFT);
+        middleRow.setFillHeight(false);
+
+        VBox leftColumn = new VBox(16);
+        leftColumn.setAlignment(Pos.TOP_LEFT);
+        leftColumn.setFillWidth(true);
+        HBox.setHgrow(leftColumn, Priority.ALWAYS);
 
         HBox chartsRow = new HBox(14);
         chartsRow.setAlignment(Pos.TOP_LEFT);
+        chartsRow.setFillHeight(false);
         HBox.setHgrow(chartsRow, Priority.ALWAYS);
 
         VBox rightColumnHolder = new VBox();
         rightColumnHolder.setPrefWidth(360);
         rightColumnHolder.setMinWidth(320);
+        rightColumnHolder.setMaxWidth(380);
 
-        middleRow.getChildren().addAll(chartsRow, rightColumnHolder);
-
-        // 4. Lower Candidate Applications Table Card
-        VBox appTray = new VBox(14);
-        appTray.getStyleClass().add("clay-tray");
-        appTray.setFillWidth(true);
+        leftColumn.getChildren().addAll(chartsRow, appTray);
+        middleRow.getChildren().addAll(leftColumn, rightColumnHolder);
 
         Map<Integer, String> studentNames = new java.util.HashMap<>();
         Map<Integer, String> opportunityTitles = new java.util.HashMap<>();
@@ -469,13 +485,13 @@ public final class EmployerViews {
             Map<String, Long> appStatusCounts = DashboardCharts.countByStatus(
                     apps.stream().map(Application::getStatus).toList(),
                     List.of("Pending", "Under Review", "Shortlisted", "Accepted", "Rejected"));
-            Node appStatusChart = DashboardCharts.statusSummary("Application Status", appStatusCounts,
+            Node appStatusChart = DashboardCharts.donutSummary("Application Status", "Candidate progression breakdown", appStatusCounts,
                     () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.applications(), "Applications"); });
 
             Map<String, Long> roleTypeCounts = DashboardCharts.countByStatus(
                     owned.stream().map(JobOpportunity::getOpportunityType).toList(),
                     List.of("Internship", "Employment"));
-            Node roleTypeChart = DashboardCharts.statusSummary("Role Types Offered", roleTypeCounts,
+            Node roleTypeChart = DashboardCharts.donutSummary("Opportunity Types", "Active roles by category", roleTypeCounts,
                     () -> { if (AppController.getInstance() != null) AppController.getInstance().navigateTo(EmployerViews.opportunities(), "Opportunities"); });
 
             HBox.setHgrow(appStatusChart, Priority.ALWAYS);
@@ -520,7 +536,7 @@ public final class EmployerViews {
         scrollContent.setFillWidth(true);
         scrollContent.setStyle("-fx-background-color: #FDFBFA;");
         scrollContent.setPadding(new Insets(10, 24, 32, 24));
-        scrollContent.getChildren().addAll(cardsRow, middleRow, appTray);
+        scrollContent.getChildren().addAll(cardsRow, middleRow);
 
         ScrollPane scrollPane = new ScrollPane(scrollContent);
         scrollPane.setFitToWidth(true);
@@ -874,19 +890,18 @@ public final class EmployerViews {
                 super.updateItem(item, empty);
                 if (empty || item == null || item.isBlank()) {
                     setText("—");
-                    setStyle("-fx-text-fill: #8C827A; -fx-alignment: CENTER-LEFT;");
                     setTooltip(null);
                 } else {
                     String trimmed = item.trim().replaceAll("\\s+", " ");
                     String preview = trimmed.length() > 55 ? trimmed.substring(0, 52) + "..." : trimmed;
                     setText(preview);
-                    setStyle("-fx-text-fill: #2B2625; -fx-font-weight: 500; -fx-alignment: CENTER-LEFT;");
                     Tooltip tip = new Tooltip(item.trim());
                     tip.setWrapText(true);
                     tip.setMaxWidth(380);
                     tip.setStyle("-fx-font-size: 12px; -fx-background-color: #2B2625; -fx-text-fill: #FDFBFA; -fx-padding: 8;");
                     setTooltip(tip);
                 }
+                setAlignment(Pos.CENTER_LEFT);
             }
         });
         table.getColumns().add(remarksCol);
@@ -894,7 +909,8 @@ public final class EmployerViews {
         ComboBox<String> statusFilter = Ui.combo(List.of("All statuses", "Pending", "Under Review", "Shortlisted", "Rejected", "Accepted"), s -> s);
         statusFilter.getSelectionModel().selectFirst();
         TextField search = Ui.field("Search by student, opportunity or remarks...");
-        Runnable filter = () -> {
+
+        Consumer<Integer> loadApplicationsWithHighlight = (highlightAppId) -> {
             opportunityTitles.clear();
             career.opportunitiesForEmployer(eid)
                     .forEach(o -> opportunityTitles.put(o.getOpportunityId(), o.getTitle()));
@@ -908,15 +924,34 @@ public final class EmployerViews {
 
             String value = statusFilter.getValue();
             String q = search.getText() == null ? "" : search.getText().toLowerCase(Locale.ROOT);
-            table.setItems(FXCollections.observableArrayList(career.applicationsForEmployer(eid).stream()
+            List<Application> list = career.applicationsForEmployer(eid).stream()
                     .filter(a -> "All statuses".equals(value) || value.equalsIgnoreCase(a.getStatus()))
                     .filter(a -> q.isBlank()
                             || studentsById.getOrDefault(a.getStudentId(), "").toLowerCase(Locale.ROOT).contains(q)
                             || opportunityTitles.getOrDefault(a.getOpportunityId(), "").toLowerCase(Locale.ROOT).contains(q)
                             || String.valueOf(a.getRemarks()).toLowerCase(Locale.ROOT).contains(q))
-                    .toList()));
+                    .toList();
+            table.setItems(FXCollections.observableArrayList(list));
             table.refresh();
+
+            if (highlightAppId != null && highlightAppId > 0) {
+                boolean inList = list.stream().anyMatch(a -> a.getApplicationId() == highlightAppId);
+                if (!inList && !"All statuses".equals(value)) {
+                    statusFilter.getSelectionModel().select("All statuses");
+                    return;
+                }
+                for (Application a : table.getItems()) {
+                    if (a.getApplicationId() == highlightAppId) {
+                        table.getSelectionModel().select(a);
+                        table.scrollTo(a);
+                        table.requestFocus();
+                        break;
+                    }
+                }
+            }
         };
+
+        Runnable filter = () -> loadApplicationsWithHighlight.accept(null);
         statusFilter.valueProperty().addListener((obs, old, value) -> filter.run());
         search.textProperty().addListener((obs, old, value) -> filter.run());
         filter.run();
@@ -926,7 +961,7 @@ public final class EmployerViews {
             TableRow<Application> row = new TableRow<>();
             row.setOnMouseClicked(event -> {
                 if (event.getClickCount() == 2 && !row.isEmpty()) {
-                    showUpdateStatusAndRemarksModal(eid, row.getItem(), studentsById, opportunityTitles, filter);
+                    showUpdateStatusAndRemarksModal(eid, row.getItem(), studentsById, opportunityTitles, () -> loadApplicationsWithHighlight.accept(row.getItem().getApplicationId()));
                 }
             });
             return row;
@@ -939,7 +974,7 @@ public final class EmployerViews {
         review.setOnAction(e -> {
             Application selected = table.getSelectionModel().getSelectedItem();
             if (selected == null) { Alerts.error("Select an application to review."); return; }
-            showUpdateStatusAndRemarksModal(eid, selected, studentsById, opportunityTitles, filter);
+            showUpdateStatusAndRemarksModal(eid, selected, studentsById, opportunityTitles, () -> loadApplicationsWithHighlight.accept(selected.getApplicationId()));
         });
 
         Button viewDetails = new Button("View Details");
@@ -979,9 +1014,14 @@ public final class EmployerViews {
         }
 
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (AppController.getInstance() != null && AppController.getInstance().getStage() != null) {
+            dialog.initOwner(AppController.getInstance().getStage());
+        }
         dialog.setTitle("Update Application Status & Remarks");
         dialog.setHeaderText(null);
-        dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        if (EmployerViews.class.getResource("/com/nextit/css/application.css") != null) {
+            dialog.getDialogPane().getStylesheets().add(EmployerViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
         dialog.getDialogPane().setStyle("-fx-background-color: #FDFBFA;");
 
         VBox root = new VBox(14);
@@ -1186,8 +1226,16 @@ public final class EmployerViews {
                         .thenRun(() -> Platform.runLater(() -> {
                             dialog.setResult(saveBtnType);
                             dialog.close();
-                            if (onComplete != null) onComplete.run();
-                            Alerts.info("Application status and remarks updated successfully.");
+                            if (onComplete != null) {
+                                onComplete.run();
+                            }
+                            Platform.runLater(() -> {
+                                Window topWindow = AppController.getInstance() != null ? AppController.getInstance().getStage() : null;
+                                if (topWindow == null || !topWindow.isShowing()) {
+                                    topWindow = Window.getWindows().stream().filter(Window::isShowing).findFirst().orElse(null);
+                                }
+                                showApplicationStatusUpdatedModal(topWindow, applicantName, oppTitle, newStatus, newRemarks);
+                            });
                         }))
                         .exceptionally(ex -> {
                             Platform.runLater(() -> {
@@ -1211,6 +1259,160 @@ public final class EmployerViews {
         dialog.showAndWait();
     }
 
+    private static void showApplicationStatusUpdatedModal(Window ownerWindow, String studentName, String oppTitle, String updatedStatus, String remarks) {
+        Stage modalStage = new Stage();
+        modalStage.initModality(Modality.APPLICATION_MODAL);
+        if (ownerWindow != null && ownerWindow.isShowing()) {
+            modalStage.initOwner(ownerWindow);
+        }
+        modalStage.initStyle(StageStyle.TRANSPARENT);
+
+        StackPane rootPane = new StackPane();
+        rootPane.setStyle("-fx-background-color: transparent; -fx-padding: 30;");
+
+        VBox card = new VBox(16);
+        card.setAlignment(Pos.CENTER);
+        card.setPrefWidth(500);
+        card.setMaxWidth(500);
+        card.setStyle(
+                "-fx-background-color: #FAF7F2; " +
+                "-fx-background-radius: 16; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 16; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-padding: 26 28 24 28; " +
+                "-fx-effect: dropshadow(gaussian, rgba(26, 38, 52, 0.25), 24, 0.15, 0, 8);"
+        );
+
+        // 1. Success Checkmark Icon (Green checkmark in circular badge)
+        StackPane iconCircle = new StackPane();
+        iconCircle.setStyle(
+                "-fx-background-color: #DCFCE7; " +
+                "-fx-background-radius: 50; " +
+                "-fx-min-width: 58; -fx-min-height: 58; " +
+                "-fx-max-width: 58; -fx-max-height: 58; " +
+                "-fx-border-color: #86EFAC; " +
+                "-fx-border-radius: 50; " +
+                "-fx-border-width: 1.5;"
+        );
+        Label checkIcon = new Label("✔");
+        checkIcon.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #15803D;");
+        iconCircle.getChildren().add(checkIcon);
+
+        // 2. Heading & Subtitle
+        Label heading = new Label("Application Status Updated");
+        heading.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+
+        Label subHeading = new Label("Candidate status and evaluation feedback have been recorded.");
+        subHeading.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #5A6A7E; -fx-font-weight: 500;");
+
+        // 3. Structured Summary Card
+        VBox detailsCard = new VBox(12);
+        detailsCard.setStyle(
+                "-fx-background-color: #FFFFFF; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 12; " +
+                "-fx-background-radius: 12; " +
+                "-fx-padding: 16 18;"
+        );
+
+        // Student and Status Header
+        HBox topRow = new HBox(10);
+        topRow.setAlignment(Pos.CENTER_LEFT);
+        Label studentLbl = new Label(studentName != null ? studentName : "Candidate");
+        studentLbl.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+        studentLbl.setWrapText(true);
+        HBox.setHgrow(studentLbl, Priority.ALWAYS);
+
+        String st = updatedStatus != null ? updatedStatus : "Updated";
+        Label statusBadge = Ui.badge(st, badgeClassFor(st));
+        topRow.getChildren().addAll(studentLbl, statusBadge);
+
+        Separator sep = new Separator();
+        sep.setStyle("-fx-opacity: 0.5;");
+
+        // Metadata grid
+        GridPane metaGrid = new GridPane();
+        metaGrid.setHgap(14);
+        metaGrid.setVgap(8);
+
+        Label oppLabel = new Label("Opportunity:");
+        oppLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label oppVal = new Label(oppTitle != null ? oppTitle : "Opportunity");
+        oppVal.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #1A2634; -fx-font-weight: 700;");
+        oppVal.setWrapText(true);
+        metaGrid.add(oppLabel, 0, 0);
+        metaGrid.add(oppVal, 1, 0);
+
+        Label stLabel = new Label("Updated Status:");
+        stLabel.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label stVal = new Label(st);
+        stVal.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #991B1B; -fx-font-weight: 800;");
+        metaGrid.add(stLabel, 0, 1);
+        metaGrid.add(stVal, 1, 1);
+
+        detailsCard.getChildren().addAll(topRow, sep, metaGrid);
+
+        // Remarks / Feedback section if present
+        VBox remarksBox = new VBox(4);
+        Label remarksHeader = new Label("Recorded Remarks / Feedback:");
+        remarksHeader.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+
+        Label remarksContent = new Label(remarks != null && !remarks.isBlank() ? remarks.trim() : "No additional feedback remarks recorded.");
+        remarksContent.setWrapText(true);
+        remarksContent.setMaxWidth(Double.MAX_VALUE);
+        remarksContent.setStyle(remarks != null && !remarks.isBlank()
+                ? "-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-background-color: #FAF8F5; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 10; -fx-line-spacing: 2px;"
+                : "-fx-font-size: 12px; -fx-text-fill: #8C827A; -fx-font-style: italic; -fx-background-color: #FAF8F5; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8;");
+
+        remarksBox.getChildren().addAll(remarksHeader, remarksContent);
+        detailsCard.getChildren().add(remarksBox);
+
+        // 4. Prominent "Done" Button
+        Button doneBtn = new Button("Done");
+        doneBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 10 36; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        );
+        doneBtn.setMaxWidth(Double.MAX_VALUE);
+        doneBtn.setOnAction(e -> modalStage.close());
+
+        card.getChildren().addAll(iconCircle, heading, subHeading, detailsCard, doneBtn);
+        rootPane.getChildren().add(card);
+
+        Scene modalScene = new Scene(rootPane);
+        modalScene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        if (EmployerViews.class.getResource("/com/nextit/css/application.css") != null) {
+            modalScene.getStylesheets().add(EmployerViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+        modalScene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE || ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                modalStage.close();
+                ev.consume();
+            }
+        });
+
+        modalStage.setScene(modalScene);
+
+        if (ownerWindow != null) {
+            modalStage.setOnShown(ev -> {
+                double x = ownerWindow.getX() + (ownerWindow.getWidth() - modalStage.getWidth()) / 2.0;
+                double y = ownerWindow.getY() + (ownerWindow.getHeight() - modalStage.getHeight()) / 2.0;
+                modalStage.setX(Math.max(0, x));
+                modalStage.setY(Math.max(0, y));
+            });
+        } else {
+            modalStage.centerOnScreen();
+        }
+
+        modalStage.show();
+    }
+
     public static void showApplicationDetailsModal(Application app, Map<Integer, String> studentsById, Map<Integer, String> opportunityTitles, RecommendationLetter recLetter) {
         if (app == null) {
             Alerts.error("Select an application to view.");
@@ -1220,9 +1422,14 @@ public final class EmployerViews {
         String oppTitle = opportunityTitles != null ? opportunityTitles.getOrDefault(app.getOpportunityId(), "Opportunity #" + app.getOpportunityId()) : "Opportunity #" + app.getOpportunityId();
 
         Dialog<ButtonType> dialog = new Dialog<>();
+        if (AppController.getInstance() != null && AppController.getInstance().getStage() != null) {
+            dialog.initOwner(AppController.getInstance().getStage());
+        }
         dialog.setTitle("Application Details");
         dialog.setHeaderText(null);
-        dialog.getDialogPane().getStylesheets().add(Ui.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        if (EmployerViews.class.getResource("/com/nextit/css/application.css") != null) {
+            dialog.getDialogPane().getStylesheets().add(EmployerViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
         dialog.getDialogPane().setStyle("-fx-background-color: #FDFBFA;");
         dialog.getDialogPane().getButtonTypes().add(ButtonType.CLOSE);
 

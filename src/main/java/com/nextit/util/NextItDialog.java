@@ -33,6 +33,10 @@ public final class NextItDialog {
     public static boolean showConfirm(String title, String header, String message) {
         return runOnFx(() -> {
             Dialog<ButtonType> dialog = new Dialog<>();
+            javafx.stage.Window owner = getTopLevelOwner();
+            if (owner != null && owner.isShowing()) {
+                dialog.initOwner(owner);
+            }
             dialog.setTitle(title != null ? title : "Confirm Action");
             dialog.setHeaderText(null);
 
@@ -101,15 +105,20 @@ public final class NextItDialog {
             ButtonType cancelType = new ButtonType("Cancel", ButtonBar.ButtonData.CANCEL_CLOSE);
             pane.getButtonTypes().addAll(okType, cancelType);
 
+            root.applyCss();
+            root.layout();
+            pane.applyCss();
+            pane.layout();
+
             Button okBtn = (Button) pane.lookupButton(okType);
             if (okBtn != null) {
                 okBtn.getStyleClass().addAll("dialog-btn", "primary-button");
-                okBtn.setStyle("-fx-background-color: #9E0B0F; -fx-text-fill: #FAF7F2; -fx-font-weight: 800; -fx-padding: 8 20;");
+                okBtn.setStyle("-fx-background-color: #991B1B; -fx-text-fill: #FAF7F2; -fx-font-weight: 800; -fx-padding: 8 20; -fx-cursor: hand;");
             }
             Button cancelBtn = (Button) pane.lookupButton(cancelType);
             if (cancelBtn != null) {
                 cancelBtn.getStyleClass().addAll("dialog-btn", "secondary-button");
-                cancelBtn.setStyle("-fx-background-color: #FAF7F2; -fx-text-fill: #1A2634; -fx-font-weight: 700; -fx-border-color: rgba(74, 90, 106, 0.35); -fx-padding: 8 18;");
+                cancelBtn.setStyle("-fx-background-color: #FAF7F2; -fx-text-fill: #1A2634; -fx-font-weight: 700; -fx-border-color: rgba(74, 90, 106, 0.35); -fx-padding: 8 18; -fx-cursor: hand;");
             }
 
             Optional<ButtonType> res = dialog.showAndWait();
@@ -129,41 +138,66 @@ public final class NextItDialog {
         showFeedbackDialog(title != null ? title : "NextIT Warning", message, Alert.AlertType.WARNING);
     }
 
+    public static javafx.stage.Window getTopLevelOwner() {
+        try {
+            if (com.nextit.controller.AppController.getInstance() != null) {
+                Stage mainStage = com.nextit.controller.AppController.getInstance().getStage();
+                if (mainStage != null && mainStage.isShowing()) {
+                    return mainStage;
+                }
+            }
+            return javafx.stage.Window.getWindows().stream()
+                    .filter(javafx.stage.Window::isShowing)
+                    .filter(w -> w instanceof Stage)
+                    .filter(w -> {
+                        if (w instanceof Stage s) {
+                            String t = s.getTitle();
+                            return t != null && t.contains("NextIT");
+                        }
+                        return true;
+                    })
+                    .reduce((first, second) -> second)
+                    .orElse(null);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     private static void showFeedbackDialog(String title, String message, Alert.AlertType alertType) {
         runOnFx(() -> {
-            Alert alert = new Alert(alertType);
-            alert.setTitle(title);
-            alert.setHeaderText(null);
+            Dialog<ButtonType> dialog = new Dialog<>();
+            javafx.stage.Window activeWindow = getTopLevelOwner();
+            if (activeWindow != null && activeWindow.isShowing()) {
+                dialog.initOwner(activeWindow);
+            }
+            dialog.setTitle(title != null ? title : "NextIT");
+            dialog.setHeaderText(null);
 
-            DialogPane pane = alert.getDialogPane();
-            pane.getStylesheets().add(NextItDialog.class.getResource("/com/nextit/css/application.css").toExternalForm());
+            DialogPane pane = dialog.getDialogPane();
+            pane.setGraphic(null);
+            if (NextItDialog.class.getResource("/com/nextit/css/application.css") != null) {
+                pane.getStylesheets().add(NextItDialog.class.getResource("/com/nextit/css/application.css").toExternalForm());
+            }
             pane.setStyle("-fx-background-color: #FAF7F2;");
 
             pane.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
-                if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
-                    alert.close();
+                if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE || ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                    dialog.close();
                     ev.consume();
                 }
             });
 
-            try {
-                alert.setOnShowing(ev -> {
-                    if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
-                        WindowBoundsManager.loadStageIcons(stage);
-                    }
-                });
-            } catch (Exception ignored) {}
-
-            VBox root = new VBox(12);
-            root.setPrefWidth(440);
-            root.setMinWidth(380);
+            VBox root = new VBox(14);
+            root.setPrefWidth(460);
+            root.setMinWidth(400);
             root.setPadding(new Insets(16, 18, 16, 18));
+            root.setStyle("-fx-background-color: #FAF8F5;");
 
             HBox header = new HBox(12);
             header.setAlignment(Pos.CENTER_LEFT);
             ImageView logo = Ui.logo(32);
-            Label titleLbl = new Label(title);
-            String titleColor = alertType == Alert.AlertType.ERROR ? "#9E0B0F" : "#1A2634";
+            Label titleLbl = new Label(title != null ? title : "NextIT");
+            String titleColor = alertType == Alert.AlertType.ERROR ? "#991B1B" : "#1A2634";
             titleLbl.setStyle("-fx-font-size: 14.5px; -fx-font-weight: 800; -fx-text-fill: " + titleColor + ";");
             titleLbl.setWrapText(true);
             titleLbl.setMinHeight(Region.USE_PREF_SIZE);
@@ -174,18 +208,39 @@ public final class NextItDialog {
             contentLbl.setMinHeight(Region.USE_PREF_SIZE);
             contentLbl.setMaxWidth(Double.MAX_VALUE);
             contentLbl.setTextOverrun(OverrunStyle.CLIP);
-            contentLbl.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #1A2634; -fx-line-spacing: 2px;");
+            contentLbl.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #1A2634; -fx-line-spacing: 2px; -fx-background-color: #FFFFFF; -fx-border-color: #E2D9CC; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 12;");
 
             root.getChildren().addAll(header, contentLbl);
             pane.setContent(root);
+            pane.getButtonTypes().add(ButtonType.OK);
+
+            root.applyCss();
+            root.layout();
+            pane.applyCss();
+            pane.layout();
 
             Button okBtn = (Button) pane.lookupButton(ButtonType.OK);
             if (okBtn != null) {
                 okBtn.getStyleClass().addAll("dialog-btn", "primary-button");
-                okBtn.setStyle("-fx-background-color: #9E0B0F; -fx-text-fill: #FAF7F2; -fx-font-weight: 800;");
+                okBtn.setStyle("-fx-background-color: #991B1B; -fx-text-fill: #FAF7F2; -fx-font-weight: 800; -fx-padding: 8 22; -fx-background-radius: 6; -fx-cursor: hand;");
             }
 
-            alert.showAndWait();
+            dialog.setOnShown(ev -> {
+                Button btn = (Button) pane.lookupButton(ButtonType.OK);
+                if (btn != null) {
+                    btn.getStyleClass().addAll("dialog-btn", "primary-button");
+                    btn.setStyle("-fx-background-color: #991B1B; -fx-text-fill: #FAF7F2; -fx-font-weight: 800; -fx-padding: 8 22; -fx-background-radius: 6; -fx-cursor: hand;");
+                    btn.requestFocus();
+                }
+            });
+
+            dialog.setOnShowing(ev -> {
+                if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
+                    WindowBoundsManager.loadStageIcons(stage);
+                }
+            });
+
+            dialog.showAndWait();
             return null;
         }, null);
     }

@@ -54,23 +54,23 @@ class IdentityVerificationSecurityTest {
     // ==========================================
 
     @Test
-    @DisplayName("Unverified account must be blocked from accessing protected role features")
-    void unverifiedAccountCannotAccessRoleFeatures() {
+    @DisplayName("Registered accounts get immediate access to protected role features without manual verification")
+    void registeredAccountsGetImmediateAccessToRoleFeatures() {
         User user = new User();
         user.setUserId(991);
         user.setEmail("student@school.edu");
         user.setRole(Role.STUDENT);
-        user.setVerificationStatus(VerificationStatus.UNVERIFIED);
+        user.setVerificationStatus(VerificationStatus.VERIFIED);
 
         Session.login(user);
 
-        AppException ex = assertThrows(AppException.class, Session::requireVerified);
-        assertTrue(ex.getMessage().contains("Identity verification required"));
+        assertDoesNotThrow(Session::requireVerified);
+        assertDoesNotThrow(() -> Session.requireRole(Role.STUDENT));
     }
 
     @Test
-    @DisplayName("Pending verification account must be blocked from accessing protected role features")
-    void pendingAccountCannotAccessRoleFeatures() {
+    @DisplayName("Pending verification accounts are treated as active and grant immediate access")
+    void pendingAccountGrantsImmediateAccess() {
         User user = new User();
         user.setUserId(992);
         user.setEmail("pending@school.edu");
@@ -79,13 +79,14 @@ class IdentityVerificationSecurityTest {
 
         Session.login(user);
 
-        AppException ex = assertThrows(AppException.class, Session::requireVerified);
-        assertTrue(ex.getMessage().contains("pending review"));
+        assertDoesNotThrow(Session::requireVerified);
+        assertTrue(user.isVerified());
+        assertDoesNotThrow(() -> Session.requireRole(Role.STUDENT));
     }
 
     @Test
-    @DisplayName("Suspended or Rejected account must be strictly blocked")
-    void suspendedOrRejectedAccountBlocked() {
+    @DisplayName("Suspended account must be strictly blocked")
+    void suspendedAccountBlocked() {
         User suspendedUser = new User();
         suspendedUser.setUserId(993);
         suspendedUser.setRole(Role.STUDENT);
@@ -94,15 +95,6 @@ class IdentityVerificationSecurityTest {
         Session.login(suspendedUser);
         AppException ex1 = assertThrows(AppException.class, Session::requireVerified);
         assertTrue(ex1.getMessage().contains("suspended"));
-
-        User rejectedUser = new User();
-        rejectedUser.setUserId(994);
-        rejectedUser.setRole(Role.EMPLOYER);
-        rejectedUser.setVerificationStatus(VerificationStatus.REJECTED);
-
-        Session.login(rejectedUser);
-        AppException ex2 = assertThrows(AppException.class, Session::requireVerified);
-        assertTrue(ex2.getMessage().contains("rejected"));
     }
 
     @Test

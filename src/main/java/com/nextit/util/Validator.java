@@ -32,6 +32,18 @@ public final class Validator {
         }
     }
 
+    /** Allows an empty value, web URL, or local file/upload path. */
+    public static void optionalUrlOrFilePath(String value, String fieldName) {
+        if (value == null || value.isBlank()) return;
+        String trimmed = value.trim();
+        if (trimmed.startsWith("http://") || trimmed.startsWith("https://")
+                || trimmed.startsWith("file:") || trimmed.startsWith("uploads/")
+                || trimmed.startsWith("uploads\\") || trimmed.contains("/") || trimmed.contains("\\")) {
+            return;
+        }
+        throw new AppException(fieldName + " must be a valid URL or image file path.");
+    }
+
     /** Returns true if null, blank, or a valid phone number format without alphabetic characters. */
     public static boolean isValidPhoneNumber(String value) {
         if (value == null || value.isBlank()) return true;

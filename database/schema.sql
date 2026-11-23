@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS users (
     role ENUM('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN') NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
-    verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED',
+    verification_status VARCHAR(20) NOT NULL DEFAULT 'VERIFIED',
     rejection_reason TEXT NULL,
     verified_at DATETIME NULL,
     failed_login_attempts INT NOT NULL DEFAULT 0,
