@@ -6,6 +6,7 @@ public class Employer {
     private String companyName;
     private String industry;
     private String contactPerson;
+    private String jobTitle;
     private String contactNumber;
     private String address;
 
@@ -23,6 +24,9 @@ public class Employer {
 
     public String getContactPerson() { return contactPerson; }
     public void setContactPerson(String contactPerson) { this.contactPerson = contactPerson; }
+
+    public String getJobTitle() { return jobTitle; }
+    public void setJobTitle(String jobTitle) { this.jobTitle = jobTitle; }
 
     public String getContactNumber() { return contactNumber; }
     public void setContactNumber(String contactNumber) { this.contactNumber = contactNumber; }

@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS employers (
     industry VARCHAR(100) NULL,
     contact_person VARCHAR(100) NULL,
     contact_number VARCHAR(30) NULL,
-    address VARCHAR(255) NULL
+    address VARCHAR(255) NULL,
+    job_title VARCHAR(100) NULL
 );
 
 -- Profile views for compatibility with profile-based lookup queries

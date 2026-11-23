@@ -74,9 +74,9 @@ public final class EmployerViews {
         heroRight.setAlignment(Pos.CENTER_RIGHT);
         Label contactPersonHighlight = new Label(value(employer.getContactPerson()));
         contactPersonHighlight.getStyleClass().add("profile-hero-highlight-title");
-        Label contactNumberHighlight = new Label(value(employer.getContactNumber()));
-        contactNumberHighlight.getStyleClass().add("profile-hero-highlight-subtitle");
-        heroRight.getChildren().addAll(contactPersonHighlight, contactNumberHighlight);
+        Label jobTitleHighlight = new Label(value(employer.getJobTitle()));
+        jobTitleHighlight.getStyleClass().add("profile-hero-highlight-subtitle");
+        heroRight.getChildren().addAll(contactPersonHighlight, jobTitleHighlight);
 
         hero.getChildren().addAll(avatar, identityDetails, heroSpacer, heroRight);
 
@@ -106,7 +106,7 @@ public final class EmployerViews {
             if (avatarText != null) avatarText.setText(Ui.initials(val));
         });
 
-        TextField industry = Ui.field("Industry");
+        TextField industry = Ui.field("Company size / industry sector");
         industry.setText(employer.getIndustry());
         industry.textProperty().addListener((obs, old, val) -> {
             industryBadge.setText(value(val));
@@ -118,7 +118,13 @@ public final class EmployerViews {
             contactPersonHighlight.setText(value(val));
         });
 
-        TextField contactNumber = Ui.field("Contact number");
+        TextField jobTitle = Ui.field("Job title / corporate position");
+        jobTitle.setText(employer.getJobTitle());
+        jobTitle.textProperty().addListener((obs, old, val) -> {
+            jobTitleHighlight.setText(value(val));
+        });
+
+        TextField contactNumber = Ui.field("+63 9XX XXX XXXX");
         contactNumber.setText(employer.getContactNumber());
         Label contactNumberError = new Label();
         contactNumberError.getStyleClass().add("field-error-message");
@@ -142,20 +148,38 @@ public final class EmployerViews {
             save.setDisable(hasError);
         };
 
-        // 300ms Debounce checks while typing
-        PauseTransition debounceContact = new PauseTransition(Duration.millis(300));
-        debounceContact.setOnFinished(ev -> {
-            String val = contactNumber.getText();
-            if (val != null && !val.isBlank() && profiles.isContactNumberTaken(employer.getEmployerId(), val)) {
-                contactNumberError.setText("⚠ This contact number is already registered to another company.");
-                contactNumberError.setVisible(true);
-                contactNumberError.setManaged(true);
-                if (!contactNumber.getStyleClass().contains("input-error-field")) {
-                    contactNumber.getStyleClass().add("input-error-field");
+        java.util.function.Consumer<String> checkContactNumber = val -> {
+            if (val != null && !val.isBlank()) {
+                if (!com.nextit.util.Validator.isValidPhoneNumber(val)) {
+                    contactNumberError.setText("⚠ Please enter a valid phone number (e.g., +63 9XX XXX XXXX).");
+                    contactNumberError.setVisible(true);
+                    contactNumberError.setManaged(true);
+                    if (!contactNumber.getStyleClass().contains("input-error-field")) {
+                        contactNumber.getStyleClass().add("input-error-field");
+                    }
+                } else if (profiles.isContactNumberTaken(employer.getEmployerId(), val)) {
+                    contactNumberError.setText("⚠ This contact number is already registered to another company.");
+                    contactNumberError.setVisible(true);
+                    contactNumberError.setManaged(true);
+                    if (!contactNumber.getStyleClass().contains("input-error-field")) {
+                        contactNumber.getStyleClass().add("input-error-field");
+                    }
+                } else {
+                    contactNumberError.setVisible(false);
+                    contactNumberError.setManaged(false);
+                    contactNumber.getStyleClass().remove("input-error-field");
                 }
+            } else {
+                contactNumberError.setVisible(false);
+                contactNumberError.setManaged(false);
+                contactNumber.getStyleClass().remove("input-error-field");
             }
             updateSaveButtonState.run();
-        });
+        };
+
+        // 300ms Debounce checks while typing
+        PauseTransition debounceContact = new PauseTransition(Duration.millis(300));
+        debounceContact.setOnFinished(ev -> checkContactNumber.accept(contactNumber.getText()));
 
         PauseTransition debounceAddress = new PauseTransition(Duration.millis(300));
         debounceAddress.setOnFinished(ev -> {
@@ -173,7 +197,6 @@ public final class EmployerViews {
 
         // Clear error state immediately when user modifies input, and schedule debounce
         contactNumber.textProperty().addListener((obs, old, cur) -> {
-            contactNumberHighlight.setText(value(cur));
             debounceContact.stop();
             if (contactNumberError.isVisible()) {
                 contactNumberError.setVisible(false);
@@ -197,17 +220,9 @@ public final class EmployerViews {
 
         // Immediate On-blur duplicate check
         contactNumber.focusedProperty().addListener((obs, old, isFocused) -> {
-            if (!isFocused && contactNumber.getText() != null && !contactNumber.getText().isBlank()) {
+            if (!isFocused) {
                 debounceContact.stop();
-                if (profiles.isContactNumberTaken(employer.getEmployerId(), contactNumber.getText())) {
-                    contactNumberError.setText("⚠ This contact number is already registered to another company.");
-                    contactNumberError.setVisible(true);
-                    contactNumberError.setManaged(true);
-                    if (!contactNumber.getStyleClass().contains("input-error-field")) {
-                        contactNumber.getStyleClass().add("input-error-field");
-                    }
-                }
-                updateSaveButtonState.run();
+                checkContactNumber.accept(contactNumber.getText());
             }
         });
 
@@ -232,21 +247,35 @@ public final class EmployerViews {
         editGrid.getColumnConstraints().addAll(col1, col2);
 
         editGrid.add(Ui.propertyTile("Company Name", company), 0, 0);
-        editGrid.add(Ui.propertyTile("Industry Sector", industry), 1, 0);
+        editGrid.add(Ui.propertyTile("Company Size / Industry Sector", industry), 1, 0);
         editGrid.add(Ui.propertyTile("Contact Person", contactPerson), 0, 1);
-        editGrid.add(Ui.propertyTile("Contact Number", contactNumberBox), 1, 1);
-        editGrid.add(Ui.propertyTile("Office Address", addressBox), 0, 2);
+        editGrid.add(Ui.propertyTile("Job Title / Corporate Title", jobTitle), 1, 1);
+        editGrid.add(Ui.propertyTile("Contact Number", contactNumberBox), 0, 2);
+        editGrid.add(Ui.propertyTile("Office Address", addressBox), 1, 2);
 
         save.setOnAction(e -> {
-            if (profiles.isContactNumberTaken(employer.getEmployerId(), contactNumber.getText())) {
-                contactNumberError.setText("⚠ This contact number is already registered to another company.");
-                contactNumberError.setVisible(true);
-                contactNumberError.setManaged(true);
-                if (!contactNumber.getStyleClass().contains("input-error-field")) {
-                    contactNumber.getStyleClass().add("input-error-field");
+            String phoneVal = contactNumber.getText();
+            if (phoneVal != null && !phoneVal.isBlank()) {
+                if (!com.nextit.util.Validator.isValidPhoneNumber(phoneVal)) {
+                    contactNumberError.setText("⚠ Please enter a valid phone number (e.g., +63 9XX XXX XXXX).");
+                    contactNumberError.setVisible(true);
+                    contactNumberError.setManaged(true);
+                    if (!contactNumber.getStyleClass().contains("input-error-field")) {
+                        contactNumber.getStyleClass().add("input-error-field");
+                    }
+                    updateSaveButtonState.run();
+                    return;
                 }
-                updateSaveButtonState.run();
-                return;
+                if (profiles.isContactNumberTaken(employer.getEmployerId(), phoneVal)) {
+                    contactNumberError.setText("⚠ This contact number is already registered to another company.");
+                    contactNumberError.setVisible(true);
+                    contactNumberError.setManaged(true);
+                    if (!contactNumber.getStyleClass().contains("input-error-field")) {
+                        contactNumber.getStyleClass().add("input-error-field");
+                    }
+                    updateSaveButtonState.run();
+                    return;
+                }
             }
             if (profiles.isAddressTaken(employer.getEmployerId(), address.getText())) {
                 addressError.setText("⚠ This office address is already in use. Please specify a unique branch or suite number.");
@@ -266,6 +295,7 @@ public final class EmployerViews {
                     employer.setCompanyName(company.getText());
                     employer.setIndustry(industry.getText());
                     employer.setContactPerson(contactPerson.getText());
+                    employer.setJobTitle(jobTitle.getText());
                     employer.setContactNumber(contactNumber.getText());
                     employer.setAddress(address.getText());
                     profiles.updateEmployer(employer);
@@ -275,7 +305,7 @@ public final class EmployerViews {
                     if (avatarText != null) avatarText.setText(Ui.initials(employer.getCompanyName()));
                     industryBadge.setText(value(employer.getIndustry()));
                     contactPersonHighlight.setText(value(employer.getContactPerson()));
-                    contactNumberHighlight.setText(value(employer.getContactNumber()));
+                    jobTitleHighlight.setText(value(employer.getJobTitle()));
 
                     Alerts.info("Company profile updated successfully.");
                 } finally {

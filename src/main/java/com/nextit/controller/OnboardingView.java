@@ -290,7 +290,8 @@ public class OnboardingView {
                         emp.setCompanyName(detail1.trim());
                         emp.setIndustry((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Technology");
                         emp.setContactPerson(user.getFullName());
-                        emp.setContactNumber((finalIdNumber != null && !finalIdNumber.isBlank()) ? finalIdNumber : "");
+                        emp.setJobTitle((finalIdNumber != null && !finalIdNumber.isBlank()) ? finalIdNumber.trim() : "Corporate Representative");
+                        emp.setContactNumber("");
                         emp.setAddress("Technology Campus");
                         empRepo.save(emp);
                     }

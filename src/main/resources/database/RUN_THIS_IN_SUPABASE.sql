@@ -87,7 +87,8 @@ CREATE TABLE employers (
     industry VARCHAR(100) NULL,
     contact_person VARCHAR(100) NULL,
     contact_number VARCHAR(30) NULL,
-    address VARCHAR(255) NULL
+    address VARCHAR(255) NULL,
+    job_title VARCHAR(100) NULL
 );
 
 -- Ensure institutional / work email columns exist across profile and user tables
@@ -98,6 +99,7 @@ ALTER TABLE instructors ADD COLUMN IF NOT EXISTS institutional_email VARCHAR(100
 ALTER TABLE instructors ADD COLUMN IF NOT EXISTS work_email VARCHAR(100) NULL;
 ALTER TABLE employers ADD COLUMN IF NOT EXISTS work_email VARCHAR(100) NULL;
 ALTER TABLE employers ADD COLUMN IF NOT EXISTS institutional_email VARCHAR(100) NULL;
+ALTER TABLE employers ADD COLUMN IF NOT EXISTS job_title VARCHAR(100) NULL;
 
 -- Profile views for compatibility with profile-based lookup queries
 CREATE OR REPLACE VIEW student_profiles AS 
@@ -514,8 +516,8 @@ BEGIN
     RETURNING instructor_id INTO v_instructor_id;
 
     -- D. Employers
-    INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address)
-    VALUES (v_employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City')
+    INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title)
+    VALUES (v_employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City', 'HR Director')
     ON CONFLICT (user_id) DO UPDATE SET company_name = EXCLUDED.company_name
     RETURNING employer_id INTO v_employer_id;
 

@@ -7,7 +7,7 @@ CREATE TABLE IF NOT EXISTS users (
     username VARCHAR(50) NOT NULL UNIQUE,
     password_hash VARCHAR(255) NOT NULL,
     email VARCHAR(100) NOT NULL UNIQUE,
-    role ENUM('STUDENT','INSTRUCTOR','EMPLOYER','ADMIN') NOT NULL,
+    role ENUM('STUDENT','INSTRUCTOR','EMPLOYER') NOT NULL,
     first_name VARCHAR(50) NOT NULL,
     last_name VARCHAR(50) NOT NULL,
     verification_status VARCHAR(20) NOT NULL DEFAULT 'UNVERIFIED',
@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS employers (
     contact_person VARCHAR(100) NULL,
     contact_number VARCHAR(30) NULL,
     address VARCHAR(255) NULL,
+    job_title VARCHAR(100) NULL,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 

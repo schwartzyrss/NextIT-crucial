@@ -80,8 +80,8 @@ BEGIN
     RETURNING instructor_id INTO v_instructor_id;
 
     -- 4. Employers
-    INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address)
-    VALUES (v_employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City')
+    INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title)
+    VALUES (v_employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City', 'HR Director')
     ON CONFLICT (user_id) DO UPDATE SET company_name = EXCLUDED.company_name
     RETURNING employer_id INTO v_employer_id;
 

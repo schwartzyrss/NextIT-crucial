@@ -51,6 +51,24 @@ class ValidatorTest {
     }
 
     @Test
+    void optionalPhoneNumberAllowsEmptyOrValidPhone() {
+        assertDoesNotThrow(() -> Validator.optionalPhoneNumber(null, "Contact number"));
+        assertDoesNotThrow(() -> Validator.optionalPhoneNumber("", "Contact number"));
+        assertDoesNotThrow(() -> Validator.optionalPhoneNumber("   ", "Contact number"));
+        assertDoesNotThrow(() -> Validator.optionalPhoneNumber("+63 917 123 4567", "Contact number"));
+        assertDoesNotThrow(() -> Validator.optionalPhoneNumber("09171234567", "Contact number"));
+        assertDoesNotThrow(() -> Validator.optionalPhoneNumber("+1-555-0100", "Contact number"));
+    }
+
+    @Test
+    void optionalPhoneNumberRejectsJobTitlesAndInvalidFormats() {
+        assertThrows(AppException.class, () -> Validator.optionalPhoneNumber("IT DIRECTOR", "Contact number"));
+        assertThrows(AppException.class, () -> Validator.optionalPhoneNumber("HR Manager / SEC-1234", "Contact number"));
+        assertThrows(AppException.class, () -> Validator.optionalPhoneNumber("Corporate Contact", "Contact number"));
+        assertThrows(AppException.class, () -> Validator.optionalPhoneNumber("123", "Contact number"));
+    }
+
+    @Test
     void maxLengthAllowsNullAndExactLimit() {
         assertDoesNotThrow(() -> Validator.maxLength(null, 5, "Code"));
         assertDoesNotThrow(() -> Validator.maxLength("ABCDE", 5, "Code"));

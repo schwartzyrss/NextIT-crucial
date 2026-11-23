@@ -58,11 +58,6 @@ BEGIN
     ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED'
     RETURNING user_id INTO v_batstate_user;
 
-    -- Seed System Administrator user
-    INSERT INTO users (username, password_hash, email, role, first_name, last_name, verification_status, verified_at, mfa_enabled) VALUES
-    ('admin',       '$2a$10$AwV9Ci7bWr2MEFJiXixMOuyTY/UvFPDJtbyjva7sFKCcN0iESR2GO', 'admin@nextit.edu.ph',         'ADMIN',   'System',   'Administrator', 'VERIFIED', NOW(), FALSE)
-    ON CONFLICT (username) DO UPDATE SET email = EXCLUDED.email, verification_status = 'VERIFIED';
-
     -- 2. Students
     INSERT INTO students (user_id, student_number, program, year_level, section, enrollment_status)
     VALUES (v_student_user, '2023-0001', 'BS Information Technology', 3, 'A', 'Enrolled')
@@ -85,8 +80,8 @@ BEGIN
     RETURNING instructor_id INTO v_instructor_id;
 
     -- 4. Employers
-    INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address)
-    VALUES (v_employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City')
+    INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title)
+    VALUES (v_employer_user, 'TechCorp Solutions', 'Software Development', 'John Dela Cruz', '09171234567', 'Makati City', 'HR Director')
     ON CONFLICT (user_id) DO UPDATE SET company_name = EXCLUDED.company_name
     RETURNING employer_id INTO v_employer_id;
 

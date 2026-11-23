@@ -31,6 +31,7 @@ public class CareerService {
                 emp.setCompanyName("NextIT Partner");
                 emp.setIndustry("Information Technology");
                 emp.setContactPerson("Recruiting Team");
+                emp.setJobTitle("Corporate Representative");
                 emp.setContactNumber("+1-555-" + String.format("%04d", userId));
                 emp.setAddress("Technology Campus");
                 employerRepo.save(emp);

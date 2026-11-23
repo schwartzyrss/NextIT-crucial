@@ -74,6 +74,7 @@ public class ProfileService {
             emp.setCompanyName(name.isBlank() ? user.getUsername() + " Company" : name + " Technologies");
             emp.setIndustry("Information Technology");
             emp.setContactPerson(name.isBlank() ? user.getUsername() : name);
+            emp.setJobTitle("Corporate Representative");
             emp.setContactNumber("+1-555-" + String.format("%04d", userId));
             emp.setAddress("Technology Campus");
             employerRepo.save(emp);
@@ -123,7 +124,9 @@ public class ProfileService {
         Validator.maxLength(employer.getCompanyName(), 150, "Company name");
         Validator.maxLength(employer.getIndustry(), 100, "Industry");
         Validator.maxLength(employer.getContactPerson(), 100, "Contact person");
+        Validator.maxLength(employer.getJobTitle(), 100, "Job title");
         Validator.maxLength(employer.getContactNumber(), 30, "Contact number");
+        Validator.optionalPhoneNumber(employer.getContactNumber(), "Contact number");
         Validator.maxLength(employer.getAddress(), 255, "Address");
 
         // Enforce uniqueness for Contact Number across companies
