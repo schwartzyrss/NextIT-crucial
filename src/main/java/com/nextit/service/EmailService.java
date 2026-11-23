@@ -329,7 +329,7 @@ public final class EmailService {
     private static SmtpResult evaluateFallback(String toEmail, String otpCode, String failureReason) {
         if (AppConfig.isOfflineOtpFallbackAllowed()) {
             log.info("Active offline fallback triggered for {}", toEmail);
-            return new SmtpResult(false, "HTTPS connection offline / server not configured. Check your email for the verification code.",
+            return new SmtpResult(false, "HTTPS connection offline / server not configured. Local fallback mode is active.",
                     otpCode, "HTTPS (Offline Fallback)", true);
         }
         return new SmtpResult(false, "HTTPS delivery failed: " + failureReason, otpCode, "HTTPS (Port 443)", false);

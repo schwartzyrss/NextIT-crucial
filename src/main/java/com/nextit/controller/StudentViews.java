@@ -132,7 +132,7 @@ public final class StudentViews {
                 ? student.getProgram().trim()
                 : "Undeclared";
         academicGrid.add(Ui.propertyTile("Degree Program", degreeProg), 1, 0);
-        academicGrid.add(Ui.propertyTile("Year Level", Ui.formatYearDisplay(student.getYearLevel())), 0, 1);
+        academicGrid.add(createEditableYearLevelTile(student, yearSectionHighlight), 0, 1);
         academicGrid.add(createEditableSectionTile(student, yearSectionHighlight), 1, 1);
         academicGrid.add(Ui.propertyTile("Enrollment Status", Ui.badge(value(student.getEnrollmentStatus()), "badge-pill-mint")), 0, 2);
 
@@ -153,6 +153,230 @@ public final class StudentViews {
 
         return Ui.page("My Profile", "Your account and student profile information. Contact the department registrar if any details need correction.",
                 hero, traysRow, notice);
+    }
+
+    private static String formatYearLevelDisplay(int yearLevel) {
+        if (yearLevel == 5) return "Irregular / 5th Year";
+        return Ui.formatYearDisplay(yearLevel);
+    }
+
+    private static VBox createEditableYearLevelTile(Student student, Label yearSectionHighlight) {
+        VBox tile = new VBox(6);
+        tile.getStyleClass().add("profile-prop-tile");
+
+        // Header Row: Label + Change Action Button (styled identically to Class Section)
+        HBox headerRow = new HBox(8);
+        headerRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label label = new Label("YEAR LEVEL");
+        label.getStyleClass().add("profile-prop-label");
+
+        Region spacer = new Region();
+        HBox.setHgrow(spacer, Priority.ALWAYS);
+
+        Button changeBtn = new Button("✏ Change");
+        changeBtn.getStyleClass().add("profile-prop-action-btn");
+        changeBtn.setFocusTraversable(false);
+
+        headerRow.getChildren().addAll(label, spacer, changeBtn);
+
+        // View Mode: Display current year level
+        VBox viewPane = new VBox(2);
+        Label valueLabel = new Label(formatYearLevelDisplay(student.getYearLevel()));
+        valueLabel.getStyleClass().add("profile-prop-value");
+        viewPane.getChildren().add(valueLabel);
+
+        tile.getChildren().addAll(headerRow, viewPane);
+
+        changeBtn.setOnAction(e -> {
+            Window owner = changeBtn.getScene() != null ? changeBtn.getScene().getWindow() : null;
+            showChangeYearLevelModal(student, valueLabel, yearSectionHighlight, owner);
+        });
+
+        return tile;
+    }
+
+    private static void showChangeYearLevelModal(Student student, Label valueLabel, Label yearSectionHighlight, Window ownerWindow) {
+        Stage modalStage = new Stage();
+        modalStage.initModality(Modality.APPLICATION_MODAL);
+        if (ownerWindow != null && ownerWindow.isShowing()) {
+            modalStage.initOwner(ownerWindow);
+        }
+        modalStage.initStyle(StageStyle.TRANSPARENT);
+        modalStage.setTitle("Change Year Level");
+
+        StackPane rootPane = new StackPane();
+        rootPane.setStyle("-fx-background-color: transparent; -fx-padding: 30;");
+
+        VBox card = new VBox(16);
+        card.setPrefWidth(440);
+        card.setMaxWidth(440);
+        card.setStyle(
+                "-fx-background-color: #FAF8F5; " +
+                "-fx-background-radius: 16; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 16; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-padding: 24 26 22 26; " +
+                "-fx-effect: dropshadow(gaussian, rgba(26, 38, 52, 0.25), 24, 0.15, 0, 8);"
+        );
+
+        // 1. Header Banner
+        VBox headerBox = new VBox(4);
+        Label titleLabel = new Label("Change Year Level");
+        titleLabel.setStyle("-fx-font-size: 17.5px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+
+        Label subLabel = new Label("Select your current academic standing year level.");
+        subLabel.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #5A6A7E; -fx-font-weight: 500;");
+        headerBox.getChildren().addAll(titleLabel, subLabel);
+
+        // 2. Year Level Dropdown
+        List<String> options = List.of("Year 1", "Year 2", "Year 3", "Year 4", "Irregular / 5th Year");
+        ComboBox<String> yearCombo = new ComboBox<>(FXCollections.observableArrayList(options));
+        yearCombo.setMaxWidth(Double.MAX_VALUE);
+        yearCombo.setStyle("-fx-background-color: #FFFFFF; -fx-border-color: #E2D9CC; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 6 10; -fx-font-size: 13px;");
+
+        String currentOption = switch (student.getYearLevel()) {
+            case 1 -> "Year 1";
+            case 2 -> "Year 2";
+            case 4 -> "Year 4";
+            case 5 -> "Irregular / 5th Year";
+            default -> "Year 3";
+        };
+        yearCombo.setValue(currentOption);
+
+        VBox formField = new VBox(6, new Label("Select Year Level:"), yearCombo);
+
+        // 3. Action Buttons
+        HBox buttonBar = new HBox(10);
+        buttonBar.setAlignment(Pos.CENTER_RIGHT);
+
+        Button cancelBtn = new Button("Cancel");
+        cancelBtn.setStyle(
+                "-fx-background-color: #FAF8F5; " +
+                "-fx-text-fill: #1A2634; " +
+                "-fx-font-size: 13px; " +
+                "-fx-font-weight: 700; " +
+                "-fx-border-color: rgba(74, 90, 106, 0.35); " +
+                "-fx-border-radius: 8; " +
+                "-fx-background-radius: 8; " +
+                "-fx-padding: 8 20; " +
+                "-fx-cursor: hand;"
+        );
+        cancelBtn.setOnAction(e -> modalStage.close());
+
+        Button saveBtn = new Button("Save");
+        saveBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 8 24; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        );
+        saveBtn.setOnMouseEntered(e -> saveBtn.setStyle(
+                "-fx-background-color: #7F1D1D; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 8 24; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        ));
+        saveBtn.setOnMouseExited(e -> saveBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 8 24; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        ));
+
+        saveBtn.setOnAction(e -> {
+            String selectedVal = yearCombo.getValue();
+            if (selectedVal == null || selectedVal.isBlank()) return;
+
+            int parsedYear = switch (selectedVal) {
+                case "Year 1" -> 1;
+                case "Year 2" -> 2;
+                case "Year 4" -> 4;
+                case "Irregular / 5th Year" -> 5;
+                default -> 3;
+            };
+
+            saveBtn.setDisable(true);
+            cancelBtn.setDisable(true);
+            yearCombo.setDisable(true);
+
+            profiles.updateStudentYearLevelAsync(student, parsedYear)
+                    .thenAccept(updatedStudent -> Platform.runLater(() -> {
+                        modalStage.close();
+
+                        // 1. Update "My Profile" -> YEAR LEVEL sub-card
+                        String formattedYear = formatYearLevelDisplay(updatedStudent.getYearLevel());
+                        valueLabel.setText(formattedYear);
+
+                        // 2. Update "My Profile" -> hero banner subtitle ("Year X • Section A")
+                        String currentSection = formatSectionDisplay(updatedStudent.getSection());
+                        yearSectionHighlight.setText(formattedYear + " • " + currentSection);
+
+                        // 3. Confirmation feedback
+                        Alerts.info("Year level updated to " + formattedYear + " successfully.");
+                    }))
+                    .exceptionally(ex -> {
+                        Platform.runLater(() -> {
+                            saveBtn.setDisable(false);
+                            cancelBtn.setDisable(false);
+                            yearCombo.setDisable(false);
+                            String msg = ex.getCause() != null ? ex.getCause().getMessage() : ex.getMessage();
+                            Alerts.error(msg != null ? msg : "Failed to update year level.");
+                        });
+                        return null;
+                    });
+        });
+
+        buttonBar.getChildren().addAll(cancelBtn, saveBtn);
+        card.getChildren().addAll(headerBox, formField, buttonBar);
+        rootPane.getChildren().add(card);
+
+        // Pre-layout passes to ensure scene is never blank
+        rootPane.applyCss();
+        rootPane.layout();
+        card.applyCss();
+        card.layout();
+
+        Scene modalScene = new Scene(rootPane);
+        modalScene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        if (StudentViews.class.getResource("/com/nextit/css/application.css") != null) {
+            modalScene.getStylesheets().add(StudentViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+
+        modalScene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE) {
+                modalStage.close();
+                ev.consume();
+            } else if (ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                saveBtn.fire();
+                ev.consume();
+            }
+        });
+
+        modalStage.setScene(modalScene);
+
+        if (ownerWindow != null) {
+            modalStage.setOnShown(ev -> {
+                double x = ownerWindow.getX() + (ownerWindow.getWidth() - modalStage.getWidth()) / 2.0;
+                double y = ownerWindow.getY() + (ownerWindow.getHeight() - modalStage.getHeight()) / 2.0;
+                modalStage.setX(Math.max(0, x));
+                modalStage.setY(Math.max(0, y));
+            });
+        } else {
+            modalStage.centerOnScreen();
+        }
+
+        modalStage.showAndWait();
     }
 
     private static String formatSectionDisplay(String section) {
@@ -716,6 +940,8 @@ public final class StudentViews {
             subjectMap.putAll(directory.subjectMap());
             instructors.clear();
             instructors.putAll(directory.instructorNames());
+            subjects.clear();
+            subjects.putAll(directory.subjectNames());
             enrollments.clear();
             for (Enrollment e : list) {
                 enrollments.put(e.getEnrollmentId(), subjects.getOrDefault(e.getSubjectId(), "Subject #" + e.getSubjectId()));
@@ -813,13 +1039,37 @@ public final class StudentViews {
         return Ui.page("Academic Progress", "Review your subjects, grades, attendance, project performance and instructor remarks. These records are maintained by your instructors.", tabs);
     }
 
+    private static String normalizeSubjectCode(String code) {
+        if (code == null) return "";
+        return code.replaceAll("[\\s\\-_]+", "").toLowerCase(Locale.ROOT);
+    }
+
+    private static String formatSubjectCatalogItem(Subject s, Map<Integer, String> instNames) {
+        if (s == null) return "";
+        String code = s.getSubjectCode() != null ? s.getSubjectCode().trim() : "N/A";
+        String name = s.getSubjectName() != null ? s.getSubjectName().trim() : "Untitled";
+        String sec = (s.getSection() != null && !s.getSection().isBlank()) ? "Sec " + s.getSection().trim() : "Sec A";
+        String sem = (s.getSemester() != null && !s.getSemester().isBlank()) ? s.getSemester().trim() : "1st Semester";
+        String ay = (s.getAcademicYear() != null && !s.getAcademicYear().isBlank()) ? s.getAcademicYear().trim() : "2025-2026";
+        String inst = "Unassigned";
+        if (s.getInstructorId() != null) {
+            String rawName = instNames.get(s.getInstructorId());
+            if (rawName != null && !rawName.isBlank()) {
+                inst = rawName.replaceAll("\\s*\\(.*?\\)", "").trim();
+            } else {
+                inst = "Instructor #" + s.getInstructorId();
+            }
+        }
+        return String.format("%s — %s (%s • %s, %s • %s)", code, name, sec, sem, ay, inst);
+    }
+
     private static void showEnrollSubjectDialog(int studentId, Runnable onComplete, Window ownerWindow) {
         Dialog<ButtonType> dialog = new Dialog<>();
         if (ownerWindow != null) {
             dialog.initOwner(ownerWindow);
         }
         dialog.setTitle("Enroll / Add Subject");
-        dialog.setHeaderText("Course & Subject Enrollment");
+        dialog.setHeaderText(null);
         if (StudentViews.class.getResource("/com/nextit/css/application.css") != null) {
             dialog.getDialogPane().getStylesheets().add(StudentViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
         }
@@ -827,43 +1077,92 @@ public final class StudentViews {
         dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
 
         VBox content = new VBox(12);
-        content.setPrefWidth(540);
+        content.setPrefWidth(560);
         content.setPadding(new Insets(10));
+
+        VBox headerBox = new VBox(6);
+        Label titleLabel = new Label("Course & Subject Enrollment");
+        titleLabel.setStyle("-fx-font-size: 16.5px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
 
         Label infoLabel = new Label("Select a subject from the academic catalog to enroll for this term. A student can enroll in multiple subjects under different faculty members simultaneously.");
         infoLabel.setWrapText(true);
-        infoLabel.setStyle("-fx-text-fill: #6E6862; -fx-font-size: 12px;");
+        infoLabel.setMaxWidth(Double.MAX_VALUE);
+        infoLabel.setPrefWidth(530);
+        infoLabel.setMinHeight(Region.USE_PREF_SIZE);
+        infoLabel.setTextOverrun(OverrunStyle.CLIP);
+        infoLabel.setStyle("-fx-text-fill: #6E6862; -fx-font-size: 12.5px; -fx-line-spacing: 2px;");
+        headerBox.getChildren().addAll(titleLabel, infoLabel);
 
-        // Filter out already actively enrolled subjects
-        Set<Integer> alreadyEnrolledSubjectIds = academic.enrollmentsForStudent(studentId).stream()
+        // 1. Fetch active enrollments for the student (excluding dropped)
+        List<Enrollment> activeEnrollments = academic.enrollmentsForStudent(studentId).stream()
                 .filter(e -> !"Dropped".equalsIgnoreCase(e.getStatus()))
-                .map(Enrollment::getSubjectId)
-                .collect(java.util.stream.Collectors.toSet());
-
-        List<Subject> availableSubjects = directory.subjects().stream()
-                .filter(s -> !alreadyEnrolledSubjectIds.contains(s.getSubjectId()))
                 .toList();
 
+        // 2. Fetch all subjects from the catalog (same table where instructors create subjects)
+        List<Subject> allSubjects = new com.nextit.repository.JdbcSubjectRepository().findAll();
+
+        // 3. Filter out only subjects the student is already actively enrolled in for that specific term/offering
+        List<Subject> unenrolled = allSubjects.stream()
+                .filter(s -> activeEnrollments.stream().noneMatch(e ->
+                        e.getSubjectId() == s.getSubjectId()
+                        && (s.getAcademicYear() == null || s.getAcademicYear().isBlank() || s.getAcademicYear().equalsIgnoreCase(e.getAcademicYear()))
+                        && (s.getSemester() == null || s.getSemester().isBlank() || s.getSemester().equalsIgnoreCase(e.getSemester()))
+                ))
+                .toList();
+
+        // Fallback: if all matched because of term/subject overlap, but subjects exist, allow any subject not enrolled in that exact term
+        final List<Subject> availableSubjects = (unenrolled.isEmpty() && !allSubjects.isEmpty()) ? allSubjects : unenrolled;
+
         Map<Integer, String> instNames = directory.instructorNames();
-        ComboBox<Subject> catalogPicker = Ui.combo(availableSubjects, s -> {
-            String inst = s.getInstructorId() != null ? "Prof. " + instNames.getOrDefault(s.getInstructorId(), "Faculty") : "Unassigned";
-            String sec = s.getSection() != null ? "Sec " + s.getSection() : "Sec A";
-            return String.format("[%s] %s (%.1f units • %s • %s)", s.getSubjectCode(), s.getSubjectName(), s.getUnits(), sec, inst);
+        ComboBox<Subject> catalogPicker = Ui.combo(availableSubjects, s -> formatSubjectCatalogItem(s, instNames));
+        catalogPicker.setCellFactory(lv -> new ListCell<>() {
+            @Override
+            protected void updateItem(Subject item, boolean empty) {
+                super.updateItem(item, empty);
+                setText(empty || item == null ? null : formatSubjectCatalogItem(item, instNames));
+            }
+        });
+        catalogPicker.setButtonCell(new ListCell<>() {
+            @Override
+            protected void updateItem(Subject item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(availableSubjects.isEmpty() ? "No unenrolled subjects available in catalog" : "Select an available subject from catalog...");
+                } else {
+                    setText(formatSubjectCatalogItem(item, instNames));
+                }
+            }
         });
         catalogPicker.setMaxWidth(Double.MAX_VALUE);
-        if (!availableSubjects.isEmpty()) catalogPicker.getSelectionModel().selectFirst();
 
-        TextField codeField = Ui.field("Or enter subject code directly (e.g. IT301, IT-311)");
-        java.time.LocalDate today = java.time.LocalDate.now();
-        int startYear = today.getMonthValue() >= 6 ? today.getYear() : today.getYear() - 1;
-        String defaultTerm = startYear + "-" + (startYear + 1);
-        TextField termField = Ui.field("Academic Year (e.g. " + defaultTerm + ")");
-        termField.setText(defaultTerm);
+        TextField codeField = Ui.field("Or enter subject code directly (e.g. IT301, IT-311, PHYS 111)");
+        TextField termField = Ui.field("Academic Year (e.g. 2025-2026)");
         ComboBox<String> semCombo = Ui.combo(List.of("1st Semester", "2nd Semester", "Summer Term"), s -> s);
-        semCombo.getSelectionModel().selectFirst();
+
+        // Automatically sync Subject Code, Academic Year, and Semester when dropdown selection changes
+        catalogPicker.valueProperty().addListener((obs, oldSub, newSub) -> {
+            if (newSub != null) {
+                codeField.setText(newSub.getSubjectCode() != null ? newSub.getSubjectCode().trim() : "");
+                if (newSub.getAcademicYear() != null && !newSub.getAcademicYear().isBlank()) {
+                    termField.setText(newSub.getAcademicYear().trim());
+                }
+                if (newSub.getSemester() != null && !newSub.getSemester().isBlank()) {
+                    semCombo.setValue(newSub.getSemester().trim());
+                }
+            }
+        });
+
+        if (!availableSubjects.isEmpty()) {
+            catalogPicker.getSelectionModel().selectFirst();
+        } else {
+            java.time.LocalDate today = java.time.LocalDate.now();
+            int startYear = today.getMonthValue() >= 6 ? today.getYear() : today.getYear() - 1;
+            termField.setText(startYear + "-" + (startYear + 1));
+            semCombo.getSelectionModel().selectFirst();
+        }
 
         content.getChildren().addAll(
-                infoLabel,
+                headerBox,
                 new Label("Available Subject Catalog:"), catalogPicker,
                 new Label("Manual Subject Code (Optional Override):"), codeField,
                 new Label("Academic Year:"), termField,
@@ -877,25 +1176,77 @@ public final class StudentViews {
 
         okButton.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
             event.consume();
-            Subject chosen = catalogPicker.getValue();
             String manualCode = codeField.getText() != null ? codeField.getText().trim() : "";
+            Subject chosen = null;
+
             if (!manualCode.isBlank()) {
-                Optional<Subject> found = new com.nextit.repository.JdbcSubjectRepository().findBySubjectCode(manualCode);
-                if (found.isPresent()) {
-                    chosen = found.get();
-                } else {
+                String normInput = normalizeSubjectCode(manualCode);
+                List<Subject> allDbSubjects = new com.nextit.repository.JdbcSubjectRepository().findAll();
+
+                // 1. Match by normalized subject code (ignoring spaces, dashes, case)
+                List<Subject> matches = allDbSubjects.stream()
+                        .filter(s -> normalizeSubjectCode(s.getSubjectCode()).equals(normInput))
+                        .toList();
+
+                // 2. Fallback: contains or matches subject name
+                if (matches.isEmpty()) {
+                    matches = allDbSubjects.stream()
+                            .filter(s -> normalizeSubjectCode(s.getSubjectCode()).contains(normInput)
+                                    || (s.getSubjectName() != null && normalizeSubjectCode(s.getSubjectName()).contains(normInput)))
+                            .toList();
+                }
+
+                if (matches.isEmpty()) {
                     Alerts.error("No subject found matching code: " + manualCode);
                     return;
                 }
+
+                // 3. Resolve which offering if multiple sections/terms exist
+                if (matches.size() == 1) {
+                    chosen = matches.get(0);
+                } else {
+                    String currentAy = termField.getText() != null ? termField.getText().trim() : "";
+                    String currentSem = semCombo.getValue() != null ? semCombo.getValue().trim() : "";
+
+                    chosen = matches.stream()
+                            .filter(s -> (currentAy.isBlank() || currentAy.equalsIgnoreCase(s.getAcademicYear()))
+                                    && (currentSem.isBlank() || currentSem.equalsIgnoreCase(s.getSemester())))
+                            .findFirst()
+                            .orElse(null);
+
+                    if (chosen == null) {
+                        chosen = matches.stream()
+                                .filter(s -> (!currentSem.isBlank() && currentSem.equalsIgnoreCase(s.getSemester()))
+                                        || (!currentAy.isBlank() && currentAy.equalsIgnoreCase(s.getAcademicYear())))
+                                .findFirst()
+                                .orElse(matches.get(0));
+                    }
+                }
+
+                // Sync dialog fields with matched offering
+                if (chosen != null) {
+                    catalogPicker.setValue(chosen);
+                    if (chosen.getAcademicYear() != null && !chosen.getAcademicYear().isBlank()) {
+                        termField.setText(chosen.getAcademicYear().trim());
+                    }
+                    if (chosen.getSemester() != null && !chosen.getSemester().isBlank()) {
+                        semCombo.setValue(chosen.getSemester().trim());
+                    }
+                }
+            } else {
+                chosen = catalogPicker.getValue();
             }
+
             if (chosen == null) {
                 Alerts.error("Please select a subject from the catalog or enter a valid subject code.");
                 return;
             }
 
             final Subject toEnroll = chosen;
-            String ay = termField.getText() != null && !termField.getText().isBlank() ? termField.getText().trim() : defaultTerm;
-            String sem = semCombo.getValue() != null ? semCombo.getValue() : "1st Semester";
+            String ay = (termField.getText() != null && !termField.getText().isBlank()) ? termField.getText().trim()
+                    : (toEnroll.getAcademicYear() != null && !toEnroll.getAcademicYear().isBlank() ? toEnroll.getAcademicYear().trim() : "2025-2026");
+            String sem = (semCombo.getValue() != null && !semCombo.getValue().isBlank()) ? semCombo.getValue().trim()
+                    : (toEnroll.getSemester() != null && !toEnroll.getSemester().isBlank() ? toEnroll.getSemester().trim() : "1st Semester");
 
             okButton.setDisable(true);
             CompletableFuture.runAsync(() -> {
@@ -2115,8 +2466,24 @@ public final class StudentViews {
             Alerts.info("Portfolio saved. " + message);
         }));
 
-        VBox editor = new VBox(12,
+        Student curStudent = profiles.studentForUser(Session.currentUser().getUserId()).orElse(null);
+        String progTag = curStudent != null && curStudent.getProgram() != null
+                ? curStudent.getProgram() + " - " + formatYearLevelDisplay(curStudent.getYearLevel())
+                : "BS Information Technology - Year 3";
+        Label progBadge = Ui.badge(progTag, "badge-pill-lavender");
+        progBadge.setStyle("-fx-font-weight: 700; -fx-padding: 4 10;");
+
+        Region editHeaderSpacer = new Region();
+        HBox.setHgrow(editHeaderSpacer, Priority.ALWAYS);
+        HBox editorHeader = new HBox(12,
                 Ui.subtitle("Private keeps the portfolio hidden, Public shares it with every employer, and Submit for approval asks an instructor to approve it for granted employer access."),
+                editHeaderSpacer,
+                progBadge
+        );
+        editorHeader.setAlignment(Pos.CENTER_LEFT);
+
+        VBox editor = new VBox(12,
+                editorHeader,
                 Ui.form(new String[]{"Headline", "Biography", "Career goal", "Visibility"},
                         new Node[]{headline, bio, goal, visibility}),
                 new HBox(8, new Label("Sharing:"), sharing), save);

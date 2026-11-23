@@ -130,6 +130,10 @@ public final class NextItDialog {
         showFeedbackDialog(title != null ? title : "NextIT Information", message, Alert.AlertType.INFORMATION);
     }
 
+    public static void showSuccess(String title, String message) {
+        showFeedbackDialog(title != null ? title : "Success", message, Alert.AlertType.INFORMATION);
+    }
+
     public static void showError(String title, String message) {
         showFeedbackDialog(title != null ? title : "Error Encountered", message, Alert.AlertType.ERROR);
     }
@@ -142,7 +146,7 @@ public final class NextItDialog {
         try {
             if (com.nextit.controller.AppController.getInstance() != null) {
                 Stage mainStage = com.nextit.controller.AppController.getInstance().getStage();
-                if (mainStage != null && mainStage.isShowing()) {
+                if (mainStage != null && mainStage.isShowing() && mainStage.getScene() != null) {
                     return mainStage;
                 }
             }
@@ -152,12 +156,15 @@ public final class NextItDialog {
                     .filter(w -> {
                         if (w instanceof Stage s) {
                             String t = s.getTitle();
-                            return t != null && t.contains("NextIT");
+                            return t != null && !t.contains("Recovery") && !t.contains("Password Reset");
                         }
                         return true;
                     })
-                    .reduce((first, second) -> second)
-                    .orElse(null);
+                    .findFirst()
+                    .orElseGet(() -> javafx.stage.Window.getWindows().stream()
+                            .filter(javafx.stage.Window::isShowing)
+                            .findFirst()
+                            .orElse(null));
         } catch (Exception e) {
             return null;
         }
@@ -167,7 +174,7 @@ public final class NextItDialog {
         runOnFx(() -> {
             Dialog<ButtonType> dialog = new Dialog<>();
             javafx.stage.Window activeWindow = getTopLevelOwner();
-            if (activeWindow != null && activeWindow.isShowing()) {
+            if (activeWindow != null && activeWindow.isShowing() && activeWindow.getScene() != null) {
                 dialog.initOwner(activeWindow);
             }
             dialog.setTitle(title != null ? title : "NextIT");
@@ -175,6 +182,8 @@ public final class NextItDialog {
 
             DialogPane pane = dialog.getDialogPane();
             pane.setGraphic(null);
+            pane.setPrefWidth(480);
+            pane.setMinWidth(420);
             if (NextItDialog.class.getResource("/com/nextit/css/application.css") != null) {
                 pane.getStylesheets().add(NextItDialog.class.getResource("/com/nextit/css/application.css").toExternalForm());
             }
@@ -197,8 +206,9 @@ public final class NextItDialog {
             header.setAlignment(Pos.CENTER_LEFT);
             ImageView logo = Ui.logo(32);
             Label titleLbl = new Label(title != null ? title : "NextIT");
-            String titleColor = alertType == Alert.AlertType.ERROR ? "#991B1B" : "#1A2634";
-            titleLbl.setStyle("-fx-font-size: 14.5px; -fx-font-weight: 800; -fx-text-fill: " + titleColor + ";");
+            boolean isSuccess = title != null && (title.toLowerCase().contains("success") || title.toLowerCase().contains("updated") || title.toLowerCase().contains("saved"));
+            String titleColor = alertType == Alert.AlertType.ERROR ? "#991B1B" : (isSuccess ? "#15803D" : "#1A2634");
+            titleLbl.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: " + titleColor + ";");
             titleLbl.setWrapText(true);
             titleLbl.setMinHeight(Region.USE_PREF_SIZE);
             header.getChildren().addAll(logo, titleLbl);
@@ -237,6 +247,7 @@ public final class NextItDialog {
             dialog.setOnShowing(ev -> {
                 if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
                     WindowBoundsManager.loadStageIcons(stage);
+                    stage.sizeToScene();
                 }
             });
 

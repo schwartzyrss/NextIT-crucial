@@ -2,6 +2,7 @@ package com.nextit.util;
 
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.effect.ColorAdjust;
 import javafx.scene.effect.Effect;
@@ -11,6 +12,9 @@ import javafx.scene.layout.HBox;
 import javafx.scene.layout.Region;
 import javafx.scene.layout.StackPane;
 import javafx.scene.layout.VBox;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
 
 import java.util.Optional;
 
@@ -48,8 +52,156 @@ public final class Alerts {
         NextItDialog.showInfo("NextIT", message);
     }
 
+    public static void success(String title, String message) {
+        NextItDialog.showSuccess(title, message);
+    }
+
     public static boolean confirm(String message) {
         return NextItDialog.showConfirm("Confirm Action", message);
+    }
+
+    public static void showPasswordResetSuccess(javafx.stage.Window owner, Runnable onDismiss) {
+        Stage modalStage = new Stage();
+        modalStage.initModality(Modality.APPLICATION_MODAL);
+        if (owner != null && owner.isShowing()) {
+            modalStage.initOwner(owner);
+        } else {
+            javafx.stage.Window topOwner = NextItDialog.getTopLevelOwner();
+            if (topOwner != null && topOwner.isShowing()) {
+                modalStage.initOwner(topOwner);
+            }
+        }
+        modalStage.setTitle("Password Reset Successful");
+        modalStage.initStyle(StageStyle.TRANSPARENT);
+
+        StackPane rootPane = new StackPane();
+        rootPane.setStyle("-fx-background-color: transparent; -fx-padding: 30;");
+
+        VBox card = new VBox(20);
+        card.setAlignment(Pos.CENTER);
+        card.setPrefWidth(450);
+        card.setMaxWidth(450);
+        card.setStyle(
+                "-fx-background-color: #FAF8F5; " +
+                "-fx-background-radius: 16; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 16; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-padding: 32 30 28 30; " +
+                "-fx-effect: dropshadow(gaussian, rgba(30, 41, 59, 0.22), 24, 0.12, 0, 8);"
+        );
+
+        // 1. Green Success Checkmark Badge
+        StackPane iconCircle = new StackPane();
+        iconCircle.setPrefSize(60, 60);
+        iconCircle.setMinSize(60, 60);
+        iconCircle.setMaxSize(60, 60);
+        iconCircle.setStyle(
+                "-fx-background-color: #DCFCE7; " +
+                "-fx-background-radius: 999; " +
+                "-fx-border-color: #86EFAC; " +
+                "-fx-border-radius: 999; " +
+                "-fx-border-width: 1.5;"
+        );
+        Label checkIcon = new Label("✔");
+        checkIcon.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #15803D;");
+        iconCircle.getChildren().add(checkIcon);
+
+        // 2. Heading & Body Text
+        VBox textBox = new VBox(8);
+        textBox.setAlignment(Pos.CENTER);
+
+        Label heading = new Label("Password Reset Successful");
+        heading.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #1E293B;");
+        heading.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+
+        Label messageLbl = new Label("Your password has been updated. You can now sign in to your NextIT account with your new credentials.");
+        messageLbl.setWrapText(true);
+        messageLbl.setTextAlignment(javafx.scene.text.TextAlignment.CENTER);
+        messageLbl.setAlignment(Pos.CENTER);
+        messageLbl.setPrefWidth(390);
+        messageLbl.setMaxWidth(390);
+        messageLbl.setMinHeight(Region.USE_PREF_SIZE);
+        messageLbl.setTextOverrun(OverrunStyle.CLIP);
+        messageLbl.setStyle("-fx-font-size: 13.5px; -fx-text-fill: #475569; -fx-line-spacing: 3px; -fx-font-weight: 500;");
+
+        textBox.getChildren().addAll(heading, messageLbl);
+
+        // 3. Prominent Crimson "Back to Login" Button
+        Button backToLoginBtn = new Button("Back to Login");
+        backToLoginBtn.setPrefWidth(390);
+        backToLoginBtn.setMaxWidth(Double.MAX_VALUE);
+        backToLoginBtn.setDefaultButton(true);
+        backToLoginBtn.getStyleClass().addAll("dialog-btn", "primary-button");
+        backToLoginBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-weight: 800; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-padding: 11 24; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        );
+        backToLoginBtn.setOnMouseEntered(e -> backToLoginBtn.setStyle(
+                "-fx-background-color: #7F1D1D; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-weight: 800; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-padding: 11 24; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        ));
+        backToLoginBtn.setOnMouseExited(e -> backToLoginBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-weight: 800; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-padding: 11 24; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        ));
+
+        Runnable dismiss = () -> {
+            modalStage.close();
+            if (onDismiss != null) {
+                onDismiss.run();
+            }
+        };
+
+        backToLoginBtn.setOnAction(e -> dismiss.run());
+
+        card.getChildren().addAll(iconCircle, textBox, backToLoginBtn);
+        rootPane.getChildren().add(card);
+
+        Scene scene = new Scene(rootPane);
+        scene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        if (Alerts.class.getResource("/com/nextit/css/application.css") != null) {
+            scene.getStylesheets().add(Alerts.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+
+        scene.addEventFilter(KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == KeyCode.ENTER || ev.getCode() == KeyCode.ESCAPE) {
+                ev.consume();
+                dismiss.run();
+            }
+        });
+
+        // Pre-layout passes to guarantee no blank scenes
+        rootPane.applyCss();
+        rootPane.layout();
+        card.applyCss();
+        card.layout();
+
+        modalStage.setScene(scene);
+        WindowBoundsManager.loadStageIcons(modalStage);
+        modalStage.sizeToScene();
+
+        if (owner != null && owner.isShowing()) {
+            modalStage.setX(owner.getX() + (owner.getWidth() - 510) / 2);
+            modalStage.setY(owner.getY() + (owner.getHeight() - 320) / 2);
+        }
+
+        modalStage.showAndWait();
     }
 
     public static boolean confirmLogout() {
