@@ -35,7 +35,6 @@ public class AppController {
     @FXML private ScrollPane sidebarScroll;
     @FXML private VBox sidebarFooter;
     @FXML private Button logoutButton;
-    @FXML private Button toggleSidebarButton;
 
     private Stage stage;
     private Button activeNavButton;
@@ -43,6 +42,10 @@ public class AppController {
 
     public static AppController getInstance() {
         return instance;
+    }
+
+    public Stage getStage() {
+        return stage;
     }
 
     public void navigateTo(javafx.scene.Node view, String sidebarMatch) {
@@ -110,11 +113,7 @@ public class AppController {
         instance = this;
         this.stage = stage;
         updateWorkspaceTitle("Dashboard");
-        String statusSuffix = user.isVerified() ? "" : " - " + user.getVerificationStatus().displayName();
-        userLabel.setText(user.getFullName() + " (" + user.getRole() + statusSuffix + ")");
-        if (toggleSidebarButton != null) {
-            toggleSidebarButton.setTooltip(new Tooltip("Toggle Sidebar (Ctrl+B)"));
-        }
+        userLabel.setText(user.getFullName() + " (" + user.getRole() + ")");
         if (stage != null && stage.getScene() != null) {
             stage.getScene().getAccelerators().put(
                     new KeyCodeCombination(KeyCode.B, KeyCombination.SHORTCUT_DOWN),
@@ -135,41 +134,8 @@ public class AppController {
         }
         com.nextit.service.SystemService.getInstance().start();
 
-        // RBAC Enforcement: unverified accounts cannot use role workspaces
-        if (user.isVerified()) {
-            buildSidebar(user);
-            showDashboard(user);
-        } else {
-            buildUnverifiedSidebar(user);
-            showVerificationStatus(user);
-        }
-    }
-
-    private void showVerificationStatus(User user) {
-        setView(VerificationStatusView.create(stage, user, this::confirmAndLogout, verifiedUser -> {
-            userLabel.setText(verifiedUser.getFullName() + " (" + verifiedUser.getRole() + ")");
-            buildSidebar(verifiedUser);
-            showDashboard(verifiedUser);
-        }));
-    }
-
-    private void buildUnverifiedSidebar(User user) {
-        sidebar.getChildren().clear();
-        sidebar.getChildren().add(categoryHeader("Identity & Access"));
-        Button statusBtn = navButton("🛡️ Verification Status", () -> showVerificationStatus(user));
-        sidebar.getChildren().add(statusBtn);
-        setActiveButton(statusBtn);
-
-        if (logoutButton != null) {
-            logoutButton.setOnAction(e -> runSafely(this::confirmAndLogout));
-        } else if (sidebarFooter != null) {
-            sidebarFooter.getChildren().clear();
-            Button logout = new Button("🚪 Logout");
-            logout.setMaxWidth(Double.MAX_VALUE);
-            logout.getStyleClass().addAll("sidebar-button", "sidebar-logout-button");
-            logout.setOnAction(e -> runSafely(this::confirmAndLogout));
-            sidebarFooter.getChildren().add(logout);
-        }
+        buildSidebar(user);
+        showDashboard(user);
     }
 
     @FXML
@@ -179,10 +145,6 @@ public class AppController {
         boolean currentlyVisible = target.isVisible();
         target.setVisible(!currentlyVisible);
         target.setManaged(!currentlyVisible);
-        if (toggleSidebarButton != null) {
-            toggleSidebarButton.setText(currentlyVisible ? "☰" : "◀");
-            toggleSidebarButton.setTooltip(new Tooltip(currentlyVisible ? "Show Sidebar (Ctrl+B)" : "Hide Sidebar (Ctrl+B)"));
-        }
     }
 
     private void buildSidebar(User user) {
@@ -238,8 +200,6 @@ public class AppController {
                 sidebar.getChildren().add(navButton("🔍 Portfolio Search", () -> setView(EmployerViews.portfolioSearch())));
             }
             case ADMIN -> {
-                sidebar.getChildren().add(categoryHeader("Verification Management"));
-                sidebar.getChildren().add(navButton("🛡️ Verification Queue", () -> setView(AdminViews.verificationWorkspace())));
                 sidebar.getChildren().add(categoryHeader("Administration"));
                 sidebar.getChildren().add(navButton("👤 Admin Profile", () -> setView(AdminViews.profile())));
             }

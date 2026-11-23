@@ -10,7 +10,7 @@ public class User {
     private Role role;
     private String firstName;
     private String lastName;
-    private VerificationStatus verificationStatus = VerificationStatus.UNVERIFIED;
+    private VerificationStatus verificationStatus = VerificationStatus.VERIFIED;
     private String rejectionReason;
     private LocalDateTime verifiedAt;
     private Integer verifiedBy;
@@ -66,7 +66,7 @@ public class User {
     public String getFullName() { return firstName + " " + lastName; }
 
     public boolean isVerified() {
-        return role == Role.ADMIN || verificationStatus == VerificationStatus.VERIFIED;
+        return verificationStatus != VerificationStatus.SUSPENDED;
     }
 
     public boolean isLocked() {

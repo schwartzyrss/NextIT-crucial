@@ -7,6 +7,8 @@ import com.nextit.service.DirectoryService;
 import com.nextit.service.ProjectService;
 import com.nextit.service.StudentService;
 import com.nextit.util.Alerts;
+import com.nextit.util.CertificateImageViewer;
+import com.nextit.util.CertificateUploaderBox;
 import com.nextit.util.Ui;
 import javafx.collections.FXCollections;
 import javafx.geometry.Pos;
@@ -68,7 +70,21 @@ final class DevelopmentManagementViews {
         Ui.addColumn(table, "Organization / Issuer", AcademicCredential::getOrganization);
         Ui.addColumn(table, "Date / Timeline", AcademicCredential::getDateDisplay);
         Ui.addColumn(table, "Description / Notes", AcademicCredential::getDescription);
-        Ui.addColumn(table, "Verification / Link", AcademicCredential::getVerificationUrl);
+        TableColumn<AcademicCredential, AcademicCredential> proofCol = Ui.actionColumn("Certificate / Proof", cred -> {
+            String urlOrPath = cred.getVerificationUrl();
+            if (urlOrPath == null || urlOrPath.isBlank()) {
+                Label none = new Label("—");
+                none.setStyle("-fx-text-fill: #94A3B8; -fx-font-weight: 600;");
+                return none;
+            }
+            Button viewBtn = new Button("🖼️ View Picture");
+            viewBtn.setStyle("-fx-background-color: #FAF7F2; -fx-border-color: #991B1B; -fx-border-radius: 6; -fx-background-radius: 6; -fx-text-fill: #991B1B; -fx-font-weight: 700; -fx-font-size: 11px; -fx-padding: 3 8; -fx-cursor: hand;");
+            viewBtn.setOnAction(ev -> CertificateImageViewer.show(urlOrPath, cred.getTitle(), cred.getOrganization()));
+            return viewBtn;
+        });
+        proofCol.setPrefWidth(140);
+        proofCol.setMinWidth(120);
+        table.getColumns().add(proofCol);
 
         TextField search = Ui.field("Search by student, title, organization, issuer...");
         search.setPrefWidth(280);
@@ -192,8 +208,7 @@ final class DevelopmentManagementViews {
         TextArea description = Ui.area("Description, honors, or notes");
         if (existing != null) description.setText(existing.getDescription());
 
-        TextField url = Ui.field("https://... (verification or credential link)");
-        if (existing != null) url.setText(existing.getVerificationUrl());
+        CertificateUploaderBox uploaderBox = new CertificateUploaderBox(existing != null ? existing.getVerificationUrl() : null);
 
         Runnable syncFields = () -> {
             boolean isCert = typeCombo.getValue() == AcademicCredential.Type.CERTIFICATION;
@@ -213,8 +228,8 @@ final class DevelopmentManagementViews {
                 "Date / Issue Date",
                 "Expiration Date (Certifications)",
                 "Description / Notes",
-                "Verification / Credential URL"
-        }, new Node[]{owner, typeCombo, title, organization, date, expires, description, url});
+                "Certificate / Proof Picture"
+        }, new Node[]{owner, typeCombo, title, organization, date, expires, description, uploaderBox});
 
         String dialogTitle = existing == null ? "Add Achievement or Certification" :
                 (existing.getType() == AcademicCredential.Type.ACHIEVEMENT ? "Edit Achievement" : "Edit Certification");
@@ -242,7 +257,7 @@ final class DevelopmentManagementViews {
                 target.setDate(dateVal);
                 target.setExpirationDate(expiryVal);
                 target.setDescription(description.getText());
-                target.setVerificationUrl(url.getText());
+                target.setVerificationUrl(uploaderBox.saveAndGetFinalPath());
 
                 students.saveCredential(target);
                 refresh.run();

@@ -5,14 +5,20 @@ import com.nextit.model.*;
 import com.nextit.security.Session;
 import com.nextit.service.*;
 import com.nextit.util.Alerts;
+import com.nextit.util.NextItDialog;
 import com.nextit.util.Ui;
 import javafx.collections.FXCollections;
 import javafx.geometry.Insets;
 import javafx.geometry.Pos;
 import javafx.scene.Node;
+import javafx.scene.Scene;
 import javafx.scene.control.*;
 import javafx.scene.input.ScrollEvent;
 import javafx.scene.layout.*;
+import javafx.stage.Modality;
+import javafx.stage.Stage;
+import javafx.stage.StageStyle;
+import javafx.stage.Window;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -20,6 +26,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import javafx.application.Platform;
@@ -311,13 +318,13 @@ public final class InstructorViews {
         viewScope.valueProperty().addListener((obs, old, value) -> filter.run());
 
         Button addSubjectBtn = Ui.button("➕ Add Subject / Section", "primary-button");
-        addSubjectBtn.setOnAction(e -> showSubjectDialog(null, iid, filter));
+        addSubjectBtn.setOnAction(e -> showSubjectDialog(null, iid, table, viewScope, filter));
 
         Button editSubjectBtn = new Button("Edit Subject");
         editSubjectBtn.setOnAction(e -> {
             Subject sel = table.getSelectionModel().getSelectedItem();
             if (sel == null) { Alerts.error("Select a subject to edit."); return; }
-            showSubjectDialog(sel, sel.getInstructorId() != null ? sel.getInstructorId() : iid, filter);
+            showSubjectDialog(sel, sel.getInstructorId() != null ? sel.getInstructorId() : iid, table, viewScope, filter);
         });
 
         Button refresh = new Button("Refresh");
@@ -328,9 +335,35 @@ public final class InstructorViews {
     }
 
     private static void showSubjectDialog(Subject existing, int defaultInstructorId, Runnable onComplete) {
+        showSubjectDialog(existing, defaultInstructorId, null, null, onComplete);
+    }
+
+    private static void showSubjectDialog(Subject existing, int defaultInstructorId, TableView<Subject> table, ComboBox<String> viewScope, Runnable onComplete) {
         Dialog<ButtonType> dialog = new Dialog<>();
+        Window owner = NextItDialog.getTopLevelOwner();
+        if (owner != null && owner.isShowing()) {
+            dialog.initOwner(owner);
+        }
         dialog.setTitle(existing == null ? "Add Subject / Section" : "Edit Subject / Section");
-        dialog.getDialogPane().getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        dialog.setHeaderText(null);
+
+        DialogPane pane = dialog.getDialogPane();
+        pane.getButtonTypes().addAll(ButtonType.OK, ButtonType.CANCEL);
+        if (InstructorViews.class.getResource("/com/nextit/css/application.css") != null) {
+            pane.getStylesheets().add(InstructorViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+        pane.setStyle(
+                "-fx-background-color: #FAF8F5; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-padding: 10;"
+        );
+
+        dialog.setOnShowing(ev -> {
+            if (pane.getScene() != null && pane.getScene().getWindow() instanceof Stage stage) {
+                com.nextit.util.WindowBoundsManager.loadStageIcons(stage);
+            }
+        });
 
         TextField code = Ui.field("Subject code (e.g. IT301, IT-311)");
         code.setText(existing == null ? "" : existing.getSubjectCode());
@@ -359,51 +392,280 @@ public final class InstructorViews {
                 new String[]{"Subject code", "Subject title", "Units", "Section", "Academic year", "Semester", "Assigned instructor", "Description"},
                 new Node[]{code, name, units, section, academicYear, semester, instPicker, description});
 
-        dialog.getDialogPane().setContent(form);
-        Button ok = (Button) dialog.getDialogPane().lookupButton(ButtonType.OK);
-        ok.setText(existing == null ? "Create Subject" : "Update Subject");
-        ok.getStyleClass().add("primary-button");
+        pane.setContent(form);
+        Button ok = (Button) pane.lookupButton(ButtonType.OK);
+        if (ok != null) {
+            ok.setText(existing == null ? "Create Subject" : "Update Subject");
+            ok.getStyleClass().add("primary-button");
+            ok.setStyle("-fx-background-color: #991B1B; -fx-text-fill: #FFFFFF; -fx-font-weight: 800; -fx-padding: 8 20; -fx-background-radius: 6; -fx-cursor: hand;");
+        }
+        Button cancel = (Button) pane.lookupButton(ButtonType.CANCEL);
+        if (cancel != null) {
+            cancel.getStyleClass().add("secondary-button");
+            cancel.setStyle("-fx-background-color: #FAF8F5; -fx-text-fill: #1A2634; -fx-font-weight: 700; -fx-border-color: rgba(74, 90, 106, 0.35); -fx-padding: 8 18; -fx-background-radius: 6; -fx-cursor: hand;");
+        }
 
-        ok.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
-            event.consume();
-            String codeVal = code.getText() == null ? "" : code.getText().trim();
-            String nameVal = name.getText() == null ? "" : name.getText().trim();
-            if (codeVal.isBlank() || nameVal.isBlank()) {
-                Alerts.error("Subject code and title are required.");
-                return;
-            }
-            double u;
-            try {
-                u = Double.parseDouble(units.getText().trim());
-            } catch (Exception ex) {
-                Alerts.error("Invalid units value.");
-                return;
-            }
+        if (ok != null) {
+            ok.addEventFilter(javafx.event.ActionEvent.ACTION, event -> {
+                event.consume();
+                String codeVal = code.getText() == null ? "" : code.getText().trim();
+                String nameVal = name.getText() == null ? "" : name.getText().trim();
+                if (codeVal.isBlank() || nameVal.isBlank()) {
+                    Alerts.error("Subject code and title are required.");
+                    return;
+                }
+                double u;
+                try {
+                    u = Double.parseDouble(units.getText().trim());
+                } catch (Exception ex) {
+                    Alerts.error("Invalid units value.");
+                    return;
+                }
 
-            Subject s = existing == null ? new Subject() : existing;
-            s.setSubjectCode(codeVal);
-            s.setSubjectName(nameVal);
-            s.setUnits(u);
-            s.setSection(section.getText() != null ? section.getText().trim() : "A");
-            s.setAcademicYear(academicYear.getText() != null ? academicYear.getText().trim() : "2025-2026");
-            s.setSemester(semester.getValue());
-            if (instPicker.getValue() != null) s.setInstructorId(instPicker.getValue().getInstructorId());
-            s.setDescription(description.getText());
+                Subject s = existing == null ? new Subject() : existing;
+                s.setSubjectCode(codeVal);
+                s.setSubjectName(nameVal);
+                s.setUnits(u);
+                s.setSection(section.getText() != null ? section.getText().trim() : "A");
+                s.setAcademicYear(academicYear.getText() != null ? academicYear.getText().trim() : "2025-2026");
+                s.setSemester(semester.getValue());
+                if (instPicker.getValue() != null) s.setInstructorId(instPicker.getValue().getInstructorId());
+                s.setDescription(description.getText());
 
-            try {
-                com.nextit.repository.JdbcSubjectRepository repo = new com.nextit.repository.JdbcSubjectRepository();
-                if (existing == null) repo.save(s);
-                else repo.update(s);
-                dialog.setResult(ButtonType.OK);
-                dialog.close();
-                Alerts.info("Subject " + s.getSubjectCode() + " saved.");
-                if (onComplete != null) onComplete.run();
-            } catch (Exception ex) {
-                Alerts.error("Failed to save subject: " + ex.getMessage());
+                try {
+                    com.nextit.repository.JdbcSubjectRepository repo = new com.nextit.repository.JdbcSubjectRepository();
+                    boolean isNew = (existing == null);
+                    if (isNew) repo.save(s);
+                    else repo.update(s);
+
+                    String chosenInstructorName = instPicker.getValue() != null
+                            ? ("Prof. " + instNames.getOrDefault(instPicker.getValue().getInstructorId(), "Instructor #" + instPicker.getValue().getInstructorId()))
+                            : "Unassigned";
+
+                    Window topWindow = owner != null && owner.isShowing() ? owner : NextItDialog.getTopLevelOwner();
+
+                    dialog.setResult(ButtonType.OK);
+                    dialog.close();
+
+                    // 1. Auto-refresh & scope handling
+                    if (viewScope != null) {
+                        if (s.getInstructorId() == null || s.getInstructorId() != defaultInstructorId) {
+                            viewScope.getSelectionModel().select("All Subjects");
+                        }
+                    }
+                    if (onComplete != null) {
+                        onComplete.run();
+                    }
+
+                    // 2. Scroll to & highlight the newly added/updated row
+                    if (table != null) {
+                        Subject match = table.getItems().stream()
+                                .filter(item -> (s.getSubjectId() > 0 && item.getSubjectId() == s.getSubjectId())
+                                        || (s.getSubjectCode().equalsIgnoreCase(item.getSubjectCode())
+                                                && Objects.equals(s.getSection(), item.getSection())))
+                                .findFirst().orElse(null);
+                        if (match != null) {
+                            table.getSelectionModel().select(match);
+                            table.scrollTo(match);
+                            table.requestFocus();
+                        }
+                    }
+
+                    // 3. Show enhanced NextIT confirmation modal
+                    showSubjectConfirmationModal(topWindow, s, chosenInstructorName, isNew);
+                } catch (Exception ex) {
+                    Alerts.error("Failed to save subject: " + ex.getMessage());
+                }
+            });
+        }
+
+        dialog.showAndWait();
+    }
+
+    private static void showSubjectConfirmationModal(Window ownerWindow, Subject subject, String instructorName, boolean isNew) {
+        Stage modalStage = new Stage();
+        modalStage.initModality(Modality.APPLICATION_MODAL);
+        if (ownerWindow != null && ownerWindow.isShowing()) {
+            modalStage.initOwner(ownerWindow);
+        }
+        modalStage.initStyle(StageStyle.TRANSPARENT);
+
+        StackPane rootPane = new StackPane();
+        rootPane.setStyle("-fx-background-color: transparent; -fx-padding: 30;");
+
+        VBox card = new VBox(16);
+        card.setAlignment(Pos.CENTER);
+        card.setPrefWidth(520);
+        card.setMaxWidth(520);
+        card.setStyle(
+                "-fx-background-color: #FAF8F5; " +
+                "-fx-background-radius: 16; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 16; " +
+                "-fx-border-width: 1.5; " +
+                "-fx-padding: 26 28 24 28; " +
+                "-fx-effect: dropshadow(gaussian, rgba(26, 38, 52, 0.25), 24, 0.15, 0, 8);"
+        );
+
+        // 1. Green Success Checkmark Badge
+        StackPane iconCircle = new StackPane();
+        iconCircle.setStyle(
+                "-fx-background-color: #DCFCE7; " +
+                "-fx-background-radius: 50; " +
+                "-fx-min-width: 58; -fx-min-height: 58; " +
+                "-fx-max-width: 58; -fx-max-height: 58; " +
+                "-fx-border-color: #86EFAC; " +
+                "-fx-border-radius: 50; " +
+                "-fx-border-width: 1.5;"
+        );
+        Label checkIcon = new Label("✔");
+        checkIcon.setStyle("-fx-font-size: 28px; -fx-font-weight: 900; -fx-text-fill: #15803D;");
+        iconCircle.getChildren().add(checkIcon);
+
+        // 2. Heading & Subtitle
+        Label heading = new Label(isNew ? "Subject & Section Added" : "Subject Details Updated");
+        heading.setStyle("-fx-font-size: 20px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+
+        Label subHeading = new Label(isNew
+                ? "The new subject course offering and section roster have been registered."
+                : "Subject information and section details have been successfully updated.");
+        subHeading.setStyle("-fx-font-size: 12.5px; -fx-text-fill: #5A6A7E; -fx-font-weight: 500;");
+
+        // 3. Concise Summary Card
+        VBox detailsCard = new VBox(12);
+        detailsCard.setStyle(
+                "-fx-background-color: #FFFFFF; " +
+                "-fx-border-color: #E2D9CC; " +
+                "-fx-border-radius: 12; " +
+                "-fx-background-radius: 12; " +
+                "-fx-padding: 16 18;"
+        );
+
+        // Header row with Subject Code Pill Badge and Subject Title
+        HBox titleRow = new HBox(10);
+        titleRow.setAlignment(Pos.CENTER_LEFT);
+
+        Label codeBadge = new Label(subject.getSubjectCode() != null ? subject.getSubjectCode() : "SUBJ");
+        codeBadge.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-weight: 800; " +
+                "-fx-font-size: 12px; " +
+                "-fx-padding: 4 10; " +
+                "-fx-background-radius: 6;"
+        );
+
+        Label nameLbl = new Label(subject.getSubjectName() != null ? subject.getSubjectName() : "Untitled Subject");
+        nameLbl.setStyle("-fx-font-size: 15px; -fx-font-weight: 800; -fx-text-fill: #1A2634;");
+        nameLbl.setWrapText(true);
+        HBox.setHgrow(nameLbl, Priority.ALWAYS);
+        titleRow.getChildren().addAll(codeBadge, nameLbl);
+
+        Separator sep = new Separator();
+        sep.setStyle("-fx-opacity: 0.5;");
+
+        // Two-column metadata grid
+        GridPane metaGrid = new GridPane();
+        metaGrid.setHgap(16);
+        metaGrid.setVgap(8);
+
+        addSummaryRow(metaGrid, 0, "Subject Code:", subject.getSubjectCode() != null ? subject.getSubjectCode() : "N/A", "#1A2634", true);
+        addSummaryRow(metaGrid, 1, "Subject Title:", subject.getSubjectName() != null ? subject.getSubjectName() : "N/A", "#1A2634", true);
+        addSummaryRow(metaGrid, 2, "Units:", String.format(Locale.ROOT, "%.1f Units", subject.getUnits()), "#1A2634", false);
+        addSummaryRow(metaGrid, 3, "Section:", subject.getSection() != null ? subject.getSection() : "A", "#991B1B", true);
+        addSummaryRow(metaGrid, 4, "Semester:", subject.getSemester() != null ? subject.getSemester() : "1st Semester", "#1A2634", false);
+        addSummaryRow(metaGrid, 5, "Academic Year:", subject.getAcademicYear() != null ? subject.getAcademicYear() : "2025-2026", "#1A2634", false);
+        addSummaryRow(metaGrid, 6, "Assigned Instructor:", instructorName != null && !instructorName.isBlank() ? instructorName : "Unassigned", "#1A2634", true);
+
+        detailsCard.getChildren().addAll(titleRow, sep, metaGrid);
+
+        // Course description row if present
+        if (subject.getDescription() != null && !subject.getDescription().isBlank()) {
+            VBox descBox = new VBox(4);
+            Label descHeader = new Label("Description:");
+            descHeader.setStyle("-fx-font-size: 11px; -fx-font-weight: 700; -fx-text-fill: #6E6862;");
+
+            Label descContent = new Label(subject.getDescription().trim());
+            descContent.setWrapText(true);
+            descContent.setMaxWidth(Double.MAX_VALUE);
+            descContent.setStyle("-fx-font-size: 12px; -fx-text-fill: #1A2634; -fx-background-color: #FAF8F5; -fx-border-color: #EFE2CA; -fx-border-radius: 8; -fx-background-radius: 8; -fx-padding: 8; -fx-line-spacing: 2px;");
+
+            descBox.getChildren().addAll(descHeader, descContent);
+            detailsCard.getChildren().add(descBox);
+        }
+
+        // 4. Primary "Done" Button
+        Button doneBtn = new Button("Done");
+        doneBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 10 36; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        );
+        doneBtn.setMaxWidth(Double.MAX_VALUE);
+        doneBtn.setOnAction(e -> modalStage.close());
+
+        doneBtn.setOnMouseEntered(e -> doneBtn.setStyle(
+                "-fx-background-color: #7F1D1D; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 10 36; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        ));
+        doneBtn.setOnMouseExited(e -> doneBtn.setStyle(
+                "-fx-background-color: #991B1B; " +
+                "-fx-text-fill: #FFFFFF; " +
+                "-fx-font-size: 13.5px; " +
+                "-fx-font-weight: 800; " +
+                "-fx-padding: 10 36; " +
+                "-fx-background-radius: 8; " +
+                "-fx-cursor: hand;"
+        ));
+
+        card.getChildren().addAll(iconCircle, heading, subHeading, detailsCard, doneBtn);
+        rootPane.getChildren().add(card);
+
+        Scene modalScene = new Scene(rootPane);
+        modalScene.setFill(javafx.scene.paint.Color.TRANSPARENT);
+        if (InstructorViews.class.getResource("/com/nextit/css/application.css") != null) {
+            modalScene.getStylesheets().add(InstructorViews.class.getResource("/com/nextit/css/application.css").toExternalForm());
+        }
+        modalScene.addEventFilter(javafx.scene.input.KeyEvent.KEY_PRESSED, ev -> {
+            if (ev.getCode() == javafx.scene.input.KeyCode.ESCAPE || ev.getCode() == javafx.scene.input.KeyCode.ENTER) {
+                modalStage.close();
+                ev.consume();
             }
         });
 
-        dialog.showAndWait();
+        modalStage.setScene(modalScene);
+
+        if (ownerWindow != null) {
+            modalStage.setOnShown(ev -> {
+                double x = ownerWindow.getX() + (ownerWindow.getWidth() - modalStage.getWidth()) / 2.0;
+                double y = ownerWindow.getY() + (ownerWindow.getHeight() - modalStage.getHeight()) / 2.0;
+                modalStage.setX(Math.max(0, x));
+                modalStage.setY(Math.max(0, y));
+            });
+        } else {
+            modalStage.centerOnScreen();
+        }
+
+        modalStage.showAndWait();
+    }
+
+    private static void addSummaryRow(GridPane grid, int row, String label, String value, String valueColor, boolean bold) {
+        Label lbl = new Label(label);
+        lbl.setStyle("-fx-font-size: 11.5px; -fx-text-fill: #7A889B; -fx-font-weight: 600;");
+        Label val = new Label(value);
+        val.setWrapText(true);
+        val.setStyle("-fx-font-size: 12px; -fx-text-fill: " + valueColor + "; -fx-font-weight: " + (bold ? "800;" : "600;"));
+        grid.add(lbl, 0, row);
+        grid.add(val, 1, row);
     }
 
     public static Node skills() {

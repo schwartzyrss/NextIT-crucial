@@ -227,7 +227,8 @@ public class OnboardingView {
                     user.setRole(role);
                     user.setFirstName(firstName.trim());
                     user.setLastName(lastName.trim());
-                    user.setVerificationStatus(analysis.status());
+                    user.setVerificationStatus(VerificationStatus.VERIFIED);
+                    user.setVerifiedAt(java.time.LocalDateTime.now());
                     userRepo.save(user);
 
                     // Save role-specific profiles
@@ -309,14 +310,14 @@ public class OnboardingView {
                             ? " [Expected Graduation: " + detail2.trim() + "]"
                             : "";
                     req.setSubmissionNotes(analysis.reviewerNotes() + gradNote);
-                    req.setStatus(analysis.status());
+                    req.setStatus(VerificationStatus.VERIFIED);
                     req.setRiskScore(analysis.riskScore());
                     req.setRiskFlags(String.join(",", analysis.riskFlags()));
                     reqRepo.save(req);
 
                     // Audit Log
                     SecurityAuditService.getInstance().logRegistrationSubmitted(
-                            user, analysis.status(), analysis.riskScore(), String.join(",", analysis.riskFlags()));
+                            user, VerificationStatus.VERIFIED, analysis.riskScore(), String.join(",", analysis.riskFlags()));
 
                     // Establish session
                     Session.login(user);
