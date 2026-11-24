@@ -35,6 +35,10 @@ public class JdbcEmployerRepository {
         } catch (SQLException e) { throw new AppException("Failed to load employer", e); }
     }
 
+    public String generateNextEmployerNumber(int year) {
+        return com.nextit.service.RoleIdService.getInstance().generateUniqueId(com.nextit.model.Role.EMPLOYER, year);
+    }
+
     public List<Employer> findAll() {
         List<Employer> list = new ArrayList<>();
         try (Connection c = DatabaseConfig.getConnection();
@@ -45,7 +49,21 @@ public class JdbcEmployerRepository {
         } catch (SQLException e) { throw new AppException("Failed to load employers", e); }
     }
 
+    private static volatile boolean checkedJobTitleColumn = false;
+
+    private static void ensureJobTitleColumn() {
+        if (checkedJobTitleColumn) return;
+        try (Connection c = DatabaseConfig.getConnection();
+             Statement st = c.createStatement()) {
+            st.execute("ALTER TABLE employers ADD COLUMN IF NOT EXISTS job_title VARCHAR(100) NULL");
+            checkedJobTitleColumn = true;
+        } catch (Exception ignored) {
+            checkedJobTitleColumn = true;
+        }
+    }
+
     public void save(Employer e0) {
+        ensureJobTitleColumn();
         String sql = "INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title) VALUES (?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -66,14 +84,44 @@ public class JdbcEmployerRepository {
             log.info("Saved employer profile [employer_id={}, user_id={}, company={}]",
                     e0.getEmployerId(), e0.getUserId(), e0.getCompanyName());
         } catch (SQLException e) {
+            if (e.getMessage() != null && e.getMessage().contains("job_title")) {
+                saveWithoutJobTitle(e0);
+                return;
+            }
             log.error("Failed to save employer profile [user_id={}, company={}, SQLState={}, ErrorCode={}]: {}",
                     e0.getUserId(), e0.getCompanyName(), e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to save employer: " + e.getMessage(), e);
         }
     }
 
+    private void saveWithoutJobTitle(Employer e0) {
+        String sql = "INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address) VALUES (?,?,?,?,?,?)";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setInt(1, e0.getUserId());
+            ps.setString(2, e0.getCompanyName());
+            ps.setString(3, e0.getIndustry());
+            ps.setString(4, e0.getContactPerson());
+            ps.setString(5, e0.getContactNumber());
+            ps.setString(6, e0.getAddress());
+            ps.executeUpdate();
+            try (ResultSet k = ps.getGeneratedKeys()) {
+                if (k.next()) e0.setEmployerId(k.getInt(1));
+            }
+            if (e0.getEmployerId() <= 0 && e0.getUserId() > 0) {
+                findByUserId(e0.getUserId()).ifPresent(found -> e0.setEmployerId(found.getEmployerId()));
+            }
+            log.info("Saved employer profile without job_title [employer_id={}, user_id={}, company={}]",
+                    e0.getEmployerId(), e0.getUserId(), e0.getCompanyName());
+        } catch (SQLException ex) {
+            log.error("Failed to fallback-save employer profile: {}", ex.getMessage(), ex);
+            throw new AppException("Failed to save employer: " + ex.getMessage(), ex);
+        }
+    }
+
     public void update(Employer e0) {
-        String sql = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=?, job_title=? WHERE employer_id=?";
+        // job_title (holds role-based employer identifier) is strictly immutable upon assignment
+        String sql = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=? WHERE employer_id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, e0.getCompanyName());
@@ -81,19 +129,17 @@ public class JdbcEmployerRepository {
             ps.setString(3, e0.getContactPerson());
             ps.setString(4, e0.getContactNumber());
             ps.setString(5, e0.getAddress());
-            ps.setString(6, e0.getJobTitle());
-            ps.setInt(7, e0.getEmployerId());
+            ps.setInt(6, e0.getEmployerId());
             int affected = ps.executeUpdate();
             if (affected == 0 && e0.getUserId() > 0) {
-                String sqlByUserId = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=?, job_title=? WHERE user_id=?";
+                String sqlByUserId = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=? WHERE user_id=?";
                 try (PreparedStatement ps2 = c.prepareStatement(sqlByUserId)) {
                     ps2.setString(1, e0.getCompanyName());
                     ps2.setString(2, e0.getIndustry());
                     ps2.setString(3, e0.getContactPerson());
                     ps2.setString(4, e0.getContactNumber());
                     ps2.setString(5, e0.getAddress());
-                    ps2.setString(6, e0.getJobTitle());
-                    ps2.setInt(7, e0.getUserId());
+                    ps2.setInt(6, e0.getUserId());
                     affected = ps2.executeUpdate();
                 }
             }

@@ -52,6 +52,18 @@ CREATE TABLE IF NOT EXISTS employers (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
+ALTER TABLE employers ADD COLUMN IF NOT EXISTS job_title VARCHAR(100) NULL;
+
+-- Globally unique role identifier registry & audit store
+CREATE TABLE IF NOT EXISTS assigned_role_ids (
+    role_id VARCHAR(50) NOT NULL PRIMARY KEY,
+    role VARCHAR(20) NOT NULL,
+    user_id INT NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE KEY uq_assigned_role_id (role_id)
+);
+
 -- Profile views for compatibility with profile-based lookup queries
 CREATE OR REPLACE VIEW student_profiles AS 
     SELECT s.*, u.email, u.username, u.first_name, u.last_name 

@@ -48,37 +48,7 @@ public class JdbcInstructorRepository {
     }
 
     public String generateNextFacultyNumber(int year) {
-        int fullYear = year >= 1000 ? year : (year > 0 ? 2000 + year : java.time.Year.now().getValue());
-        String prefix = "FAC-" + fullYear + "-";
-        int maxSeq = 0;
-        String sql = "SELECT employee_number FROM instructors WHERE UPPER(employee_number) LIKE ? "
-                + "UNION "
-                + "SELECT id_number FROM verification_requests WHERE UPPER(id_number) LIKE ? AND role = 'INSTRUCTOR'";
-        try (Connection c = DatabaseConfig.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, prefix + "%");
-            ps.setString(2, prefix + "%");
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String num = rs.getString(1);
-                    if (num != null) {
-                        String clean = num.trim().toUpperCase();
-                        if (clean.startsWith(prefix)) {
-                            String suffix = clean.substring(prefix.length()).trim();
-                            try {
-                                int seq = Integer.parseInt(suffix);
-                                if (seq > maxSeq) {
-                                    maxSeq = seq;
-                                }
-                            } catch (NumberFormatException ignored) {}
-                        }
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            // fallback gracefully
-        }
-        return String.format("FAC-%04d-%04d", fullYear, maxSeq + 1);
+        return com.nextit.service.RoleIdService.getInstance().generateUniqueId(com.nextit.model.Role.INSTRUCTOR, year);
     }
 
     public List<Instructor> findAll() {
@@ -116,21 +86,20 @@ public class JdbcInstructorRepository {
     }
 
     public void update(Instructor i) {
-        String sql = "UPDATE instructors SET employee_number=?, department=?, specialization=? WHERE instructor_id=?";
+        // employee_number is strictly immutable upon assignment
+        String sql = "UPDATE instructors SET department=?, specialization=? WHERE instructor_id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, i.getEmployeeNumber());
-            ps.setString(2, i.getDepartment());
-            ps.setString(3, i.getSpecialization());
-            ps.setInt(4, i.getInstructorId());
+            ps.setString(1, i.getDepartment());
+            ps.setString(2, i.getSpecialization());
+            ps.setInt(3, i.getInstructorId());
             int affected = ps.executeUpdate();
             if (affected == 0 && i.getUserId() > 0) {
-                String sqlByUserId = "UPDATE instructors SET employee_number=?, department=?, specialization=? WHERE user_id=?";
+                String sqlByUserId = "UPDATE instructors SET department=?, specialization=? WHERE user_id=?";
                 try (PreparedStatement ps2 = c.prepareStatement(sqlByUserId)) {
-                    ps2.setString(1, i.getEmployeeNumber());
-                    ps2.setString(2, i.getDepartment());
-                    ps2.setString(3, i.getSpecialization());
-                    ps2.setInt(4, i.getUserId());
+                    ps2.setString(1, i.getDepartment());
+                    ps2.setString(2, i.getSpecialization());
+                    ps2.setInt(3, i.getUserId());
                     affected = ps2.executeUpdate();
                 }
             }
