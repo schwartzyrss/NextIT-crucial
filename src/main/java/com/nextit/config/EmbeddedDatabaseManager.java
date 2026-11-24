@@ -239,6 +239,7 @@ public final class EmbeddedDatabaseManager {
 
             String serverUrl = "jdbc:mysql://127.0.0.1:" + configuration.getPort() + "/";
             initializeSqlScript(serverUrl, "schema.sql");
+            ensureSchemaMigrations(serverUrl);
             if (!isDatabasePopulated(serverUrl)) {
                 initializeSqlScript(serverUrl, "seed.sql");
                 LOG.info("Embedded database initialized with demo seed data.");
@@ -270,6 +271,54 @@ public final class EmbeddedDatabaseManager {
                 embeddedDatabase = null;
                 started = false;
             }
+        }
+    }
+
+    private static void ensureSchemaMigrations(String serverUrl) {
+        String dbUrl = serverUrl + DATABASE_NAME + CONNECTION_PARAMETERS;
+        try (Connection c = DriverManager.getConnection(dbUrl, "root", "");
+             Statement st = c.createStatement()) {
+
+            // 1. Ensure employers table has job_title
+            try {
+                st.execute("ALTER TABLE employers ADD COLUMN IF NOT EXISTS job_title VARCHAR(100) NULL");
+                LOG.info("Verified employers.job_title schema column");
+            } catch (Exception ex) {
+                LOG.debug("Notice adding job_title to employers: {}", ex.getMessage());
+            }
+
+            // 2. Ensure users table has verification and security columns
+            String[] userCols = {
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_status VARCHAR(20) NOT NULL DEFAULT 'VERIFIED'",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS rejection_reason TEXT NULL",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at DATETIME NULL",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INT NOT NULL DEFAULT 0",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until DATETIME NULL",
+                "ALTER TABLE users ADD COLUMN IF NOT EXISTS mfa_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+            };
+            for (String sql : userCols) {
+                try {
+                    st.execute(sql);
+                } catch (Exception ignored) {}
+            }
+
+            // 3. Ensure assigned_role_ids table exists
+            try {
+                st.execute("""
+                    CREATE TABLE IF NOT EXISTS assigned_role_ids (
+                        role_id VARCHAR(50) NOT NULL PRIMARY KEY,
+                        role VARCHAR(20) NOT NULL,
+                        user_id INT NULL,
+                        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                        created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        UNIQUE KEY uq_assigned_role_id (role_id)
+                    )
+                """);
+            } catch (Exception ex) {
+                LOG.debug("Notice ensuring assigned_role_ids: {}", ex.getMessage());
+            }
+        } catch (Exception e) {
+            LOG.warn("Notice during embedded schema migration: {}", e.getMessage());
         }
     }
 

@@ -52,6 +52,8 @@ CREATE TABLE IF NOT EXISTS employers (
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE
 );
 
+ALTER TABLE employers ADD COLUMN IF NOT EXISTS job_title VARCHAR(100) NULL;
+
 -- Globally unique role identifier registry & audit store
 CREATE TABLE IF NOT EXISTS assigned_role_ids (
     role_id VARCHAR(50) NOT NULL PRIMARY KEY,

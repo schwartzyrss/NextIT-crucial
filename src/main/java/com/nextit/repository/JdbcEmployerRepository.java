@@ -49,7 +49,21 @@ public class JdbcEmployerRepository {
         } catch (SQLException e) { throw new AppException("Failed to load employers", e); }
     }
 
+    private static volatile boolean checkedJobTitleColumn = false;
+
+    private static void ensureJobTitleColumn() {
+        if (checkedJobTitleColumn) return;
+        try (Connection c = DatabaseConfig.getConnection();
+             Statement st = c.createStatement()) {
+            st.execute("ALTER TABLE employers ADD COLUMN IF NOT EXISTS job_title VARCHAR(100) NULL");
+            checkedJobTitleColumn = true;
+        } catch (Exception ignored) {
+            checkedJobTitleColumn = true;
+        }
+    }
+
     public void save(Employer e0) {
+        ensureJobTitleColumn();
         String sql = "INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address, job_title) VALUES (?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -70,9 +84,38 @@ public class JdbcEmployerRepository {
             log.info("Saved employer profile [employer_id={}, user_id={}, company={}]",
                     e0.getEmployerId(), e0.getUserId(), e0.getCompanyName());
         } catch (SQLException e) {
+            if (e.getMessage() != null && e.getMessage().contains("job_title")) {
+                saveWithoutJobTitle(e0);
+                return;
+            }
             log.error("Failed to save employer profile [user_id={}, company={}, SQLState={}, ErrorCode={}]: {}",
                     e0.getUserId(), e0.getCompanyName(), e.getSQLState(), e.getErrorCode(), e.getMessage());
             throw new AppException("Failed to save employer: " + e.getMessage(), e);
+        }
+    }
+
+    private void saveWithoutJobTitle(Employer e0) {
+        String sql = "INSERT INTO employers (user_id, company_name, industry, contact_person, contact_number, address) VALUES (?,?,?,?,?,?)";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            ps.setInt(1, e0.getUserId());
+            ps.setString(2, e0.getCompanyName());
+            ps.setString(3, e0.getIndustry());
+            ps.setString(4, e0.getContactPerson());
+            ps.setString(5, e0.getContactNumber());
+            ps.setString(6, e0.getAddress());
+            ps.executeUpdate();
+            try (ResultSet k = ps.getGeneratedKeys()) {
+                if (k.next()) e0.setEmployerId(k.getInt(1));
+            }
+            if (e0.getEmployerId() <= 0 && e0.getUserId() > 0) {
+                findByUserId(e0.getUserId()).ifPresent(found -> e0.setEmployerId(found.getEmployerId()));
+            }
+            log.info("Saved employer profile without job_title [employer_id={}, user_id={}, company={}]",
+                    e0.getEmployerId(), e0.getUserId(), e0.getCompanyName());
+        } catch (SQLException ex) {
+            log.error("Failed to fallback-save employer profile: {}", ex.getMessage(), ex);
+            throw new AppException("Failed to save employer: " + ex.getMessage(), ex);
         }
     }
 
