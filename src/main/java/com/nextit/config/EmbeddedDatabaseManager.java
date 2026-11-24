@@ -317,6 +317,31 @@ public final class EmbeddedDatabaseManager {
             } catch (Exception ex) {
                 LOG.debug("Notice ensuring assigned_role_ids: {}", ex.getMessage());
             }
+
+            // 4. Ensure subjects table has section, semester, academic_year, instructor_id
+            String[] subjectCols = {
+                "ALTER TABLE subjects ADD COLUMN IF NOT EXISTS section VARCHAR(30) NULL",
+                "ALTER TABLE subjects ADD COLUMN IF NOT EXISTS semester VARCHAR(20) NULL",
+                "ALTER TABLE subjects ADD COLUMN IF NOT EXISTS academic_year VARCHAR(20) NULL",
+                "ALTER TABLE subjects ADD COLUMN IF NOT EXISTS instructor_id INT NULL"
+            };
+            for (String sql : subjectCols) {
+                try {
+                    st.execute(sql);
+                } catch (Exception ignored) {}
+            }
+
+            // 5. Ensure enrollments table has instructor_id, grade, enrolled_at
+            String[] enrollmentCols = {
+                "ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS instructor_id INT NULL",
+                "ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS grade VARCHAR(20) NULL",
+                "ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS enrolled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP"
+            };
+            for (String sql : enrollmentCols) {
+                try {
+                    st.execute(sql);
+                } catch (Exception ignored) {}
+            }
         } catch (Exception e) {
             LOG.warn("Notice during embedded schema migration: {}", e.getMessage());
         }

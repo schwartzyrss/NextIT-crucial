@@ -104,7 +104,23 @@ public class JdbcEnrollmentRepository {
         } catch (SQLException e) { throw new AppException("Failed to load enrollments", e); }
     }
 
+    private static volatile boolean checkedEnrollmentColumns = false;
+
+    private static void ensureEnrollmentColumns() {
+        if (checkedEnrollmentColumns) return;
+        try (Connection c = DatabaseConfig.getConnection();
+             Statement st = c.createStatement()) {
+            st.execute("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS instructor_id INT NULL");
+            st.execute("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS grade VARCHAR(20) NULL");
+            st.execute("ALTER TABLE enrollments ADD COLUMN IF NOT EXISTS enrolled_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP");
+            checkedEnrollmentColumns = true;
+        } catch (Exception ignored) {
+            checkedEnrollmentColumns = true;
+        }
+    }
+
     public void save(Enrollment e) {
+        ensureEnrollmentColumns();
         String sql = "INSERT INTO enrollments (student_id, subject_id, academic_year, semester, status, instructor_id, grade, enrolled_at) VALUES (?,?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -121,10 +137,11 @@ public class JdbcEnrollmentRepository {
             try (ResultSet k = ps.getGeneratedKeys()) {
                 if (k.next()) e.setEnrollmentId(k.getInt(1));
             }
-        } catch (SQLException ex) { throw new AppException("Failed to save enrollment", ex); }
+        } catch (SQLException ex) { throw new AppException("Failed to save enrollment: " + (ex.getMessage() != null ? ex.getMessage() : ""), ex); }
     }
 
     public void update(Enrollment e) {
+        ensureEnrollmentColumns();
         String sql = "UPDATE enrollments SET student_id=?, subject_id=?, academic_year=?, semester=?, status=?, instructor_id=?, grade=? WHERE enrollment_id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
@@ -137,7 +154,7 @@ public class JdbcEnrollmentRepository {
             ps.setString(7, e.getGrade());
             ps.setInt(8, e.getEnrollmentId());
             ps.executeUpdate();
-        } catch (SQLException ex) { throw new AppException("Failed to update enrollment", ex); }
+        } catch (SQLException ex) { throw new AppException("Failed to update enrollment: " + (ex.getMessage() != null ? ex.getMessage() : ""), ex); }
     }
 
     public void delete(int enrollmentId) {
