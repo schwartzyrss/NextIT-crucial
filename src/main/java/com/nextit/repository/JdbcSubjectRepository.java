@@ -3,6 +3,8 @@ package com.nextit.repository;
 import com.nextit.config.DatabaseConfig;
 import com.nextit.exception.AppException;
 import com.nextit.model.Subject;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -10,6 +12,23 @@ import java.util.List;
 import java.util.Optional;
 
 public class JdbcSubjectRepository {
+
+    private static final Logger log = LoggerFactory.getLogger(JdbcSubjectRepository.class);
+    private static volatile boolean checkedSubjectColumns = false;
+
+    private static void ensureSubjectColumns() {
+        if (checkedSubjectColumns) return;
+        try (Connection c = DatabaseConfig.getConnection();
+             Statement st = c.createStatement()) {
+            st.execute("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS section VARCHAR(30) NULL");
+            st.execute("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS semester VARCHAR(20) NULL");
+            st.execute("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS academic_year VARCHAR(20) NULL");
+            st.execute("ALTER TABLE subjects ADD COLUMN IF NOT EXISTS instructor_id INT NULL");
+            checkedSubjectColumns = true;
+        } catch (Exception ignored) {
+            checkedSubjectColumns = true;
+        }
+    }
 
     public Optional<Subject> findById(int subjectId) {
         try (Connection c = DatabaseConfig.getConnection();
@@ -55,6 +74,7 @@ public class JdbcSubjectRepository {
     }
 
     public void save(Subject s) {
+        ensureSubjectColumns();
         String sql = "INSERT INTO subjects (subject_code, subject_name, units, description, instructor_id, section, semester, academic_year) VALUES (?,?,?,?,?,?,?,?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -68,10 +88,14 @@ public class JdbcSubjectRepository {
             ps.setString(8, s.getAcademicYear());
             ps.executeUpdate();
             try (ResultSet k = ps.getGeneratedKeys()) { if (k.next()) s.setSubjectId(k.getInt(1)); }
-        } catch (SQLException e) { throw new AppException("Failed to save subject", e); }
+        } catch (SQLException e) {
+            log.error("Failed to save subject '{}': {}", s.getSubjectCode(), e.getMessage(), e);
+            throw new AppException("Failed to save subject: " + (e.getMessage() != null ? e.getMessage() : ""), e);
+        }
     }
 
     public void update(Subject s) {
+        ensureSubjectColumns();
         String sql = "UPDATE subjects SET subject_code=?, subject_name=?, units=?, description=?, instructor_id=?, section=?, semester=?, academic_year=? WHERE subject_id=?";
         try (Connection c = DatabaseConfig.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, s.getSubjectCode());
@@ -84,7 +108,10 @@ public class JdbcSubjectRepository {
             ps.setString(8, s.getAcademicYear());
             ps.setInt(9, s.getSubjectId());
             ps.executeUpdate();
-        } catch (SQLException e) { throw new AppException("Failed to update subject", e); }
+        } catch (SQLException e) {
+            log.error("Failed to update subject '{}': {}", s.getSubjectCode(), e.getMessage(), e);
+            throw new AppException("Failed to update subject: " + (e.getMessage() != null ? e.getMessage() : ""), e);
+        }
     }
 
     public void delete(int id) {

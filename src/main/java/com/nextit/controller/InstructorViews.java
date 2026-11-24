@@ -474,7 +474,12 @@ public final class InstructorViews {
                     // 3. Show enhanced NextIT confirmation modal
                     showSubjectConfirmationModal(topWindow, s, chosenInstructorName, isNew);
                 } catch (Exception ex) {
-                    Alerts.error("Failed to save subject: " + ex.getMessage());
+                    String msg = ex.getMessage();
+                    if (msg == null || msg.isBlank()) msg = "An unexpected error occurred while saving.";
+                    if (!msg.toLowerCase().startsWith("failed to save subject")) {
+                        msg = "Failed to save subject: " + msg;
+                    }
+                    Alerts.error(msg);
                 }
             });
         }
