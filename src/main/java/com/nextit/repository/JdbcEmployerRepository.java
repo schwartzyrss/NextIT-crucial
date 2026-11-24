@@ -35,6 +35,10 @@ public class JdbcEmployerRepository {
         } catch (SQLException e) { throw new AppException("Failed to load employer", e); }
     }
 
+    public String generateNextEmployerNumber(int year) {
+        return com.nextit.service.RoleIdService.getInstance().generateUniqueId(com.nextit.model.Role.EMPLOYER, year);
+    }
+
     public List<Employer> findAll() {
         List<Employer> list = new ArrayList<>();
         try (Connection c = DatabaseConfig.getConnection();
@@ -73,7 +77,8 @@ public class JdbcEmployerRepository {
     }
 
     public void update(Employer e0) {
-        String sql = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=?, job_title=? WHERE employer_id=?";
+        // job_title (holds role-based employer identifier) is strictly immutable upon assignment
+        String sql = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=? WHERE employer_id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, e0.getCompanyName());
@@ -81,19 +86,17 @@ public class JdbcEmployerRepository {
             ps.setString(3, e0.getContactPerson());
             ps.setString(4, e0.getContactNumber());
             ps.setString(5, e0.getAddress());
-            ps.setString(6, e0.getJobTitle());
-            ps.setInt(7, e0.getEmployerId());
+            ps.setInt(6, e0.getEmployerId());
             int affected = ps.executeUpdate();
             if (affected == 0 && e0.getUserId() > 0) {
-                String sqlByUserId = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=?, job_title=? WHERE user_id=?";
+                String sqlByUserId = "UPDATE employers SET company_name=?, industry=?, contact_person=?, contact_number=?, address=? WHERE user_id=?";
                 try (PreparedStatement ps2 = c.prepareStatement(sqlByUserId)) {
                     ps2.setString(1, e0.getCompanyName());
                     ps2.setString(2, e0.getIndustry());
                     ps2.setString(3, e0.getContactPerson());
                     ps2.setString(4, e0.getContactNumber());
                     ps2.setString(5, e0.getAddress());
-                    ps2.setString(6, e0.getJobTitle());
-                    ps2.setInt(7, e0.getUserId());
+                    ps2.setInt(6, e0.getUserId());
                     affected = ps2.executeUpdate();
                 }
             }

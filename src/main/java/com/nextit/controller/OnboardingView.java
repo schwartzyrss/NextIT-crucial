@@ -103,6 +103,15 @@ public class OnboardingView {
             return new JdbcInstructorRepository().generateNextFacultyNumber(year > 2000 ? year : getCurrentYear());
         }
 
+        public String getGeneratedEmployerId() {
+            int year = getCurrentYear();
+            return new JdbcEmployerRepository().generateNextEmployerNumber(year);
+        }
+
+        public String getGeneratedEmployerIdForYear(int year) {
+            return new JdbcEmployerRepository().generateNextEmployerNumber(year > 2000 ? year : getCurrentYear());
+        }
+
         public String getGraduationYearsJson() {
             int current = java.time.Year.now().getValue();
             StringBuilder sb = new StringBuilder("[");
@@ -215,6 +224,9 @@ public class OnboardingView {
                         if (detail1 == null || detail1.isBlank()) {
                             throw new AppException("Legitimate business or organization name is required.");
                         }
+                        if (finalIdNumber.isBlank()) {
+                            finalIdNumber = new JdbcEmployerRepository().generateNextEmployerNumber(java.time.Year.now().getValue());
+                        }
                         analysis = antiFake.analyzeEmployer(detail1, finalIdNumber, cleanEmail, firstName + " " + lastName);
                     } else {
                         throw new AppException("Unsupported role selection.");
@@ -231,6 +243,9 @@ public class OnboardingView {
                     user.setVerifiedAt(java.time.LocalDateTime.now());
                     userRepo.save(user);
 
+                    // Server-side atomic reservation & collision prevention
+                    finalIdNumber = com.nextit.service.RoleIdService.getInstance().assignAndReserveId(role, user.getUserId(), finalIdNumber);
+
                     // Save role-specific profiles
                     if (role == Role.STUDENT) {
                         JdbcStudentRepository studentRepo = new JdbcStudentRepository();
@@ -246,44 +261,16 @@ public class OnboardingView {
                         s.setYearLevel(yr > 0 ? yr : 1);
                         s.setSection("A");
                         s.setEnrollmentStatus("Enrolled");
-
-                        // Atomic retry loop for collision-safe student ID assignment
-                        boolean saved = false;
-                        int attempts = 0;
-                        int currentYear = java.time.Year.now().getValue();
-                        while (!saved && attempts < 10) {
-                            attempts++;
-                            try {
-                                s.setStudentNumber(finalIdNumber);
-                                studentRepo.save(s);
-                                saved = true;
-                            } catch (Exception ex) {
-                                if (attempts >= 10) throw ex;
-                                finalIdNumber = studentRepo.generateNextStudentNumber(currentYear);
-                            }
-                        }
+                        s.setStudentNumber(finalIdNumber);
+                        studentRepo.save(s);
                     } else if (role == Role.INSTRUCTOR) {
                         JdbcInstructorRepository instRepo = new JdbcInstructorRepository();
                         Instructor inst = new Instructor();
                         inst.setUserId(user.getUserId());
                         inst.setDepartment((detail1 != null && !detail1.isBlank()) ? detail1.trim() : "Computer Studies");
                         inst.setSpecialization((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Information Technology");
-
-                        // Atomic retry loop for collision-safe faculty employee ID assignment
-                        boolean saved = false;
-                        int attempts = 0;
-                        int currentYear = java.time.Year.now().getValue();
-                        while (!saved && attempts < 10) {
-                            attempts++;
-                            try {
-                                inst.setEmployeeNumber(finalIdNumber);
-                                instRepo.save(inst);
-                                saved = true;
-                            } catch (Exception ex) {
-                                if (attempts >= 10) throw ex;
-                                finalIdNumber = instRepo.generateNextFacultyNumber(currentYear);
-                            }
-                        }
+                        inst.setEmployeeNumber(finalIdNumber);
+                        instRepo.save(inst);
                     } else if (role == Role.EMPLOYER) {
                         JdbcEmployerRepository empRepo = new JdbcEmployerRepository();
                         Employer emp = new Employer();
@@ -291,7 +278,7 @@ public class OnboardingView {
                         emp.setCompanyName(detail1.trim());
                         emp.setIndustry((detail2 != null && !detail2.isBlank()) ? detail2.trim() : "Technology");
                         emp.setContactPerson(user.getFullName());
-                        emp.setJobTitle((finalIdNumber != null && !finalIdNumber.isBlank()) ? finalIdNumber.trim() : "Corporate Representative");
+                        emp.setJobTitle(finalIdNumber);
                         emp.setContactNumber("");
                         emp.setAddress("Technology Campus");
                         empRepo.save(emp);
@@ -304,7 +291,7 @@ public class OnboardingView {
                     req.setIdNumber(finalIdNumber);
                     req.setInstitutionalEmail(cleanEmail);
                     req.setOrganizationName(detail1 != null ? detail1.trim() : null);
-                    req.setBusinessRegistrationNumber(role == Role.EMPLOYER && detail3 != null ? detail3.trim() : null);
+                    req.setBusinessRegistrationNumber(finalIdNumber);
                     req.setDocumentReference("Onboarding Self-Registration Submission");
                     String gradNote = (role == Role.STUDENT && detail2 != null && !detail2.isBlank())
                             ? " [Expected Graduation: " + detail2.trim() + "]"

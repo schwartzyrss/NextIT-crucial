@@ -49,34 +49,7 @@ public class JdbcStudentRepository {
     }
 
     public String generateNextStudentNumber(int year) {
-        int fullYear = year >= 1000 ? year : (year > 0 ? 2000 + year : java.time.Year.now().getValue());
-        String prefix = fullYear + "-";
-        int maxSeq = 0;
-        String sql = "SELECT student_number FROM students WHERE student_number LIKE ? "
-                + "UNION "
-                + "SELECT id_number FROM verification_requests WHERE id_number LIKE ?";
-        try (Connection c = DatabaseConfig.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, prefix + "%");
-            ps.setString(2, prefix + "%");
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String num = rs.getString(1);
-                    if (num != null && num.startsWith(prefix)) {
-                        String suffix = num.substring(prefix.length()).trim();
-                        try {
-                            int seq = Integer.parseInt(suffix);
-                            if (seq > maxSeq) {
-                                maxSeq = seq;
-                            }
-                        } catch (NumberFormatException ignored) {}
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            throw new AppException("Failed to generate the next student number", e);
-        }
-        return String.format("%04d-%04d", fullYear, maxSeq + 1);
+        return com.nextit.service.RoleIdService.getInstance().generateUniqueId(com.nextit.model.Role.STUDENT, year);
     }
 
     public List<Student> findAll() {
@@ -115,25 +88,24 @@ public class JdbcStudentRepository {
     }
 
     public void update(Student s) {
-        String sql = "UPDATE students SET student_number=?, program=?, year_level=?, section=?, enrollment_status=? WHERE student_id=?";
+        // student_number is strictly immutable upon assignment
+        String sql = "UPDATE students SET program=?, year_level=?, section=?, enrollment_status=? WHERE student_id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setString(1, s.getStudentNumber());
-            ps.setString(2, s.getProgram());
-            ps.setInt(3, s.getYearLevel());
-            ps.setString(4, s.getSection());
-            ps.setString(5, s.getEnrollmentStatus());
-            ps.setInt(6, s.getStudentId());
+            ps.setString(1, s.getProgram());
+            ps.setInt(2, s.getYearLevel());
+            ps.setString(3, s.getSection());
+            ps.setString(4, s.getEnrollmentStatus());
+            ps.setInt(5, s.getStudentId());
             int affected = ps.executeUpdate();
             if (affected == 0 && s.getUserId() > 0) {
-                String sqlByUserId = "UPDATE students SET student_number=?, program=?, year_level=?, section=?, enrollment_status=? WHERE user_id=?";
+                String sqlByUserId = "UPDATE students SET program=?, year_level=?, section=?, enrollment_status=? WHERE user_id=?";
                 try (PreparedStatement ps2 = c.prepareStatement(sqlByUserId)) {
-                    ps2.setString(1, s.getStudentNumber());
-                    ps2.setString(2, s.getProgram());
-                    ps2.setInt(3, s.getYearLevel());
-                    ps2.setString(4, s.getSection());
-                    ps2.setString(5, s.getEnrollmentStatus());
-                    ps2.setInt(6, s.getUserId());
+                    ps2.setString(1, s.getProgram());
+                    ps2.setInt(2, s.getYearLevel());
+                    ps2.setString(3, s.getSection());
+                    ps2.setString(4, s.getEnrollmentStatus());
+                    ps2.setInt(5, s.getUserId());
                     affected = ps2.executeUpdate();
                 }
             }

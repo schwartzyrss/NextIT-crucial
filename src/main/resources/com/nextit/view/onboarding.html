@@ -453,6 +453,8 @@
             this.fetchStudentIdPreview();
           } else if (r === 'instructor') {
             this.fetchFacultyIdPreview();
+          } else if (r === 'employer') {
+            this.fetchEmployerIdPreview();
           } else {
             this.idNumber = '';
           }
@@ -473,7 +475,7 @@
           }
         }
         const yr = this.getCurrentYear();
-        this.idNumber = yr + '-0001';
+        this.idNumber = 'STU-' + yr + '-000142';
       },
 
       fetchFacultyIdPreview() {
@@ -491,6 +493,23 @@
         }
         const yr = this.getCurrentYear();
         this.idNumber = 'FAC-' + yr + '-0001';
+      },
+
+      fetchEmployerIdPreview() {
+        if (this.role !== 'employer') return;
+        if (window.javaBridge && window.javaBridge.getGeneratedEmployerId) {
+          try {
+            const preview = window.javaBridge.getGeneratedEmployerId();
+            if (preview && preview.trim()) {
+              this.idNumber = preview.trim();
+              return;
+            }
+          } catch (e) {
+            console.error('Error querying generated employer ID:', e);
+          }
+        }
+        const yr = this.getCurrentYear();
+        this.idNumber = 'EMP-' + yr + '-0001';
       },
 
       gradYearsList: [],
@@ -679,6 +698,8 @@
           this.fetchStudentIdPreview();
         } else if (this.role === 'instructor') {
           this.fetchFacultyIdPreview();
+        } else if (this.role === 'employer') {
+          this.fetchEmployerIdPreview();
         }
       },
 
@@ -717,6 +738,9 @@
             return false;
           }
         } else if (this.role === 'employer') {
+          if (!this.idNumber || !this.idNumber.trim()) {
+            this.fetchEmployerIdPreview();
+          }
           if (!this.orgName || !this.orgName.trim()) {
             this.formError = 'Please specify your company or organization name.';
             return false;
@@ -726,7 +750,7 @@
             return false;
           }
           if (!this.idNumber || !this.idNumber.trim()) {
-            this.formError = 'Please provide your corporate contact title or registration.';
+            this.formError = 'Auto-generated employer ID could not be assigned. Please retry.';
             return false;
           }
         }
@@ -1507,7 +1531,7 @@
               <label class="block text-xs font-bold text-nextit-ink uppercase tracking-wider mb-1.5 pl-3">
                 <span x-show="role === 'student'">Student ID Number</span>
                 <span x-show="role === 'instructor'">Faculty Employee ID</span>
-                <span x-show="role === 'employer'">Corporate Contact / Title</span>
+                <span x-show="role === 'employer'">Employer ID Number</span>
               </label>
 
               <!-- STUDENT: Auto-generated read-only display field -->
@@ -1542,9 +1566,20 @@
                 </p>
               </div>
 
-              <!-- EMPLOYER: Manual text input -->
-              <div x-show="role === 'employer'">
-                <input type="text" x-model="idNumber" placeholder="e.g. HR Director / SEC-1234" class="clay-input-pill" />
+              <!-- EMPLOYER: Auto-generated read-only display field -->
+              <div x-show="role === 'employer'" class="relative">
+                <div class="clay-input-pill flex items-center justify-between cursor-default select-none bg-[#FAF8F5]/90 border border-[#C6A75E]">
+                  <span class="font-mono font-bold text-[#414141] text-sm tracking-wider" x-text="idNumber || 'Assigning Employer ID...'"></span>
+                  <div class="flex items-center gap-1.5 flex-shrink-0 ml-2">
+                    <span class="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-[#FAF4EE] border border-[#C6A75E] text-[#9E0B0F]">Auto-Generated</span>
+                  </div>
+                </div>
+                <p class="text-[11px] text-[#6E6862] font-medium mt-1.5 pl-3 flex items-center gap-1.5">
+                  <svg class="w-3.5 h-3.5 text-[#C6A75E] flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                  <span>Automatically assigned industry partner ID upon registration</span>
+                </p>
               </div>
             </div>
           </div>
@@ -1684,6 +1719,7 @@
               <div>
                 <div class="font-extrabold text-base text-[#FFFFFF]" x-text="(firstName || 'Alex') + ' ' + (lastName || 'Reyes')"></div>
                 <div class="text-xs text-[#F7EFE6] font-semibold" x-text="email || 'student@university.edu'"></div>
+                <div class="text-[11px] font-mono text-[#FAF8F5] mt-0.5 tracking-wider font-bold" x-text="'ID: ' + (idNumber || '')"></div>
                 <span class="inline-block mt-1 px-3 py-0.5 rounded-full text-[10px] font-bold bg-[#FAF4EE] border border-[#C6A75E] text-[#9E0B0F] shadow-sm">
                   ● Verified Identity
                 </span>
