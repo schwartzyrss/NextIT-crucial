@@ -120,6 +120,7 @@ public final class DatabaseTestServer {
 
         DB database;
         try {
+            System.setProperty("nextit.test.active", "true");
             database = DB.newEmbeddedDB(configuration);
             database.start();
         } catch (Exception e) {

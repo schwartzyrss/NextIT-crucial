@@ -344,6 +344,10 @@ public class OnboardingView {
                     scene.getStylesheets().add(getClass().getResource("/com/nextit/css/application.css").toExternalForm());
                     stage.setTitle("NextIT: Track Your Progress, Build Your Future");
                     stage.setScene(scene);
+                    stage.setOnCloseRequest(e -> {
+                        e.consume();
+                        com.nextit.util.SplashScreenView.shutdownApplication(stage);
+                    });
                     stage.centerOnScreen();
                 } catch (Exception e) {
                     log.error("Failed to return to login", e);

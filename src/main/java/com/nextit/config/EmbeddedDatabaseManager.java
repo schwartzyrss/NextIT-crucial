@@ -32,6 +32,12 @@ public final class EmbeddedDatabaseManager {
     private static final String CONNECTION_PARAMETERS =
             "?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=UTF-8";
 
+    static {
+        try {
+            Class.forName("com.mysql.cj.jdbc.Driver");
+        } catch (ClassNotFoundException ignored) {}
+    }
+
     private static DB embeddedDatabase;
     private static boolean started;
 
@@ -135,7 +141,14 @@ public final class EmbeddedDatabaseManager {
 
         @Override
         protected void cleanupOnExit() {
-            // Intentionally no-op to ensure persistent database files are never deleted on JVM shutdown.
+            Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+                try {
+                    LOG.info("JVM shutdown: cleanly terminating persistent embedded MariaDB process...");
+                    PersistentEmbeddedDB.this.stop();
+                } catch (Exception e) {
+                    LOG.debug("Notice while stopping database on JVM exit: {}", e.getMessage());
+                }
+            }, "nextit-persistent-mariadb-shutdown"));
         }
 
         static PersistentEmbeddedDB create(DBConfiguration config) throws ManagedProcessException {
@@ -156,12 +169,63 @@ public final class EmbeddedDatabaseManager {
         }
     }
 
+    /**
+     * Scans for and terminates any orphaned MariaDB mysqld.exe processes that may have
+     * lingered from unexpected application terminations, freeing locks on data files like ibdata1.
+     */
+    public static void killOrphanedMysqldProcesses(Path dataDir) {
+        if (System.getProperty("nextit.test.active") != null) {
+            return;
+        }
+        try {
+            long currentPid = ProcessHandle.current().pid();
+            String targetDataDirStr = (dataDir != null) ? dataDir.toAbsolutePath().toString().toLowerCase() : "";
+
+            ProcessHandle.allProcesses()
+                    .filter(p -> p.pid() != currentPid)
+                    .filter(p -> {
+                        String cmd = p.info().command().orElse("").toLowerCase();
+                        if (!cmd.endsWith("mysqld.exe") || !cmd.contains("mariadb4j")) {
+                            return false;
+                        }
+                        String line = p.info().commandLine().orElse("").toLowerCase();
+                        if (!line.isBlank()) {
+                            return (!targetDataDirStr.isBlank() && line.contains(targetDataDirStr))
+                                    || line.contains("nextit\\data");
+                        }
+                        return true;
+                    })
+                    .forEach(p -> {
+                        LOG.warn("Terminating orphaned MariaDB process [PID {}]", p.pid());
+                        p.destroyForcibly();
+                    });
+            Thread.sleep(400);
+        } catch (Exception e) {
+            LOG.debug("Notice during orphaned process check: {}", e.getMessage());
+        }
+    }
+
+    private static void cleanupStalePidFiles(Path dataDir) {
+        if (dataDir == null || !Files.isDirectory(dataDir)) return;
+        try (var stream = Files.newDirectoryStream(dataDir, "*.pid")) {
+            for (Path pidFile : stream) {
+                try {
+                    Files.deleteIfExists(pidFile);
+                    LOG.info("Removed stale database PID lock: {}", pidFile.getFileName());
+                } catch (Exception ignored) {}
+            }
+        } catch (Exception ignored) {}
+    }
+
     public static synchronized void ensureStarted() throws SQLException {
         if (started) return;
 
+        Path dataDir = resolveDataDirectory();
+        killOrphanedMysqldProcesses(dataDir);
+
         LOG.info("Starting persistent local embedded database...");
         try {
-            Path dataDir = resolveDataDirectory();
+            cleanupStalePidFiles(dataDir);
             LOG.info("Persistent database storage location: {}", dataDir.toAbsolutePath());
 
             DBConfigurationBuilder builder = DBConfigurationBuilder.newBuilder();

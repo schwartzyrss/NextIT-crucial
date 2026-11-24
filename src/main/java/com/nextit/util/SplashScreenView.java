@@ -249,6 +249,12 @@ public final class SplashScreenView {
             loginRoot.setOpacity(0.0);
             stage.setScene(loginScene);
 
+            // Ensure window close on the Login scene triggers clean application shutdown
+            stage.setOnCloseRequest(e -> {
+                e.consume();
+                shutdownApplication(stage);
+            });
+
             FadeTransition fadeIn = new FadeTransition(Duration.millis(350), loginRoot);
             fadeIn.setFromValue(0.0);
             fadeIn.setToValue(1.0);

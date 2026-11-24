@@ -22,6 +22,18 @@ public class Main extends Application {
         SplashScreenView.showAndInitialize(stage);
     }
 
+    @Override
+    public void stop() throws Exception {
+        log.info("Application stopping via JavaFX lifecycle: releasing background resources...");
+        try {
+            SystemService.getInstance().stop();
+        } catch (Exception ignored) {}
+        try {
+            EmbeddedDatabaseManager.stop();
+        } catch (Exception ignored) {}
+        super.stop();
+    }
+
     private static void installShutdownHook() {
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             log.info("JVM shutdown hook initiated: cleanly releasing NextIT background resources...");
