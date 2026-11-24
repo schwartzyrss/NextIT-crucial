@@ -8,13 +8,6 @@ public final class AppConfig {
     private AppConfig() {}
 
     /**
-     * Master toggle for Temporary Quick-Access Login (Dev / Demo Account Switcher).
-     * Set to {@code false} before final release to completely hide and unmanage
-     * the quick-access panel from the login interface in a single line.
-     */
-    public static boolean ENABLE_QUICK_LOGIN = true;
-
-    /**
      * Flag governing whether offline/development OTP bypass codes (e.g., 123456, 000000,
      * or locally generated test tokens) are accepted when the application cannot reach
      * Supabase over HTTPS (e.g. offline sandbox, defense testing, local dev).
@@ -27,23 +20,6 @@ public final class AppConfig {
      * the UI flow to proceed to verification/login when no email API key is set or when offline.
      */
     public static boolean DEV_BYPASS_EMAIL = true;
-
-    /**
-     * Resolves whether quick login is active. Checks environment variable
-     * {@code NEXTIT_ENABLE_QUICK_LOGIN}, system property {@code nextit.enable.quick.login},
-     * and defaults to {@link #ENABLE_QUICK_LOGIN}.
-     */
-    public static boolean isQuickLoginEnabled() {
-        String env = System.getenv("NEXTIT_ENABLE_QUICK_LOGIN");
-        if (env != null && !env.isBlank()) {
-            return Boolean.parseBoolean(env.trim());
-        }
-        String prop = System.getProperty("nextit.enable.quick.login");
-        if (prop != null && !prop.isBlank()) {
-            return Boolean.parseBoolean(prop.trim());
-        }
-        return ENABLE_QUICK_LOGIN;
-    }
 
     /**
      * Resolves whether offline OTP fallback is allowed. Checks environment variable
